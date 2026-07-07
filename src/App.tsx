@@ -631,17 +631,6 @@ export default function App() {
     }
   }, [isAuthenticated, settings, isNewInstall]);
 
-  useEffect(() => {
-    fetch("/api/system/check-update")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.currentVersion) setAppVersion(data.currentVersion);
-        if (data.latestVersion) setLatestVersion(data.latestVersion);
-        if (data.updateAvailable) setUpdateAvailable(true);
-      })
-      .catch((err) => console.warn("Check update failed", err));
-  }, []);
-
   const handleUpdate = () => {
     setShowUpdateConfirm(true);
   };

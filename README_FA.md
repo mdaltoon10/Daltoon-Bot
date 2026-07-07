@@ -1,7 +1,7 @@
 [English](README.md) | [فارسی](README_FA.md)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/banner.png" alt="Daltoon Bot" width="800">
+  <img src="banner.png" alt="Daltoon Bot" width="800">
 </div>
 
 <p align="center">
