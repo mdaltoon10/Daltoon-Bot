@@ -572,7 +572,7 @@ export default function App() {
 
   const [updateChannel, setUpdateChannel] = useState<"stable" | "dev">(() => {
     const cached = localStorage.getItem("daltoon_update_channel");
-    return (cached as any) || (appVersion.includes("dev") ? "dev" : "stable");
+    return (cached as any) || (appVersion.toLowerCase().includes("dev") ? "dev" : "stable");
   });
   const [showUpdatePanel, setShowUpdatePanel] = useState(false);
 
@@ -1670,7 +1670,7 @@ export default function App() {
             onClick={() => setShowUpdatePanel(true)}
           >
             <div className="text-gray-500 text-[10px] font-mono tracking-wider">
-              v{appVersion} {appVersion.includes('dev') ? (
+              v{appVersion} {appVersion.toLowerCase().includes('dev') ? (
                 <span className="text-amber-400 font-bold ml-1">
                   (Dev Build)
                 </span>
