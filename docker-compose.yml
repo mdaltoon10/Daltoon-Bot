@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  daltoon-store:
+    build: .
+    container_name: daltoon_store_container
+    ports:
+      - "3000:3000"
+    restart: always
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./Daltoon_Bot.json:/app/Daltoon_Bot.json
+      - ./database.json:/app/database.json

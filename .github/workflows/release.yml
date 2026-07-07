@@ -1,0 +1,52 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Install Dependencies
+        run: npm ci || npm install
+        
+      - name: Build Project
+        run: npm run build
+        
+      - name: Prepare Package
+        run: |
+          mkdir -p release-pkg
+          if [ -d "dist" ]; then cp -r dist release-pkg/; fi
+          cp package.json release-pkg/ || true
+          cp package-lock.json release-pkg/ || true
+          cp server.ts release-pkg/ || true
+          cp daltoon-dashboard release-pkg/ 2>/dev/null || true
+          cp install.sh release-pkg/ 2>/dev/null || true
+          
+      - name: Create Archives
+        run: |
+          tar -czvf daltoon-bot-linux-amd64.tar.gz -C release-pkg .
+          tar -czvf daltoon-bot-linux-arm64.tar.gz -C release-pkg .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-dev') || contains(github.ref, '-rc') }}
+          files: |
+            daltoon-bot-linux-amd64.tar.gz
+            daltoon-bot-linux-arm64.tar.gz

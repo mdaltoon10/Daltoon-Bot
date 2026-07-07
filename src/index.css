@@ -1,0 +1,378 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Fira+Code:wght@400;500&family=Vazirmatn:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Vazirmatn", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "Fira Code", monospace;
+  
+  --color-primary-50: #f5f3ff;
+  --color-primary-100: #ede9fe;
+  --color-primary-500: #a855f7;
+  --color-primary-600: #8b5cf6;
+  --color-primary-700: #7c3aed;
+  
+  --color-accent-purple: #d8b4fe;
+  --color-accent-pink: #f472b6;
+
+  /* Remap indigo classes to purple/violet to dynamically change colors throughout all components */
+  --color-indigo-50: #faf5ff;
+  --color-indigo-100: #f3e8ff;
+  --color-indigo-200: #e9d5ff;
+  --color-indigo-300: #d8b4fe;
+  --color-indigo-400: #c084fc;
+  --color-indigo-500: #a855f7;
+  --color-indigo-600: #8b5cf6;
+  --color-indigo-700: #7c3aed;
+  --color-indigo-800: #6b21a8;
+  --color-indigo-900: #581c87;
+  --color-indigo-950: #3b0764;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #030305;
+  color: #f3f4f6;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.04) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+
+/* Deep Glassmorphic Overrides for existing dark background panels */
+.bg-\[\#0b0f19\], 
+.bg-\[\#0c0f1c\], 
+.bg-\[\#111827\], 
+.bg-\[\#0f1424\], 
+.bg-\[\#0f1626\],
+.bg-\[\#161c2a\],
+.bg-\[\#141b2c\],
+.bg-\[\#111625\],
+.bg-\[\#0f172a\],
+.bg-\[\#0b101d\],
+.bg-\[\#13192e\],
+.bg-\[\#181f2a\],
+.bg-\[\#0a0e17\],
+.bg-slate-900, 
+.bg-slate-950, 
+.bg-gray-900 {
+  background: rgba(10, 10, 15, 0.75) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Modals or high-emphasis dialogs should be solid to look clear on top of other content */
+.bg-\[\#111827\].shadow-2xl,
+.bg-\[\#0f1424\].shadow-2xl,
+.modal,
+div[role="dialog"] {
+  background: rgba(12, 12, 18, 0.96) !important;
+  border: 1px solid rgba(168, 85, 247, 0.25) !important;
+  box-shadow: 0 0 50px rgba(139, 92, 246, 0.15) !important;
+}
+
+/* Overriding nested lists or inner elements to look integrated */
+.bg-\[\#1f2937\], 
+.bg-\[\#1a2234\],
+.bg-slate-800,
+.bg-gray-800 {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Exclude active tabs from background override */
+button.bg-indigo-600\/10,
+button.bg-purple-600\/10 {
+  background: rgba(168, 85, 247, 0.1) !important;
+}
+
+/* Overriding input fields, textareas, and select boxes to look super modern */
+input, select, textarea {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  color: #f3f4f6 !important;
+  transition: all 0.2s ease-in-out;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(168, 85, 247, 0.4) !important;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.15) !important;
+}
+
+/* Translucent borders and separators */
+.border-\[\#1f2937\], 
+.border-slate-800, 
+.border-gray-700,
+.border-slate-700,
+.border-\[\#374151\],
+.divide-\[\#1f2937\] > *,
+.divide-slate-800 > *,
+.divide-gray-700 > * {
+  border-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Smooth row hover feedback for all tables */
+tr {
+  transition: all 0.2s ease-in-out;
+}
+tr:hover {
+  background: rgba(255, 255, 255, 0.015) !important;
+}
+
+/* Glassmorphism & High Tech Glow utilities */
+.glass-panel {
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(15, 15, 24, 0.85);
+  border-color: rgba(168, 85, 247, 0.2);
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.08);
+  transform: translateY(-2px);
+}
+
+.glow-purple {
+  box-shadow: 0 0 25px rgba(168, 85, 247, 0.15);
+}
+
+.glow-text-purple {
+  text-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #030305;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e1e2d;
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a2d54;
+}
+
+/* Custom keyframe animations */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.05);
+  }
+}
+
+.pulse-glow-bg {
+  animation: pulseGlow 10s infinite ease-in-out;
+}
+
+/* =========================================
+   MODERN LIGHT THEME (CRYSTAL SNOW)
+   ========================================= */
+body.light {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%),
+    linear-gradient(135deg, #f8fafc 0%, #ffffff 100%) !important;
+}
+
+body.light .pulse-glow-bg {
+  display: none !important;
+}
+
+/* Base Text Mapping for Light Mode */
+body.light .text-white,
+body.light .text-gray-100,
+body.light .text-gray-200,
+body.light .text-slate-100,
+body.light .text-zinc-100 {
+  color: #1e293b !important;
+}
+
+/* Keep white text ONLY on actual colored backgrounds */
+body.light .bg-blue-600 .text-white,
+body.light .bg-indigo-600 .text-white,
+body.light .bg-purple-600 .text-white,
+body.light .bg-emerald-600 .text-white,
+body.light .bg-rose-600 .text-white,
+body.light .bg-amber-600 .text-white,
+body.light button.bg-indigo-600,
+body.light button.bg-blue-600,
+body.light .bg-gradient-to-br .text-white,
+body.light .bg-gradient-to-r .text-white,
+body.light .bg-primary-600 .text-white {
+  color: #ffffff !important;
+}
+
+/* Card Styling - Crystal Snow Glass */
+body.light .bg-gray-900\/40,
+body.light .bg-gray-900\/50,
+body.light .bg-black\/40,
+body.light .bg-black\/20,
+body.light .bg-white\/5,
+body.light .glass-panel,
+body.light .bg-\[\#0b0f19\], 
+body.light .bg-\[\#0c0f1c\], 
+body.light .bg-\[\#111827\], 
+body.light .bg-\[\#0f1424\], 
+body.light .bg-\[\#0f1626\],
+body.light .bg-\[\#161c2a\],
+body.light .bg-\[\#141b2c\],
+body.light .bg-\[\#111625\],
+body.light .bg-\[\#0f172a\],
+body.light .bg-\[\#0b101d\],
+body.light .bg-\[\#13192e\],
+body.light .bg-\[\#181f2a\],
+body.light .bg-\[\#0a0e17\],
+body.light .bg-slate-900, 
+body.light .bg-slate-950, 
+body.light .bg-gray-900 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Inner elements / Secondary backgrounds remapping */
+body.light .bg-\[\#1f2937\], 
+body.light .bg-\[\#1a2234\],
+body.light .bg-slate-800,
+body.light .bg-gray-800,
+body.light .bg-slate-900\/40,
+body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/40 {
+  background: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* Muted Text - Slate variants for hierarchy */
+body.light .text-gray-400,
+body.light .text-slate-400,
+body.light .text-zinc-400 {
+  color: #64748b !important;
+}
+
+body.light .text-gray-500,
+body.light .text-slate-500,
+body.light .text-zinc-500 {
+  color: #475569 !important;
+}
+
+body.light .text-indigo-400,
+body.light .text-purple-400,
+body.light .text-violet-400 {
+  color: #4f46e5 !important;
+}
+
+/* Border mapping */
+body.light .border-white\/10,
+body.light .border-gray-800,
+body.light .border-slate-800,
+body.light .border-zinc-800,
+body.light .divide-white\/5 > *,
+body.light .divide-gray-800 > * {
+  border-color: #e2e8f0 !important;
+}
+
+/* Sidebar & Navigation */
+body.light aside.bg-black,
+body.light .bg-slate-900.backdrop-blur-md {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+}
+
+/* Hover States */
+body.light .hover\:bg-white\/10:hover,
+body.light .hover\:bg-white\/5:hover,
+body.light .glass-panel-hover:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Inputs & Forms */
+body.light input,
+body.light textarea,
+body.light select {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+body.light input:focus,
+body.light textarea:focus,
+body.light select:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1) !important;
+}
+
+body.light input::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Specialized Components Mapping */
+body.light .bg-clip-text {
+  background-image: linear-gradient(to right, #4338ca, #6d28d9) !important;
+  color: transparent !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+}
+
+/* Tooltips & Modals */
+body.light .modal,
+body.light div[role="dialog"] {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Usage Monitor bar */
+body.light .bg-black\/80 {
+  background: #ffffff !important;
+  border-top: 1px solid #e2e8f0 !important;
+}
+
+/* Scrollbar Light Mode */
+body.light ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body.light ::-webkit-scrollbar-thumb {
+  background: #e2e8f0 !important;
+  border: 4px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+body.light ::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1 !important;
+}
+
+/* Status Colors Overrides */
+body.light .text-emerald-400 { color: #059669 !important; }
+body.light .bg-emerald-500\/10 { background: #ecfdf5 !important; }
+
+body.light .text-rose-400 { color: #e11d48 !important; }
+body.light .bg-rose-500\/10 { background: #fff1f2 !important; }
+
+body.light .text-amber-400 { color: #d97706 !important; }
+body.light .bg-amber-500\/10 { background: #fffbeb !important; }
+
+
