@@ -5727,6 +5727,38 @@ app.get("/api/system/check-update", async (req, res) => {
     };
 
     try {
+      if (channel === 'dev') {
+        let currentSha = '';
+        if (isGit) {
+          const gitRev = await runCommandAsync('git rev-parse --short HEAD');
+          currentSha = gitRev.stdout.trim();
+          version = `Dev+${currentSha}`;
+        }
+        const commitUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/commits/dev?t=${Date.now()}`;
+        const commitRes = await fetch(commitUrl, {
+          headers: {
+            'User-Agent': 'Daltoon-Dashboard',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          signal: AbortSignal.timeout(8000)
+        });
+        if (commitRes.ok) {
+          const commitData = await commitRes.json();
+          const sha = commitData.sha.substring(0, 7);
+          latestVersion = `Dev+${sha}`;
+          if (version !== latestVersion) {
+            updateAvailable = true;
+          }
+          res.json({
+            success: true,
+            updateAvailable,
+            currentVersion: version,
+            latestVersion
+          });
+          return;
+        }
+      }
+      
       const githubUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases?t=${Date.now()}`;
       const response = await fetch(githubUrl, { 
         headers: { 
@@ -5925,21 +5957,32 @@ app.post("/api/system/update", async (req, res) => {
         const statusResult = await runCommandAsync("git status");
         writeLog(`Git status before update:\n${statusResult.stdout}\n${statusResult.stderr}`);
 
-        // Step 1: Download Release Artifact
-        writeLog(`Step 1: Downloading release artifact for ${targetTag}...`);
-        const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-        const artifactName = `daltoon-bot-linux-${arch}.tar.gz`;
-        const downloadUrl = `https://github.com/mdaltoon10/Daltoon-Bot/releases/download/${targetTag}/${artifactName}`;
-        
-        const curlCmd = `curl -L -o update.tar.gz "${downloadUrl}"`;
-        const curlResult = await runCommandAsync(curlCmd);
-        writeLog(`Download output:\n${curlResult.stdout}\n${curlResult.stderr}`);
+        if (channel === 'dev') {
+          writeLog(`Step 1: Pulling latest changes from dev branch...`);
+          const gitCmd = `git fetch origin dev && git reset --hard origin/dev`;
+          const gitResult = await runCommandAsync(gitCmd);
+          writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
+          
+          writeLog(`Step 2: Building project...`);
+          const buildResult = await runCommandAsync(`npm run build`);
+          writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
+        } else {
+          // Step 1: Download Release Artifact
+          writeLog(`Step 1: Downloading release artifact for ${targetTag}...`);
+          const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+          const artifactName = `daltoon-bot-linux-${arch}.tar.gz`;
+          const downloadUrl = `https://github.com/mdaltoon10/Daltoon-Bot/releases/download/${targetTag}/${artifactName}`;
+          
+          const curlCmd = `curl -L -o update.tar.gz "${downloadUrl}"`;
+          const curlResult = await runCommandAsync(curlCmd);
+          writeLog(`Download output:\n${curlResult.stdout}\n${curlResult.stderr}`);
 
-        // Step 2: Extract Artifact
-        writeLog(`Step 2: Extracting artifact...`);
-        const extractCmd = `tar -xzf update.tar.gz && rm update.tar.gz`;
-        const extractResult = await runCommandAsync(extractCmd);
-        writeLog(`Extract output:\n${extractResult.stdout}\n${extractResult.stderr}`);
+          // Step 2: Extract Artifact
+          writeLog(`Step 2: Extracting artifact...`);
+          const extractCmd = `tar -xzf update.tar.gz && rm update.tar.gz`;
+          const extractResult = await runCommandAsync(extractCmd);
+          writeLog(`Extract output:\n${extractResult.stdout}\n${extractResult.stderr}`);
+        }
 
         // Step 3: Make files executable
         writeLog(`Step 3: Making executable files executable...`);
