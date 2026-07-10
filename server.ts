@@ -5703,7 +5703,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.8";
+  let version = "2.3.9";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
@@ -5863,11 +5863,6 @@ app.post("/api/system/update", async (req, res) => {
 
         let targetTag = "";
         const isGit = fs.existsSync(path.join(process.cwd(), ".git"));
-
-        if (!isGit) {
-          writeLog("Error: Not a git repository. Cannot update.");
-          return;
-        }
 
         // Determine target from GitHub Releases
         try {

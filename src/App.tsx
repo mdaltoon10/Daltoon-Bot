@@ -875,7 +875,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const CLIENT_VERSION = "2.3.8";
+  const CLIENT_VERSION = "2.3.9";
   const [appVersion, setAppVersion] = useState<string>(CLIENT_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
