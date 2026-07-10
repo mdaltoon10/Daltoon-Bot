@@ -904,10 +904,10 @@ export default function App() {
 
   useEffect(() => {
     const cachedVersion = localStorage.getItem("daltoon_last_running_version");
-    if (cachedVersion && cachedVersion !== appVersion) {
+    if (cachedVersion && cachedVersion !== appVersion && appVersion !== "1.0.0") {
       localStorage.setItem("daltoon_last_running_version", appVersion);
       console.log(`Version bumped from ${cachedVersion} to ${appVersion}. Reloading to clear cache.`);
-      window.location.reload();
+      window.location.href = window.location.pathname + "?v=" + appVersion + "&t=" + new Date().getTime();
     } else {
       localStorage.setItem("daltoon_last_running_version", appVersion);
     }

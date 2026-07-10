@@ -10,6 +10,23 @@
     <meta http-equiv="Expires" content="0" />
   </head>
   <body>
+    <script>
+      (function(){
+        var bust = new Date().getTime();
+        fetch("/api/system/check-update?t=" + bust)
+          .then(function(res) { return res.json(); })
+          .then(function(data) {
+             var currentVer = data.currentVersion || "2.3.2";
+             var localVer = localStorage.getItem("daltoon_last_running_version");
+             if (localVer && localVer !== currentVer && currentVer !== "1.0.0") {
+                localStorage.setItem("daltoon_last_running_version", currentVer);
+                window.location.href = window.location.pathname + "?v=" + currentVer + "&t=" + bust;
+             } else if (!localVer) {
+                localStorage.setItem("daltoon_last_running_version", currentVer);
+             }
+          }).catch(function(e){});
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
