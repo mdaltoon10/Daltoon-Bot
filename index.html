@@ -16,7 +16,7 @@
         fetch("/api/system/check-update?t=" + bust)
           .then(function(res) { return res.json(); })
           .then(function(data) {
-             var currentVer = data.currentVersion || "2.3.7";
+             var currentVer = data.currentVersion || "2.3.8";
              var localVer = localStorage.getItem("daltoon_last_running_version");
              if (localVer && localVer !== currentVer && currentVer !== "1.0.0") {
                 localStorage.setItem("daltoon_last_running_version", currentVer);

@@ -33,7 +33,7 @@ async function run() {
     "User-Agent": "Daltoon-Dashboard-Release-Script",
   };
 
-  // 1. Delete releases v2.3.7, v2.3.7, v2.3.7 if they exist
+  // 1. Delete releases v2.3.8, v2.3.8, v2.3.8 if they exist
   // We'll query all releases first to dynamically find any release IDs matching these tags
   console.log("Fetching existing releases to find IDs...");
   let releases = [];
@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v2.3.7"];
+  const tagsToDelete = ["v2.3.8"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v2.3.7", { stdio: "inherit" });
+    execSync("git tag -d v2.3.8", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v2.3.7`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v2.3.8`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v2.3.7 - implement robust process restart mechanism" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync('git commit -m "release: v2.3.8 - critical fix for update propagation and cache busting" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v2.3.7 tag
-  console.log("Creating and pushing local v2.3.7 tag...");
+  // 4. Create and push the v2.3.8 tag
+  console.log("Creating and pushing local v2.3.8 tag...");
   try {
-    execSync("git tag v2.3.7", { stdio: "inherit" });
-    execSync("git push origin v2.3.7", { stdio: "inherit" });
-    console.log("Tag v2.3.7 pushed successfully.");
+    execSync("git tag v2.3.8", { stdio: "inherit" });
+    execSync("git push origin v2.3.8", { stdio: "inherit" });
+    console.log("Tag v2.3.8 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -116,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v2.3.7...");
+  console.log("Creating new GitHub release for v2.3.8...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v2.3.7",
+      tag_name: "v2.3.8",
       target_commitish: "main",
-      name: "v2.3.7",
-      body: "### Changes in v2.3.7\n\n- Improved update robustness by ensuring the process restarts correctly after files are updated.\n- Fixed background coordination during release deployment.\n- Enhanced client-side cache busting consistency.",
+      name: "v2.3.8",
+      body: "### Changes in v2.3.8\n\n- Critical fix: Ensured server-side version reporting is accurately reflecting deployed files.\n- Improved update sequence with forced process termination to ensure service managers (PM2/Systemd) pick up new binary/code.\n- Fixed a race condition between file replacement and client-side reload.",
       draft: false,
       prerelease: false,
     };
