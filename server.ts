@@ -5703,7 +5703,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.9";
+  let version = "2.4.0";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
@@ -5927,7 +5927,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Default fallback if targetTag is still empty
         if (!targetTag) {
-          targetTag = "v2.3.9";
+          targetTag = "v2.4.0";
           writeLog(`Using default targetTag fallback: ${targetTag}`);
         }
 
