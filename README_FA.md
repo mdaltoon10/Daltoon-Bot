@@ -1,4 +1,4 @@
-[English](README.md) | [فارسی](README_FA.md)
+[English](README.md) | [فارسی](README_FA.md) | [العربية](README_AR.md) | [Русский](README_RU.md) | [Türkçe](README_TR.md) | [Español](README_ES.md)
 
 <div align="center">
   <img src="https://i.ibb.co/zhrG6Ljn/Banner.png" alt="Daltoon Bot" width="800">
