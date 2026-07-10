@@ -651,12 +651,15 @@ export default function DashboardOverview({
                               const rJson = await fb.json();
                               if (rJson.success) {
                                 console.log(dt.backupSuccess);
+                                alert(dt.backupSuccess);
                                 setTimeout(() => window.location.reload(), 1500);
                               } else {
                                 console.error(rJson.error || "Error restoring backup");
+                                alert(rJson.error || "Error restoring backup");
                               }
                             } catch(er: any) {
                               console.error(er.message);
+                              alert("Network/Payload error: " + er.message);
                             }
                      }
                   }

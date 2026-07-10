@@ -33,7 +33,7 @@ async function run() {
     "User-Agent": "Daltoon-Dashboard-Release-Script",
   };
 
-  // 1. Delete releases v2.3.1, v2.3.1, v2.3.1 if they exist
+  // 1. Delete releases v2.3.2, v2.3.2, v2.3.2 if they exist
   // We'll query all releases first to dynamically find any release IDs matching these tags
   console.log("Fetching existing releases to find IDs...");
   let releases = [];
@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v2.3.1"];
+  const tagsToDelete = ["v2.3.2"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v2.3.1", { stdio: "inherit" });
+    execSync("git tag -d v2.3.2", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v2.3.1`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v2.3.2`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v2.3.1 - major fix for update system and process coordination" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync('git commit -m "release: v2.3.2 - major fix for update system and process coordination" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v2.3.1 tag
-  console.log("Creating and pushing local v2.3.1 tag...");
+  // 4. Create and push the v2.3.2 tag
+  console.log("Creating and pushing local v2.3.2 tag...");
   try {
-    execSync("git tag v2.3.1", { stdio: "inherit" });
-    execSync("git push origin v2.3.1", { stdio: "inherit" });
-    console.log("Tag v2.3.1 pushed successfully.");
+    execSync("git tag v2.3.2", { stdio: "inherit" });
+    execSync("git push origin v2.3.2", { stdio: "inherit" });
+    console.log("Tag v2.3.2 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -116,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v2.3.1...");
+  console.log("Creating new GitHub release for v2.3.2...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v2.3.1",
+      tag_name: "v2.3.2",
       target_commitish: "main",
-      name: "v2.3.1",
-      body: "### Changes in v2.3.1\n\n- **Browser Cache Fix**: Added strict Cache-Control headers to the internal server so your browser properly loads the newest Dashboard interface instead of loading the old cached version.\n- If you update and don't see the new UI, just do a Hard Refresh in your browser.",
+      name: "v2.3.2",
+      body: "### Changes in v2.3.2\n\n- **Browser Cache Fix**: Added strict Cache-Control headers to the internal server so your browser properly loads the newest Dashboard interface instead of loading the old cached version.\n- If you update and don't see the new UI, just do a Hard Refresh in your browser.",
       draft: false,
       prerelease: false,
     };

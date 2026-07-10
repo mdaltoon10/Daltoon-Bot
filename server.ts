@@ -151,6 +151,38 @@ function readSqliteDb(): DbSchema {
     const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
     
     if (rows.length === 0) {
+      // Auto-migrate from JSON if it exists
+      const jsonDbPath = path.join(process.cwd(), "Daltoon_Bot.json");
+      if (fs.existsSync(jsonDbPath)) {
+        try {
+          console.log(`[Database] Empty SQLite found, but Daltoon_Bot.json exists. Auto-migrating data to SQLite...`);
+          const jsonData = JSON.parse(fs.readFileSync(jsonDbPath, "utf8"));
+          const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
+          const transaction = sqliteDb.transaction((obj: any) => {
+            for (const key of Object.keys(obj)) {
+              insert.run(key, JSON.stringify(obj[key]));
+            }
+          });
+          transaction(jsonData);
+          console.log(`[Database] Auto-migration from JSON completed successfully.`);
+          
+          // Re-fetch rows now that we've migrated
+          const migratedRows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
+          const db: any = {};
+          for (const row of migratedRows) {
+            try {
+              db[row.key] = JSON.parse(row.value);
+            } catch (err) {
+              console.error(`[Database Parse Error] for key ${row.key}:`, err);
+            }
+          }
+          db.isNewInstall = false;
+          return db;
+        } catch(migrateErr) {
+          console.error(`[Database] Error auto-migrating from JSON:`, migrateErr);
+        }
+      }
+
       console.warn(
         `[Database] SQLite database is empty. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`,
       );
@@ -267,8 +299,11 @@ function writeSqliteDb(data: DbSchema): boolean {
       
       let hasToken = false;
       try {
-        const cfg = JSON.parse(data.settings?.panel_config || "{}");
-        hasToken = !!(cfg.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
+        let cfg = data.settings?.panel_config;
+        if (typeof cfg === "string") {
+            cfg = JSON.parse(cfg);
+        }
+        hasToken = !!(cfg?.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
       } catch(err) {}
 
       if (!hasUsers && !hasTransactions && !hasToken) {
@@ -5703,7 +5738,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.1";
+  let version = "2.3.2";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
