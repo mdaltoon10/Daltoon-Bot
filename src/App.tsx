@@ -875,9 +875,8 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [appVersion, setAppVersion] = useState<string>(() => {
-    return localStorage.getItem("daltoon_last_running_version") || "2.3.5";
-  });
+  const CLIENT_VERSION = "2.3.6";
+  const [appVersion, setAppVersion] = useState<string>(CLIENT_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -887,9 +886,13 @@ export default function App() {
 
   const [updateChannel, setUpdateChannel] = useState<"stable" | "dev">(() => {
     const cached = localStorage.getItem("daltoon_update_channel");
-    return (cached as any) || (appVersion.toLowerCase().includes("dev") ? "dev" : "stable");
+    return (cached as any) || "stable";
   });
   const [showUpdatePanel, setShowUpdatePanel] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem("daltoon_last_running_version", CLIENT_VERSION);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("daltoon_update_channel", updateChannel);
@@ -897,10 +900,6 @@ export default function App() {
     fetch(`/api/system/check-update?channel=${updateChannel}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.currentVersion) {
-          setAppVersion(data.currentVersion);
-          localStorage.setItem("daltoon_last_running_version", data.currentVersion);
-        }
         if (data.latestVersion) setLatestVersion(data.latestVersion);
         setUpdateAvailable(data.updateAvailable);
       })
