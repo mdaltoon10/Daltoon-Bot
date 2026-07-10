@@ -33,6 +33,8 @@ jobs:
           cp package.json release-pkg/ || true
           cp package-lock.json release-pkg/ || true
           cp server.ts release-pkg/ || true
+          cp bot.py release-pkg/ || true
+          cp locales.json release-pkg/ 2>/dev/null || true
           cp daltoon-dashboard release-pkg/ 2>/dev/null || true
           cp install.sh release-pkg/ 2>/dev/null || true
           

@@ -147,26 +147,9 @@ elif [ -d "/opt/daltoon-store/.git" ]; then
     DEFAULT_REPO="https://github.com/mdaltoon10/Daltoon-Bot"
     REPO_URL=${1:-$DEFAULT_REPO}
     cd /opt/daltoon-store || exit
-    
-    # Fix dubious ownership error when running as root
-    git config --global --add safe.directory /opt/daltoon-store
-    
     git remote set-url origin "$REPO_URL" &> /dev/null
-    
-    echo -e "${YELLOW}Fetching latest changes...${NC}"
-    if ! git fetch --all; then
-        echo -e "${RED}Failed to fetch updates from Git! Aborting to prevent data corruption.${NC}"
-        exit 1
-    fi
-    
-    if ! (git reset --hard origin/main || git reset --hard origin/master); then
-        echo -e "${RED}Failed to reset repository to latest commit! Aborting.${NC}"
-        exit 1
-    fi
-    
-    # Clean old dist folder to ensure fresh build
-    rm -rf /opt/daltoon-store/dist
-
+    git fetch --all
+    git reset --hard origin/main || git reset --hard origin/master
 elif [ ! -f "package.json" ]; then
     echo -e "${YELLOW}No package.json detected in the current directory.${NC}"
     DEFAULT_REPO="https://github.com/mdaltoon10/Daltoon-Bot"
