@@ -29,6 +29,81 @@ show_menu() {
     echo -e "${BLUE}====================================================${NC}"
 }
 
+update_db() {
+    local key=$1
+    local val=$2
+    local is_int=$3
+    
+    node -e "
+    const fs = require('fs');
+    const path = require('path');
+    const installDir = '$INSTALL_DIR';
+    const jsonPath = path.join(installDir, 'Daltoon_Bot.json');
+    const dbPath = path.join(installDir, 'Daltoon_Bot.db');
+    
+    let key = '$key';
+    let val = '$val';
+    let isInt = '$is_int' === 'true';
+    if (isInt) val = parseInt(val);
+
+    // 1. Update JSON if exists
+    if (fs.existsSync(jsonPath)) {
+        try {
+            const db = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+            if (!db.settings) db.settings = {};
+            
+            if (key === 'port') {
+                db.settings.serverPort = val;
+            } else if (key === 'user') {
+                db.settings.dashboardUsername = val;
+            } else if (key === 'pass') {
+                db.settings.dashboardPassword = val;
+            }
+            
+            if (db.settings.panel_config) {
+                try {
+                    const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
+                    if (key === 'port') pc.serverPort = val;
+                    else if (key === 'user') pc.dashboardUsername = val;
+                    else if (key === 'pass') pc.dashboardPassword = val;
+                    db.settings.panel_config = JSON.stringify(pc);
+                } catch(e){}
+            }
+            fs.writeFileSync(jsonPath, JSON.stringify(db, null, 2));
+        } catch(e){}
+    }
+
+    // 2. Update SQLite if exists
+    if (fs.existsSync(dbPath)) {
+        try {
+            const Database = require('better-sqlite3');
+            const sqlite = new Database(dbPath);
+            const row = sqlite.prepare(\"SELECT value FROM kv WHERE key = 'settings'\").get();
+            if (row) {
+                let settings = JSON.parse(row.value);
+                if (key === 'port') settings.serverPort = val;
+                else if (key === 'user') settings.dashboardUsername = val;
+                else if (key === 'pass') settings.dashboardPassword = val;
+
+                if (settings.panel_config) {
+                    try {
+                        let pc = typeof settings.panel_config === 'string' ? JSON.parse(settings.panel_config) : settings.panel_config;
+                        if (key === 'port') pc.serverPort = val;
+                        else if (key === 'user') pc.dashboardUsername = val;
+                        else if (key === 'pass') pc.dashboardPassword = val;
+                        settings.panel_config = JSON.stringify(pc);
+                    } catch(e){}
+                }
+                sqlite.prepare(\"UPDATE kv SET value = ? WHERE key = 'settings'\").run(JSON.stringify(settings));
+            }
+            sqlite.close();
+        } catch(e){
+            console.error('SQLite Update Error:', e.message);
+        }
+    }
+    "
+}
+
 case "$1" in
     status)
         pm2 status
@@ -85,24 +160,8 @@ while true; do
             read -s -p "Enter New Admin Password: " new_pass
             echo ""
             if [[ -n "$new_user" && -n "$new_pass" ]]; then
-                node -e "
-                const fs = require('fs');
-                const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-                if (fs.existsSync(dbPath)) {
-                    const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-                    db.settings.dashboardUsername = '$new_user';
-                    db.settings.dashboardPassword = '$new_pass';
-                    if (db.settings.panel_config) {
-                        try {
-                            const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
-                            pc.dashboardUsername = '$new_user';
-                            pc.dashboardPassword = '$new_pass';
-                            db.settings.panel_config = JSON.stringify(pc);
-                        } catch(e){}
-                    }
-                    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-                }
-                "
+                update_db "user" "$new_user" "false"
+                update_db "pass" "$new_pass" "false"
                 echo -e "${GREEN}Credentials updated! Restarting dashboard...${NC}"
                 pm2 restart daltoon-store
             else
@@ -113,22 +172,7 @@ while true; do
         8)
             read -p "Enter New Server Port: " new_port
             if [[ -n "$new_port" ]]; then
-                node -e "
-                const fs = require('fs');
-                const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
-                if (fs.existsSync(dbPath)) {
-                    const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
-                    db.settings.serverPort = parseInt('$new_port');
-                    if (db.settings.panel_config) {
-                        try {
-                            const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
-                            pc.serverPort = parseInt('$new_port');
-                            db.settings.panel_config = JSON.stringify(pc);
-                        } catch(e){}
-                    }
-                    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
-                }
-                "
+                update_db "port" "$new_port" "true"
                 echo -e "${YELLOW}Configuring firewall for port $new_port...${NC}"
                 ufw allow $new_port/tcp > /dev/null 2>&1 || true
                 iptables -I INPUT -p tcp --dport $new_port -j ACCEPT > /dev/null 2>&1 || true
