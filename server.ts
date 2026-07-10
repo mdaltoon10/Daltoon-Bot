@@ -5703,7 +5703,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.4.0";
+  let version = "2.4.1";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
@@ -5927,7 +5927,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Default fallback if targetTag is still empty
         if (!targetTag) {
-          targetTag = "v2.4.0";
+          targetTag = "v2.4.1";
           writeLog(`Using default targetTag fallback: ${targetTag}`);
         }
 
@@ -6640,7 +6640,18 @@ async function startServer() {
        next();
     });
 
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        } else {
+          // Cache JS/CSS assets for 1 year since Vite uses content hashes
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+      }
+    }));
 
     app.get("*", (req, res) => {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
