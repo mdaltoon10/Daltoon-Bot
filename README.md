@@ -29,6 +29,19 @@ Built as an all-in-one system, Daltoon Bot adds broader panel support, improved 
 - **Security** — Centralized SQLite database with secure API handling and encrypted configuration.
 - **Process Management** — Fully managed by PM2 for high availability and automated service recovery.
 
+## 🌐 Supported Languages
+
+Daltoon Bot is fully internationalized and supports multiple languages for both the Telegram Bot and the Admin Dashboard. The following languages are supported:
+
+- 🇺🇸 **English** (Default)
+- 🇮🇷 **Persian** (فارسی)
+- 🇸🇦 **Arabic** (العربية)
+- 🇷🇺 **Russian** (Русский)
+- 🇹🇷 **Turkish** (Türkçe)
+- 🇪🇸 **Spanish** (Español)
+
+Users can seamlessly switch between these languages in the application settings, adapting the entire UI and message outputs instantly.
+
 ## 📈 Project Statistics
 
 - **Total Installations**: ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/downloads.json&query=$.downloads&label=downloads&style=flat-square&color=orange)
