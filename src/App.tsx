@@ -876,7 +876,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [appVersion, setAppVersion] = useState<string>(() => {
-    return localStorage.getItem("daltoon_last_running_version") || "2.3.4";
+    return localStorage.getItem("daltoon_last_running_version") || "2.3.5";
   });
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
