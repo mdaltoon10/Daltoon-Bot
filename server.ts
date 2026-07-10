@@ -5703,7 +5703,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.3";
+  let version = "2.3.4";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
@@ -6610,6 +6610,34 @@ async function startServer() {
       res.setHeader("Expires", "0");
       res.setHeader("Surrogate-Control", "no-store");
       res.sendFile(path.join(distPath, "index.html"));
+    });
+
+    // Find the current JS file hash to detect clients with old cached index.html
+    let currentJsFile = "";
+    try {
+      const assetsPath = path.join(distPath, "assets");
+      if (fs.existsSync(assetsPath)) {
+        const files = fs.readdirSync(assetsPath);
+        const jsFile = files.find((f: string) => f.startsWith("index-") && f.endsWith(".js"));
+        if (jsFile) currentJsFile = jsFile;
+      }
+    } catch (e) {
+      console.warn("Could not determine current JS file", e);
+    }
+
+    app.get("/assets/index-*.js", (req, res, next) => {
+       const requestedFile = path.basename(req.path);
+       // If the client is requesting an old JS file because they have a stale index.html cached
+       if (currentJsFile && requestedFile !== currentJsFile && requestedFile.startsWith("index-") && requestedFile.endsWith(".js")) {
+          console.log(`[Cache-Buster] Intercepted request for old JS file: ${requestedFile}. Sending reload script.`);
+          res.setHeader("Content-Type", "application/javascript");
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          return res.send(`
+             console.log("Stale frontend cache detected. Forcing reload...");
+             window.location.href = window.location.pathname + "?bust=" + new Date().getTime();
+          `);
+       }
+       next();
     });
 
     app.use(express.static(distPath));
