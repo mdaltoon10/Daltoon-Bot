@@ -1,7 +1,7 @@
 {
   "name": "daltoon-dashboard",
   "private": true,
-  "version": "2.4.0",
+  "version": "2.3.3",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
