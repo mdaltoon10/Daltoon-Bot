@@ -42,12 +42,6 @@ Daltoon Bot is fully internationalized and supports multiple languages for both 
 
 Users can seamlessly switch between these languages in the application settings, adapting the entire UI and message outputs instantly.
 
-## 📈 Project Statistics
-
-- **Total Installations**: ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/downloads.json&query=$.downloads&label=downloads&style=flat-square&color=orange)
-- **Active Version**: ![Release](https://img.shields.io/github/v/release/mdaltoon10/Daltoon-Bot&style=flat-square)
-- **License**: ![License](https://img.shields.io/github/license/mdaltoon10/Daltoon-Bot&style=flat-square)
-
 ## 📥 Downloads
 
 You can download the project manually or check the latest releases on our [GitHub Releases Page](https://github.com/mdaltoon10/Daltoon-Bot/releases).
