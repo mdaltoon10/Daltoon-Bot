@@ -5703,7 +5703,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.6";
+  let version = "2.3.7";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
@@ -5988,6 +5988,11 @@ app.post("/api/system/update", async (req, res) => {
         writeLog(`PM2 restart output:\n${restartResult.stdout}\n${restartResult.stderr}`);
 
         writeLog(`=== Auto-Update Completed Successfully ===`);
+        // Force process exit to allow service manager to restart with new code
+        setTimeout(() => {
+          writeLog("Exiting process to trigger restart...");
+          process.exit(0);
+        }, 3000);
       } catch (err: any) {
         writeLog(`=== Auto-Update Failed with error: ${err.message} ===`);
       }
