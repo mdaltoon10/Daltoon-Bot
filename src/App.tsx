@@ -875,7 +875,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const CLIENT_VERSION = "2.4.2";
+  const CLIENT_VERSION = "2.3.1";
   const [appVersion, setAppVersion] = useState<string>(CLIENT_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
@@ -2633,7 +2633,7 @@ export default function App() {
                         <button
                           onClick={() => {
                             setUpdateAvailable(true);
-                            setLatestVersion("2.3.0");
+                            setLatestVersion("2.3.1");
                             setShowUpdateConfirm(true);
                           }}
                           className="w-full text-xs text-center text-gray-500 hover:text-purple-400 transition-colors py-1 underline underline-offset-4 cursor-pointer"
