@@ -170,7 +170,7 @@ export const translations = {
     buyCancelConfirmation: "Purchase cancelled. Returned to main menu. 🌻",
     cpuUsage: "CPU Usage",
     memoryUsage: "Memory Usage",
-    diskUsage: "Disk Usage"
+    diskUsage: "Disk Usage",
     btnBuyNew: "🛒 Buy New Subscription",
     btnMySubs: "🗂 My Subscriptions / Renew",
     btnGuides: "💡 Guides",
@@ -366,7 +366,7 @@ export const translations = {
     buyCancelConfirmation: "انصراف با موفقیت اعمال شد. به منوی اصلی بازگشتیم. 🌻",
     cpuUsage: "مصرف پردازنده (CPU)",
     memoryUsage: "مصرف رم (Memory)",
-    diskUsage: "مصرف هارد (Disk)"
+    diskUsage: "مصرف هارد (Disk)",
     btnBuyNew: "🛒 خرید اشتراک جدید",
     btnMySubs: "🗂 اشتراک های من / تمدید",
     btnGuides: "💡 آموزش ها",
@@ -562,7 +562,7 @@ export const translations = {
     buyCancelConfirmation: "تم إلغاء عملية الشراء. العودة إلى القائمة الرئيسية. 🌻",
     cpuUsage: "استخدام وحدة المعالجة المركزية",
     memoryUsage: "استخدام الذاكرة",
-    diskUsage: "استخدام القرص"
+    diskUsage: "استخدام القرص",
     btnBuyNew: "🛒 شراء اشتراك جديد",
     btnMySubs: "🗂 اشتراكاتي / تجديد",
     btnGuides: "💡 شروحات",
@@ -758,7 +758,7 @@ export const translations = {
     buyCancelConfirmation: "Покупка отменена. Возврат в главное меню. 🌻",
     cpuUsage: "Использование процессора",
     memoryUsage: "Использование памяти",
-    diskUsage: "Использование диска"
+    diskUsage: "Использование диска",
     btnBuyNew: "🛒 Купить новую подписку",
     btnMySubs: "🗂 Мои подписки / Продление",
     btnGuides: "💡 Инструкции",
@@ -954,7 +954,7 @@ export const translations = {
     buyCancelConfirmation: "Satın alma iptal edildi. Ana menüye dönüldü. 🌻",
     cpuUsage: "İşlemci Kullanımı",
     memoryUsage: "Bellek Kullanımı",
-    diskUsage: "Disk Kullanımı"
+    diskUsage: "Disk Kullanımı",
     btnBuyNew: "🛒 Yeni Abonelik Satın Al",
     btnMySubs: "🗂 Aboneliklerim / Yenileme",
     btnGuides: "💡 Kılavuzlar",
@@ -1150,7 +1150,7 @@ export const translations = {
     buyCancelConfirmation: "Compra cancelada. Volviendo al menú principal. 🌻",
     cpuUsage: "Uso de CPU",
     memoryUsage: "Uso de Memoria",
-    diskUsage: "Uso de Disco"
+    diskUsage: "Uso de Disco",
     btnBuyNew: "🛒 Comprar Nueva Suscripción",
     btnMySubs: "🗂 Mis Suscripciones / Renovar",
     btnGuides: "💡 Guías",

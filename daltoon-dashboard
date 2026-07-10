@@ -1,0 +1,150 @@
+#!/bin/bash
+
+# Daltoon Dashboard Management CLI
+INSTALL_DIR="/opt/daltoon-store"
+if [ ! -d "$INSTALL_DIR" ]; then
+    INSTALL_DIR=$(pwd)
+fi
+
+GREEN="\033[0;32m"
+BLUE="\033[0;34m"
+YELLOW="\033[1;33m"
+RED="\033[0;31m"
+NC="\033[0m"
+
+show_menu() {
+    clear
+    echo -e "${BLUE}====================================================${NC}"
+    echo -e "${BLUE}      Daltoon Store Dashboard Management CLI        ${NC}"
+    echo -e "${BLUE}====================================================${NC}"
+    echo -e "1) 🔄 Update Project"
+    echo -e "2) 🗑️ Uninstall"
+    echo -e "3) 📊 View Status"
+    echo -e "4) 🚀 Start Services"
+    echo -e "5) 🛑 Stop Services"
+    echo -e "6) ♻️ Restart Services"
+    echo -e "7) 🔑 Change Login"
+    echo -e "8) 🔌 Change Port"
+    echo -e "9) 🚪 Exit"
+    echo -e "${BLUE}====================================================${NC}"
+}
+
+case "$1" in
+    status)
+        pm2 status
+        exit 0
+        ;;
+    restart)
+        pm2 restart all
+        exit 0
+        ;;
+esac
+
+while true; do
+    show_menu
+    read -p "Choose an option [1-9]: " opt
+    case $opt in
+        1)
+            echo -e "${YELLOW}Updating project from GitHub...${NC}"
+            cd $INSTALL_DIR && git pull && npm install && npm run build && pm2 restart daltoon-store
+            read -p "Update finished. Press enter..."
+            ;;
+        2)
+            read -p "Are you sure you want to uninstall Daltoon Store? (y/n): " confirm
+            if [[ $confirm == "y" ]]; then
+                echo -e "${RED}Uninstalling...${NC}"
+                pm2 delete daltoon-store daltoon-bot
+                pm2 save
+                rm -rf $INSTALL_DIR
+                rm /usr/local/bin/daltoon-dashboard
+                echo -e "${GREEN}Uninstalled successfully.${NC}"
+                exit 0
+            fi
+            ;;
+        3)
+            pm2 status
+            read -p "Press enter to continue..."
+            ;;
+        4)
+            echo -e "${YELLOW}Starting all services...${NC}"
+            pm2 start all
+            read -p "Press enter to continue..."
+            ;;
+        5)
+            echo -e "${YELLOW}Stopping all services...${NC}"
+            pm2 stop all
+            read -p "Press enter to continue..."
+            ;;
+        6)
+            echo -e "${YELLOW}Restarting all services...${NC}"
+            pm2 restart all
+            read -p "Press enter to continue..."
+            ;;
+        7)
+            read -p "Enter New Admin Username: " new_user
+            read -s -p "Enter New Admin Password: " new_pass
+            echo ""
+            if [[ -n "$new_user" && -n "$new_pass" ]]; then
+                node -e "
+                const fs = require('fs');
+                const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+                if (fs.existsSync(dbPath)) {
+                    const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                    db.settings.dashboardUsername = '$new_user';
+                    db.settings.dashboardPassword = '$new_pass';
+                    if (db.settings.panel_config) {
+                        try {
+                            const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
+                            pc.dashboardUsername = '$new_user';
+                            pc.dashboardPassword = '$new_pass';
+                            db.settings.panel_config = JSON.stringify(pc);
+                        } catch(e){}
+                    }
+                    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+                }
+                "
+                echo -e "${GREEN}Credentials updated! Restarting dashboard...${NC}"
+                pm2 restart daltoon-store
+            else
+                echo -e "${RED}Username and Password cannot be empty!${NC}"
+            fi
+            read -p "Press enter to continue..."
+            ;;
+        8)
+            read -p "Enter New Server Port: " new_port
+            if [[ -n "$new_port" ]]; then
+                node -e "
+                const fs = require('fs');
+                const dbPath = '$INSTALL_DIR/Daltoon_Bot.json';
+                if (fs.existsSync(dbPath)) {
+                    const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+                    db.settings.serverPort = parseInt('$new_port');
+                    if (db.settings.panel_config) {
+                        try {
+                            const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config) : db.settings.panel_config;
+                            pc.serverPort = parseInt('$new_port');
+                            db.settings.panel_config = JSON.stringify(pc);
+                        } catch(e){}
+                    }
+                    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2));
+                }
+                "
+                echo -e "${YELLOW}Configuring firewall for port $new_port...${NC}"
+                ufw allow $new_port/tcp > /dev/null 2>&1 || true
+                iptables -I INPUT -p tcp --dport $new_port -j ACCEPT > /dev/null 2>&1 || true
+                echo -e "${GREEN}Port updated to $new_port! Restarting dashboard...${NC}"
+                pm2 restart daltoon-store
+            else
+                echo -e "${RED}Port cannot be empty!${NC}"
+            fi
+            read -p "Press enter to continue..."
+            ;;
+        9)
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Invalid option${NC}"
+            sleep 1
+            ;;
+    esac
+done
