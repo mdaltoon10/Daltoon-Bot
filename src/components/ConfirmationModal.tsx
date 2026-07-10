@@ -1,5 +1,5 @@
 import React from "react";
-import { Language } from "../locales";
+import { Language, translations } from "../locales";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -33,7 +33,7 @@ export default function ConfirmationModal({
             onClick={onCancel}
             className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
           >
-            {cancelText ? cancelText : (lang === "fa" ? "انصراف" : "Cancel")}
+            {cancelText ? cancelText : (translations[lang].btnCancel || "Cancel")}
           </button>
           <button
             onClick={onConfirm}
@@ -43,7 +43,7 @@ export default function ConfirmationModal({
                 : 'bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]'
             }`}
           >
-            {confirmText ? confirmText : (lang === "fa" ? "بله، تأیید" : "Yes, Confirm")}
+            {confirmText ? confirmText : (translations[lang].btnConfirm || "Confirm")}
           </button>
         </div>
       </div>

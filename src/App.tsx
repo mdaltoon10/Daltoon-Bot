@@ -875,7 +875,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const CLIENT_VERSION = "2.3.2";
+  const CLIENT_VERSION = "2.3.5";
   const [appVersion, setAppVersion] = useState<string>(CLIENT_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
@@ -2257,7 +2257,7 @@ export default function App() {
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/5 rounded-xl text-xs font-semibold text-gray-300 hover:text-white transition cursor-pointer"
               >
                 <span>
-                  {lang === "fa" && "🇮🇷 فارسی"}
+                  {lang === "fa" && "فارسی"}
                   {lang === "en" && "🇬🇧 English"}
                   {lang === "ar" && "🇸🇦 العربية"}
                   {lang === "ru" && "🇷🇺 Русский"}

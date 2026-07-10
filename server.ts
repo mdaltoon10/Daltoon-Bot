@@ -5740,7 +5740,7 @@ app.get("/api/system/update-log", (req, res) => {
 });
 
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.2";
+  let version = "2.3.5";
   const pkgPath = path.join(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
     try {
