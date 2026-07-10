@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v2.3.3", "v2.3.3", "v2.3.3"];
+  const tagsToDelete = ["v2.3.3"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v2.3.3 v2.3.3 v2.3.3", { stdio: "inherit" });
+    execSync("git tag -d v2.3.3", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v2.3.3 :refs/tags/v2.3.3 :refs/tags/v2.3.3`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v2.3.3`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
