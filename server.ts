@@ -5927,7 +5927,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Default fallback if targetTag is still empty
         if (!targetTag) {
-          targetTag = "v2.1.1";
+          targetTag = "v2.3.9";
           writeLog(`Using default targetTag fallback: ${targetTag}`);
         }
 
