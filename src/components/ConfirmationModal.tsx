@@ -1,11 +1,12 @@
 import React from "react";
+import { Language } from "../locales";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
-  lang: "fa" | "en";
+  lang: Language;
   confirmText?: string;
   cancelText?: string;
   isDangerous?: boolean;

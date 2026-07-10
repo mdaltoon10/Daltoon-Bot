@@ -293,7 +293,9 @@ def get_config():
         "PINNED_MESSAGE_TEXT": "",
         "QR_TEMPLATE": "",
         "QR_COLOR": "",
-        "QR_LOGO": ""
+        "QR_LOGO": "",
+        "CURRENCY": "تومان",
+        "LANG": "fa"
     }
     try:
         db = read_sqlite_db()
@@ -488,6 +490,9 @@ def get_config():
                 config[key] = panel_cfg[key]
         
         config["SIMULATOR_MODE"] = bool(panel_cfg.get("simulatorMode", False))
+        if "currency" in panel_cfg:
+            config["CURRENCY"] = panel_cfg["currency"]
+        config["LANG"] = panel_cfg.get("LANG", panel_cfg.get("lang", "fa"))
                 
     except Exception as e:
         print(f"[Dynamic Config Loader Warning] {e}")
@@ -501,6 +506,422 @@ cfg_boot = get_config()
 
 # Initialize Bot with the configured token (use DUMMY_TOKEN if none is set yet)
 bot = telebot.TeleBot(cfg_boot["BOT_TOKEN"] if cfg_boot["BOT_TOKEN"] else "DUMMY_TOKEN", parse_mode="HTML", threaded=True, num_threads=30)
+
+def patch_telebot_currency(bot_instance):
+    original_send_message = bot_instance.send_message
+    original_reply_to = bot_instance.reply_to
+    original_edit_message_text = bot_instance.edit_message_text
+    original_send_photo = bot_instance.send_photo
+    original_send_document = bot_instance.send_document
+
+    def replace_currency_in_text(text):
+        if not text:
+            return text
+        cfg = get_config()
+        currency_val = cfg.get("CURRENCY", "تومان")
+        processed = text.replace("تومان", currency_val).replace("Tomans", currency_val).replace("Toman", currency_val)
+        return processed
+
+    def process_markup(markup):
+        if not markup:
+            return markup
+        try:
+            cfg = get_config()
+            currency_val = cfg.get("CURRENCY", "تومان")
+            
+            # If it's a ReplyKeyboardMarkup
+            if hasattr(markup, "keyboard") and markup.keyboard:
+                for row in markup.keyboard:
+                    for button in row:
+                        if hasattr(button, "text") and button.text:
+                            button.text = button.text.replace("تومان", currency_val).replace("Tomans", currency_val).replace("Toman", currency_val)
+            
+            # If it's an InlineKeyboardMarkup
+            if hasattr(markup, "inline_keyboard") and markup.inline_keyboard:
+                for row in markup.inline_keyboard:
+                    for button in row:
+                        if hasattr(button, "text") and button.text:
+                            button.text = button.text.replace("تومان", currency_val).replace("Tomans", currency_val).replace("Toman", currency_val)
+        except Exception as e:
+            print(f"[Markup Patch Error] {e}")
+        return markup
+
+    def patched_send_message(*args, **kwargs):
+        args_list = list(args)
+        if len(args_list) > 1 and isinstance(args_list[1], str):
+            args_list[1] = replace_currency_in_text(args_list[1])
+        elif "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = replace_currency_in_text(kwargs["text"])
+
+        if "reply_markup" in kwargs:
+            kwargs["reply_markup"] = process_markup(kwargs["reply_markup"])
+        elif len(args_list) > 5:
+            args_list[5] = process_markup(args_list[5])
+
+        return original_send_message(*args_list, **kwargs)
+
+    def patched_reply_to(*args, **kwargs):
+        args_list = list(args)
+        if len(args_list) > 1 and isinstance(args_list[1], str):
+            args_list[1] = replace_currency_in_text(args_list[1])
+        elif "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = replace_currency_in_text(kwargs["text"])
+
+        if "reply_markup" in kwargs:
+            kwargs["reply_markup"] = process_markup(kwargs["reply_markup"])
+        return original_reply_to(*args_list, **kwargs)
+
+    def patched_edit_message_text(*args, **kwargs):
+        args_list = list(args)
+        if len(args_list) > 0 and isinstance(args_list[0], str):
+            args_list[0] = replace_currency_in_text(args_list[0])
+        elif "text" in kwargs and isinstance(kwargs["text"], str):
+            kwargs["text"] = replace_currency_in_text(kwargs["text"])
+
+        if "reply_markup" in kwargs:
+            kwargs["reply_markup"] = process_markup(kwargs["reply_markup"])
+        return original_edit_message_text(*args_list, **kwargs)
+
+    def patched_send_photo(*args, **kwargs):
+        args_list = list(args)
+        if len(args_list) > 2 and isinstance(args_list[2], str):
+            args_list[2] = replace_currency_in_text(args_list[2])
+        elif "caption" in kwargs and isinstance(kwargs["caption"], str):
+            kwargs["caption"] = replace_currency_in_text(kwargs["caption"])
+
+        if "reply_markup" in kwargs:
+            kwargs["reply_markup"] = process_markup(kwargs["reply_markup"])
+        return original_send_photo(*args_list, **kwargs)
+
+    def patched_send_document(*args, **kwargs):
+        args_list = list(args)
+        if "caption" in kwargs and isinstance(kwargs["caption"], str):
+            kwargs["caption"] = replace_currency_in_text(kwargs["caption"])
+
+        if "reply_markup" in kwargs:
+            kwargs["reply_markup"] = process_markup(kwargs["reply_markup"])
+        return original_send_document(*args_list, **kwargs)
+
+    bot_instance.send_message = patched_send_message
+    bot_instance.reply_to = patched_reply_to
+    bot_instance.edit_message_text = patched_edit_message_text
+    bot_instance.send_photo = patched_send_photo
+    bot_instance.send_document = patched_send_document
+
+patch_telebot_currency(bot)
+
+# Multi-Language Translation System for Telegram Bot (Persian -> EN, AR, RU, TR, ES)
+BOT_TRANSLATIONS = {
+    "en": {
+        "🚀 به ربات پرسرعت": "🚀 Welcome to high-speed",
+        "خوش آمدید": "Welcome",
+        "بازگشتید": "Welcome back",
+        "با خرید از شبکه پرسرعت ما": "By purchasing from our high-speed network, enjoy secure connection, low ping, and static IP.",
+        "شناسه تلگرام شما": "Your Telegram ID",
+        "موجودی کیف پول": "Wallet Balance",
+        "لطفا گزینه مورد نظر خود را": "Please select your desired option from the menu below:",
+        "خرید کانفیگ": "🛍️ Buy Plan",
+        "خرید اشتراک جدید": "🛒 Buy New Subscription",
+        "اشتراک های من": "🗂 My Subscriptions",
+        "اشتراک‌های من": "🗂 My Subscriptions",
+        "آموزش ها": "💡 Guides",
+        "آموزش‌ها": "💡 Guides",
+        "حساب کاربری": "👤 My Account",
+        "پشتیبانی": "📞 Support",
+        "تیکت به پشتیبانی": "🎫 Ticket Support",
+        "موجودی رایگان": "🎁 Free Traffic Test",
+        "پشتیبانی آنی": "🤖 Instant Support",
+        "بازخورد کاربر ها": "💌 Feedbacks",
+        "زیرمجموعه گیری": "👥 Referral System",
+        "بسته ویژه همکاران": "Partners Special Packages",
+        "چت با ربات": "🤖 Chat with AI",
+        "هوش مصنوعی": "🧠 Artificial Intelligence",
+        "شارژ کیف پول": "💳 Top-up Wallet",
+        "بازگشت به منوی اصلی": "🔙 Return to main menu",
+        "بازگشت": "🔙 Back",
+        "انصراف": "❌ Cancel",
+        "تومان": "Toman",
+        "دستیار هوشمند فعال شد": "🤖 Intelligent assistant activated!",
+        "سوال خود را در رابطه با": "Ask your question about purchases, tariffs, and connection:",
+        "جهت خروج کلمه «انصراف» را": "(Type 'Cancel' to exit)",
+        "هوش مصنوعی فعال شد": "🧠 AI Activated!",
+        "هر سوالی دارید بپرسید": "Ask any question and AI will answer:",
+        "تایید عضویت": "Confirm Membership",
+        "عضویت شما با موفقیت تایید شد": "✅ Your membership has been successfully verified! Welcome.",
+        "لطفا جهت استفاده از امکانات": "Please join our channel first to use the bot services:",
+        "بسته‌های دسته‌بندی": "Category packages",
+        "دالتون بات": "Daltoon Bot",
+        "خطا": "Error",
+        "موفق": "Success",
+        "تایید": "Approve",
+        "رد کردن": "Reject",
+    },
+    "ar": {
+        "🚀 به ربات پرسرعت": "🚀 مرحباً بك في بوت",
+        "خوش آمدید": "أهلاً بك",
+        "بازگشتید": "مرحباً بك مجدداً",
+        "با خرید از شبکه پرسرعت ما": "من خلال الشراء من شبكتنا عالية السرعة، استمتع باتصال آمن وبنغ منخفض وعنوان IP ثابت.",
+        "شناسه تلگرام شما": "معرف تليجرام الخاص بك",
+        "موجودی کیف پول": "رصيد المحفظة",
+        "لطفا گزینه مورد نظر خود را": "يرجى تحديد الخيار المطلوب من القائمة أدناه:",
+        "خرید کانفیگ": "🛍️ شراء خطة",
+        "خرید اشتراک جدید": "🛒 شراء اشتراك جديد",
+        "اشتراک های من": "🗂 اشتراكاتي / تمديد",
+        "اشتراک‌های من": "🗂 اشتراكاتي / تمديد",
+        "آموزش ها": "💡 الشروحات",
+        "آموزش‌ها": "💡 الشروحات",
+        "حساب کاربری": "👤 حسابي الشخصي",
+        "پشتیبانی": "📞 الدعم الفني",
+        "تیکت به پشتیبانی": "🎫 تيكت إلى الدعم",
+        "موجودی رایگان": "🎁 رصيد تجريبي مجاني",
+        "پشتیبانی آنی": "🤖 دعم فني فوري",
+        "بازخورد کاربر ها": "💌 آراء المستخدمين",
+        "زیرمجموعه گیری": "👥 نظام الإحالة",
+        "بسته ویژه همکاران": "الباقات الخاصة بالشركاء",
+        "چت با ربات": "🤖 دردشة مع الذكاء الاصطناعي",
+        "هوش مصنوعی": "🧠 الذكاء الاصطناعي",
+        "شارژ کیف پول": "💳 شحن المحفظة",
+        "بازگشت به منوی اصلی": "🔙 عودة إلى القائمة الرئيسية",
+        "بازگشت": "🔙 عودة",
+        "انصراف": "❌ إلغاء",
+        "تومان": "تومان",
+        "دستیار هوشمند فعال شد": "🤖 تم تفعيل المساعد الذكي!",
+        "سوال خود را در رابطه با": "اسأل سؤالك حول عمليات الشراء والأسعار والاتصال لتلقي الإجابة:",
+        "جهت خروج کلمه «انصراف» را": "(أرسل كلمة «إلغاء» للخروج)",
+        "هوش مصنوعی فعال شد": "🧠 تم تفعيل الذكاء الاصطناعي!",
+        "هر سوالی دارید بپرسید": "اسأل أي سؤال وسيجيب الذكاء الاصطناعي:",
+        "تایید عضویت": "تأكيد العضوية",
+        "عضویت شما با موفقیت تایید شد": "✅ تم تأكيد عضويتك بنجاح! أهلاً بك.",
+        "لطفا جهت استفاده از امکانات": "يرجى الانضمام إلى قناتنا أولاً لتتمكن من استخدام ميزات البوت.",
+        "بسته‌های دسته‌بندی": "باقات التصنيف",
+        "دالتون بات": "دالتون بوت",
+        "خطا": "خطأ",
+        "موفق": "نجاح",
+        "تایید": "موافقة",
+        "رد کردن": "رفض",
+    },
+    "ru": {
+        "🚀 به ربات پرسرعت": "🚀 Добро пожаловать в бот",
+        "خوش آمدید": "Добро пожаловать",
+        "بازگشتید": "С возвращением",
+        "با خرید از شبکه پرسرعت ما": "Покупая услуги в нашей высокоскоростной сети, наслаждайтесь безопасным соединением, низким пингом и статическим IP.",
+        "شناسه تلگرام شما": "Ваш Telegram ID",
+        "موجودی کیف پول": "Баланс кошелька",
+        "لطفا گزینه مورد نظر خود را": "Пожалуйста, выберите нужный вариант из меню ниже:",
+        "خرید کانفیگ": "🛍️ Купить тариф",
+        "خرید اشتراک جدید": "🛒 Купить новую подписку",
+        "اشتراک های من": "🗂 Мои подписки / Продление",
+        "اشتراک‌های من": "🗂 Мои подписки / Продление",
+        "آموزش ها": "💡 Руководства",
+        "آموزش‌ها": "💡 Руководства",
+        "حساب کاربری": "👤 Профиль пользователя",
+        "پشتیبانی": "📞 Поддержка",
+        "تیکت به پشتیبانی": "🎫 تیکт به پشتیبانی",
+        "موجودی رایگان": "🎁 Бесплатный тест трафика",
+        "پشتیبانی آنی": "🤖 Мгновенная поддержка",
+        "بازخورد کاربر ها": "💌 Отзывы",
+        "زیرمجموعه گیری": "👥 Реферальная система",
+        "بسته ویژه همکاران": "Партнерские пакеты",
+        "چت با ربات": "🤖 Чат с ИИ",
+        "هوش مصنوعی": "🧠 Искусственный интеллект",
+        "شارژ کیف پول": "Пополнить баланс 💳",
+        "بازگشت به منوی اصلی": "🔙 Вернуться в главное меню",
+        "بازگشت": "🔙 Назад",
+        "انصراف": "❌ Отмена",
+        "تومان": "Toman",
+        "دستیار هوشمند فعال شد": "🤖 Умный помощник активирован!",
+        "سوال خود را в رابطه با": "Задайте вопрос о покупках, тарифах и подключении:",
+        "جهت خروج کلمه «انصراف» را": "(Отправьте «Отмена» для выхода)",
+        "هوش مصنوعی فعال شد": "🧠 ИИ активирован!",
+        "هر سوالی دارید بپرسید": "Задайте любой вопрос, и ИИ ответит на него:",
+        "تایید عضویت": "Подтвердить членство",
+        "عضویت شما با موفقیت تایید شد": "✅ Ваше членство успешно подтверждено! Добро пожаловать.",
+        "لطفا جهت استفاده از امکانات": "Пожалуйста, сначала подпишитесь на наш канал, чтобы использовать функции бота.",
+        "بسته‌های دسته‌بندی": "Пакеты категорий",
+        "دالتون بات": "Daltoon Bot",
+        "خطا": "Ошибка",
+        "موفق": "Успешно",
+        "تایید": "Подтвердить",
+        "رد کردن": "Отклонить",
+    },
+    "tr": {
+        "🚀 به ربات پرسرعت": "🚀 Botuna hoş geldiniz",
+        "خوش آمدید": "Hoş geldiniz",
+        "بازگشتید": "Tekrar hoş geldiniz",
+        "با خرید از شبکه پرسرعت ما": "Yüksek hızlı ağımızdan satın alarak güvenli bağlantı, düşük ping ve statik IP'nin keyfini çıkarın.",
+        "شناسه تلگرام شما": "Telegram ID'niz",
+        "موجودی کیف پول": "Cüzdan Bakiyesi",
+        "لطفا گزینه مورد نظر خود را": "Lütfen aşağıdaki menüden istediğiniz seçeneği belirleyin:",
+        "خرید کانفیگ": "🛍️ Plan Satın Al",
+        "خرید اشتراک جدید": "🛒 Yeni Abonelik Satın Al",
+        "اشتراک های من": "🗂 Aboneliklerim / Yenile",
+        "اشتراک‌های من": "🗂 Aboneliklerim / Yenile",
+        "آموزش ها": "💡 Kılavuzlar",
+        "آموزش‌ها": "💡 Kılavuzlar",
+        "حساب کاربری": "👤 Kullanıcı Profili",
+        "پشتیبانی": "📞 Destek",
+        "تیکت به پشتیبانی": "🎫 Ticket Support",
+        "موجودی رایگان": "🎁 Ücretsiz Trafik Testi",
+        "پشتیبانی آنی": "🤖 Anında Destek",
+        "بازخورد کاربر ها": "💌 Geri Bildirimler",
+        "زیرمجموعه گیری": "👥 Davet Sistemi",
+        "بسته ویژه همکاران": "Ortak Paketleri",
+        "چت با ربات": "🤖 Yapay Zeka Sohbeti",
+        "هوش مصنوعی": "🧠 Yapay Zeka",
+        "شارژ کیف پول": "Cüzdanı Yükle 💳",
+        "بازگشت به منوی اصلی": "🔙 Ana menüye dön",
+        "بازگشت": "🔙 Geri",
+        "انصراف": "❌ İptal",
+        "تومان": "Toman",
+        "دستیار هوشمند فعال شد": "🤖 Akıllı asistan aktif edildi!",
+        "سوال خود را در رابطه با": "Satın almalar, tarifeler ve bağlantı hakkında sorunuzu sorun:",
+        "جهت خروج کلمه «انصراف» را": "(Çıkmak için «İptal» yazın)",
+        "هوش مصنوعی فعال شد": "🧠 Yapay zeka aktif edildi!",
+        "هر سوالی دارید بپرسید": "Herhangi bir soru sorun, yapay zeka cevaplasın:",
+        "تایید عضویت": "Üyeliği Onayla",
+        "عضویت شما با موفقیت تایید شد": "✅ Üyeliğiniz başarıyla onaylandı! Hoş geldiniz.",
+        "لطفا جهت استفاده از امکانات": "Lütfen bot özelliklerini kullanmak için önce kanalımıza katılın.",
+        "بسته‌های دسته‌بندی": "Kategori paketleri",
+        "دالتون بات": "Daltoon Bot",
+        "خطا": "Hata",
+        "موفق": "Başarılı",
+        "تایید": "Onayla",
+        "رد کردن": "Reddet",
+    },
+    "es": {
+        "🚀 به ربات پرسرعت": "🚀 Bienvenido al bot de",
+        "خوش آمدید": "Bienvenido",
+        "بازگشتید": "Bienvenido de nuevo",
+        "با خرید از شبکه پرسرعت ما": "Al comprar en nuestra red de alta velocidad, disfrute de una conexión segura, ping bajo e IP estática.",
+        "شناسه تلگرام شما": "Su ID de Telegram",
+        "موجودی کیف پول": "Saldo del monedero",
+        "لطفا گزینه مورد نظر خود را": "Seleccione la opción deseada del menú a continuación:",
+        "خرید کانفیگ": "🛍️ Comprar Plan",
+        "خرید اشتراک جدید": "🛒 Comprar nueva suscripción",
+        "اشتراک های من": "🗂 Mis suscripciones / Renovar",
+        "اشتراک‌های من": "🗂 Mis suscripciones / Renovar",
+        "آموزش ها": "💡 Guías",
+        "آموزش‌ها": "💡 Guías",
+        "حساب کاربری": "👤 Perfil de usuario",
+        "پشتیبانی": "📞 Soporte",
+        "تیکت به پشتیبانی": "🎫 Ticket Support",
+        "موجودی رایگان": "🎁 Prueba de tráfico gratis",
+        "پشتیبانی آنی": "🤖 Soporte instantáneo",
+        "بازخورد کاربر ها": "💌 Comentarios",
+        "زیرمجموعه گیری": "👥 Sistema de referidos",
+        "بسته ویژه همکاران": "Paquetes de socios",
+        "چت با ربات": "🤖 Chat con IA",
+        "هوش مصنوعی": "🧠 Inteligencia artificial",
+        "شارژ کیف پول": "Cargar monedero 💳",
+        "بازگشت به منوی اصلی": "🔙 Volver al menú principal",
+        "بازگشت": "🔙 Volver",
+        "انصراف": "❌ Cancelar",
+        "تومان": "Toman",
+        "دستیار هوشمند فعال شد": "🤖 ¡Asistente inteligente activado!",
+        "سوال خود را در رابطه با": "Haga sus preguntas sobre compras, tarifas y conexión:",
+        "جهت خروج کلمه «انصراف» را": "(Escriba «Cancelar» para salir)",
+        "هوش مصنوعی فعال شد": "¡IA activada! 🧠",
+        "هر سوالی دارید بپرسید": "Haga cualquier pregunta y la IA responderá:",
+        "تایید عضویت": "Confirmar membresía",
+        "عضویت شما با موفقیت تایید شد": "✅ ¡Su membresía ha sido confirmada con éxito! Bienvenido.",
+        "لطفا جهت استفاده از امکانات": "Por favor, únase a nuestro canal primero para usar los servicios del bot.",
+        "بسته‌های دسته‌بندی": "Paquetes de categoría",
+        "دالتون بات": "Daltoon Bot",
+        "خطا": "Error",
+        "موفق": "Éxito",
+        "تایید": "Aprobar",
+        "رد کردن": "Rechazar",
+    }
+}
+
+def translate_text(text, lang):
+    if not text or not isinstance(text, str):
+        return text
+    if lang == "fa":
+        return text
+    target_dict = BOT_TRANSLATIONS.get(lang, {})
+    translated = text
+    for fa_key, translation in target_dict.items():
+        translated = translated.replace(fa_key, translation)
+    return translated
+
+def translate_markup(markup, lang):
+    if not markup or lang == "fa":
+        return markup
+    target_dict = BOT_TRANSLATIONS.get(lang, {})
+    
+    # Check InlineKeyboardMarkup
+    if hasattr(markup, "inline_keyboard"):
+        for row in markup.inline_keyboard:
+            for btn in row:
+                if hasattr(btn, "text") and btn.text:
+                    for fa_key, translation in target_dict.items():
+                        btn.text = btn.text.replace(fa_key, translation)
+                        
+    # Check ReplyKeyboardMarkup
+    if hasattr(markup, "keyboard"):
+        for row in markup.keyboard:
+            for btn in row:
+                if isinstance(btn, str):
+                    for fa_key, translation in target_dict.items():
+                        btn = btn.replace(fa_key, translation)
+                elif hasattr(btn, "text") and btn.text:
+                    for fa_key, translation in target_dict.items():
+                        btn.text = btn.text.replace(fa_key, translation)
+    return markup
+
+# Override bot methods to dynamically translate
+orig_send_message = bot.send_message
+def wrapped_send_message(*args, **kwargs):
+    cfg = get_config()
+    lang = cfg.get("LANG", "fa")
+    args_list = list(args)
+    if len(args_list) > 1:
+        args_list[1] = translate_text(args_list[1], lang)
+    elif "text" in kwargs:
+        kwargs["text"] = translate_text(kwargs["text"], lang)
+    if "reply_markup" in kwargs and kwargs["reply_markup"]:
+        kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+    return orig_send_message(*args_list, **kwargs)
+bot.send_message = wrapped_send_message
+
+orig_edit_message_text = bot.edit_message_text
+def wrapped_edit_message_text(*args, **kwargs):
+    cfg = get_config()
+    lang = cfg.get("LANG", "fa")
+    args_list = list(args)
+    if len(args_list) > 0:
+        args_list[0] = translate_text(args_list[0], lang)
+    elif "text" in kwargs:
+        kwargs["text"] = translate_text(kwargs["text"], lang)
+    if "reply_markup" in kwargs and kwargs["reply_markup"]:
+        kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+    return orig_edit_message_text(*args_list, **kwargs)
+bot.edit_message_text = wrapped_edit_message_text
+
+orig_answer_callback_query = bot.answer_callback_query
+def wrapped_answer_callback_query(callback_query_id, text=None, *args, **kwargs):
+    if text:
+        cfg = get_config()
+        lang = cfg.get("LANG", "fa")
+        text = translate_text(text, lang)
+    return orig_answer_callback_query(callback_query_id, text, *args, **kwargs)
+bot.answer_callback_query = wrapped_answer_callback_query
+
+orig_send_photo = bot.send_photo
+def wrapped_send_photo(*args, **kwargs):
+    cfg = get_config()
+    lang = cfg.get("LANG", "fa")
+    if "caption" in kwargs:
+        kwargs["caption"] = translate_text(kwargs["caption"], lang)
+    elif len(args) > 2:
+        args_list = list(args)
+        args_list[2] = translate_text(args_list[2], lang)
+        args = tuple(args_list)
+    if "reply_markup" in kwargs and kwargs["reply_markup"]:
+        kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+    return orig_send_photo(*args, **kwargs)
+bot.send_photo = wrapped_send_photo
 
 _sessions = {}
 _session_default = None
@@ -3860,11 +4281,11 @@ def process_purchase_username_manual(message, plan_id, spec):
     tg_id = message.from_user.id
     if not message.text:
        return 
-    username_input = message.text.strip()
+    raw_username = message.text.strip()
     
-    # Validation logic
+    # Validation logic on raw username first
     import re
-    if not re.match("^[a-zA-Z0-9_-]{3,15}$", username_input):
+    if not re.match("^[a-zA-Z0-9_-]{3,15}$", raw_username):
         msg = bot.send_message(
             message.chat.id,
             "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\n"
@@ -3874,7 +4295,14 @@ def process_purchase_username_manual(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username_manual, plan_id, spec)
         return
 
-    # Check existence
+    # Automatically generate a 5-7 digit/char random alphanumeric suffix and append it
+    import random
+    import string
+    suffix_length = random.randint(5, 7)
+    random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=suffix_length))
+    username_input = f"{raw_username}-{random_suffix}"
+
+    # Check existence of the suffix-appended username
     if check_client_exists(username_input, server_id=spec.get("server_id")):
         msg = bot.send_message(
             message.chat.id,
@@ -4340,16 +4768,16 @@ def process_purchase_username(message, plan_id, spec):
     tg_id = message.from_user.id
     if not message.text:
        return # ignore non-text
-    username_input = message.text.strip()
+    raw_username = message.text.strip()
     
-    if username_input == "/start" or "انصراف" in username_input or "بازگشت" in username_input or "منصرف" in username_input:
+    if raw_username == "/start" or "انصراف" in raw_username or "بازگشت" in raw_username or "منصرف" in raw_username:
         bot.send_message(message.chat.id, "❌ عملیات لغو شد.", reply_markup=get_custom_keyboard())
         start_cmd(message)
         return
         
-    # Simple regex validation to ensure safe client email/name (alphanumeric, no spaces, length 3-15)
+    # Simple regex validation to ensure safe client email/name (alphanumeric, no spaces, length 3-15) on raw input
     import re
-    if not re.match("^[a-zA-Z0-9_-]{3,15}$", username_input):
+    if not re.match("^[a-zA-Z0-9_-]{3,15}$", raw_username):
         msg = bot.send_message(
             message.chat.id,
             "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\n"
@@ -4360,7 +4788,14 @@ def process_purchase_username(message, plan_id, spec):
         bot.register_next_step_handler(msg, process_purchase_username, plan_id, spec)
         return
 
-    # Check if this name is already taken in our active keys or panel (local prevention check)
+    # Automatically generate a 5-7 digit/char random alphanumeric suffix and append it
+    import random
+    import string
+    suffix_length = random.randint(5, 7)
+    random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=suffix_length))
+    username_input = f"{raw_username}-{random_suffix}"
+
+    # Check if this suffix-appended name is already taken in our active keys or panel (local prevention check)
     if check_client_exists(username_input, server_id=spec.get("server_id")):
         msg = bot.send_message(
             message.chat.id,

@@ -11,11 +11,12 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
+import { Language } from "../locales";
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
-  lang: "fa" | "en";
-  setLang: (lang: "fa" | "en") => void;
+  lang: Language;
+  setLang: (lang: Language) => void;
   appVersion: string;
 }
 

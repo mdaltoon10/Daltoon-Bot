@@ -52,6 +52,7 @@ export default function SettingsPanel({
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
   const [botNickname, setBotNickname] = useState(settings.botNickname || "");
+  const [currency, setCurrency] = useState(settings.currency || "تومان");
   const [ownerId, setOwnerId] = useState(
     settings.ownerId ? settings.ownerId.toString() : "",
   );
@@ -225,6 +226,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       botNickname,
+      currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       customAiApiKey,
@@ -265,6 +267,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       botNickname,
+      currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       customAiApiKey,
@@ -572,6 +575,7 @@ export default function SettingsPanel({
       ...settings,
       botToken,
       botNickname,
+      currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
       customAiApiKey,
@@ -1681,7 +1685,26 @@ export default function SettingsPanel({
               </p>
             </div>
 
-
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {lang === "fa"
+                  ? "واحد پول سیستم و ربات (Currency)"
+                  : "System & Bot Currency"}
+              </label>
+              <input
+                type="text"
+                required
+                placeholder={lang === "fa" ? "مثال: تومان، ریال، USD, TL" : "e.g. Toman, USD, TL"}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-medium focus:ring-1 focus:ring-indigo-500"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {lang === "fa"
+                  ? "تمام مبالغ، فاکتورها، گزارش‌های درآمد و شبیه‌سازهای ربات با این واحد پول پردازش و نمایش داده می‌شوند."
+                  : "All amounts, invoices, revenue metrics, and bot simulators will use and display this currency."}
+              </p>
+            </div>
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">

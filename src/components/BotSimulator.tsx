@@ -110,6 +110,7 @@ export default function BotSimulator({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<VpnPlan | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
@@ -277,6 +278,32 @@ export default function BotSimulator({
 
   const addBotReply = (text: string, delayMs = 600, keyboard?: string[][], inlineButtons?: ({ text: string; action: string } | { text: string; action: string }[])[]) => {
     setIsTyping(true);
+
+    const processedText = text
+      .replace(/تومان/g, currency)
+      .replace(/Tomans/g, currency)
+      .replace(/Toman/g, currency);
+
+    const processedKeyboard = keyboard ? keyboard.map(row => 
+      row.map(btn => btn.replace(/تومان/g, currency).replace(/Tomans/g, currency).replace(/Toman/g, currency))
+    ) : getKeyboard().map(row =>
+      row.map(btn => btn.replace(/تومان/g, currency).replace(/Tomans/g, currency).replace(/Toman/g, currency))
+    );
+
+    const processedInlineButtons = inlineButtons ? inlineButtons.map(item => {
+      if (Array.isArray(item)) {
+        return item.map(btn => ({
+          ...btn,
+          text: btn.text.replace(/تومان/g, currency).replace(/Tomans/g, currency).replace(/Toman/g, currency)
+        }));
+      } else {
+        return {
+          ...item,
+          text: item.text.replace(/تومان/g, currency).replace(/Tomans/g, currency).replace(/Toman/g, currency)
+        };
+      }
+    }) : undefined;
+
     setTimeout(() => {
       setIsTyping(false);
       setMessages(prev => [
@@ -284,10 +311,10 @@ export default function BotSimulator({
         {
           id: Math.random().toString(),
           sender: "bot",
-          text,
+          text: processedText,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          keyboard: keyboard || getKeyboard(),
-          inlineButtons
+          keyboard: processedKeyboard,
+          inlineButtons: processedInlineButtons
         }
       ]);
     }, delayMs);
@@ -667,6 +694,15 @@ export default function BotSimulator({
         return;
       }
 
+      // Automatically generate a 5-7 char random alphanumeric suffix and append it
+      const suffixLength = Math.floor(Math.random() * 3) + 5; // 5 to 7 characters
+      const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+      let randomSuffix = "";
+      for (let i = 0; i < suffixLength; i++) {
+        randomSuffix += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      const finalClientName = `${clientNameInput}-${randomSuffix}`;
+
       setPurchaseStep("sending");
       addBotReply(
         lang === "fa"
@@ -706,7 +742,8 @@ export default function BotSimulator({
           trafficLimitGb: selectedPlanToBuy.trafficGb,
           trafficUsedGb: 0,
           status: "active" as const,
-          serverId: (selectedPlanToBuy as any)._serverId
+          serverId: (selectedPlanToBuy as any)._serverId,
+          clientName: finalClientName
         };
 
         // Update simulated states
@@ -719,7 +756,7 @@ export default function BotSimulator({
         const deliveryNote = settings?.purchaseSuccessNote ? `\n\n${settings.purchaseSuccessNote}` : "";
         const confirmMsg = lang === "fa"
           ? `🎉 <b>خرید آزمایشی شما با موفقیت انجام شد!</b>\n\n` +
-            `👤 نام کاربری سرویس شما: <code>${clientNameInput}</code>\n` +
+            `👤 نام کاربری سرویس شما: <code>${finalClientName}</code>\n` +
             `💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n` +
             `💰 موجودی باقیمانده کیف پول آزمایشی: ${newBal.toLocaleString()} تومان\n\n` +
             `🔑 <b>کانفیگ VLESS اختصاصی (آزمایشی) صادر شد:</b>\n` +
@@ -727,7 +764,7 @@ export default function BotSimulator({
             `<code>${mockSub.subLink}</code>\n\n` +
             `⚠️ <i>توجه: کل سیستم شبیه‌ساز کاملاً آموزشی است و هیچ تأثیری بر کیف پول دیتابیس واقعی ندارد.</i>${deliveryNote}`
           : `🎉 <b>Simulated subscription purchased!</b>\n\n` +
-            `👤 Username: <code>${clientNameInput}</code>\n` +
+            `👤 Username: <code>${finalClientName}</code>\n` +
             `💳 Price Deducted: ${isUserAdminOrOwner ? "0 (Admin Free 👑)" : price.toLocaleString() + " Toman"}\n` +
             `💰 Simulated Wallet Balance: ${newBal.toLocaleString()} Toman\n\n` +
             `🔑 <b>Simulated configuration generated:</b>\n` +

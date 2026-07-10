@@ -29,6 +29,7 @@ export default function GiftCodeManager({
   onSaveSettings,
   lang = 'fa'
 }: GiftCodeManagerProps) {
+  const currency = settings?.currency || (lang === 'fa' ? 'تومان' : 'Toman');
   // Navigation tab within the merged screen
   const [managerTab, setManagerTab] = useState<'gift_codes' | 'promo_codes' | 'referrals'>('gift_codes');
 
@@ -222,7 +223,7 @@ export default function GiftCodeManager({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'مبلغ (تومان)' : 'Amount (Toman)'}</label>
+                <label className="text-sm font-medium text-gray-300">{isFa ? `مبلغ (${currency})` : `Amount (${currency})`}</label>
                 <input
                   type="number"
                   value={amount}
@@ -398,7 +399,7 @@ export default function GiftCodeManager({
                     className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
                   >
                     <option value="percent">{isFa ? "درصدی (%)" : "Percentage (%)"}</option>
-                    <option value="fixed_amount">{isFa ? "مبلغی (تومان)" : "Amount (Toman)"}</option>
+                    <option value="fixed_amount">{isFa ? `مبلغی (${currency})` : `Amount (${currency})`}</option>
                     <option value="extend_days">{isFa ? "تمدید (روز)" : "Extension (Days)"}</option>
                   </select>
                 </div>
@@ -553,7 +554,7 @@ export default function GiftCodeManager({
                           ) : pc.type === "fixed_amount" ? (
                             <>
                               <Tag className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{isFa ? `${pc.value.toLocaleString()} تومان تخفیف` : `${pc.value.toLocaleString()} Toman Discount`}</span>
+                              <span>{isFa ? `${pc.value.toLocaleString()} ${currency} تخفیف` : `${pc.value.toLocaleString()} ${currency} Discount`}</span>
                             </>
                           ) : (
                             <>
@@ -768,7 +769,7 @@ export default function GiftCodeManager({
                   <span className="bg-emerald-500/10 px-2 py-1 rounded text-emerald-300 font-mono text-xs">
                     {Math.max(0, Math.round(((calculationAmount || 0) as number * ((referralRewardPercent || 0) as number)) / 100)).toLocaleString()} 
                   </span>
-                  <span>{isFa ? 'تومان پاداش' : 'Toman'}</span>
+                  <span>{isFa ? `${currency} پاداش` : `${currency}`}</span>
                 </p>
               </div>
               <div className="text-xs text-gray-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono">

@@ -45,6 +45,7 @@ export default function ServerManagement({
   inbounds,
   setInbounds
 }: ServerManagementProps) {
+  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -772,7 +773,7 @@ export default function ServerManagement({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? "قیمت به ازای هر گیگابایت (تومان)" : "Price per GB (Toman)"}
+                            {lang === "fa" ? `قیمت به ازای هر گیگابایت (${currency})` : `Price per GB (${currency})`}
                           </label>
                           <input
                             type="number"
@@ -784,7 +785,7 @@ export default function ServerManagement({
                         </div>
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? "قیمت به ازای هر روز (تومان)" : "Price per Day (Toman)"}
+                            {lang === "fa" ? `قیمت به ازای هر روز (${currency})` : `Price per Day (${currency})`}
                           </label>
                           <input
                             type="number"
@@ -1153,7 +1154,7 @@ export default function ServerManagement({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "قیمت مصرف کننده (تومان)" : "Selling Price (Tomans)"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? `قیمت مصرف کننده (${currency})` : `Selling Price (${currency})`}</label>
                   <input
                     type="number"
                     required
@@ -1285,7 +1286,7 @@ export default function ServerManagement({
                         <span className="text-xs text-gray-400">{lang === "fa" ? "قیمت فروش ربات:" : "Bot Price:"}</span>
                         <div className="font-mono text-white text-md font-bold">
                           <span className="text-yellow-400">{plan.price.toLocaleString()}</span>
-                          <span className="text-[11px] text-gray-500 font-sans font-medium"> {lang === "fa" ? "تومان" : "Toman"}</span>
+                          <span className="text-[11px] text-gray-500 font-sans font-medium"> {currency}</span>
                         </div>
                       </div>
                     </div>

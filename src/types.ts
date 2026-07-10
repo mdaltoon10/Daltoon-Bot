@@ -16,6 +16,7 @@ export interface PanelSettings {
   servers?: ServerConfig[];
   colleagueServers?: ServerConfig[];
   botToken: string;
+  currency?: string; // Custom currency string (e.g. "تومان", "USD", "$", etc.)
   botNickname?: string;
   baseUrl: string; // Deprecated, kept for backward compatibility
   subUrl?: string; // Deprecated

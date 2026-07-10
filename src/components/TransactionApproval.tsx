@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Transaction } from "../types";
+import { Transaction, PanelSettings } from "../types";
 import { Language, translations } from "../locales";
 import { 
   Check, 
@@ -20,6 +20,7 @@ interface TransactionApprovalProps {
   deleteTransaction: (id: string) => void;
   clearTransactionHistory: () => void;
   lang: Language;
+  settings?: PanelSettings;
 }
 
 export default function TransactionApproval({
@@ -28,9 +29,11 @@ export default function TransactionApproval({
   rejectTransaction,
   deleteTransaction,
   clearTransactionHistory,
-  lang
+  lang,
+  settings
 }: TransactionApprovalProps) {
   const t = translations[lang];
+  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -140,7 +143,7 @@ export default function TransactionApproval({
                         <div className="text-[10px] text-gray-400 font-mono">ID: {tx.userId}</div>
                       </td>
                       <td className="px-5 py-4 font-display font-semibold text-emerald-400">
-                        {tx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}
+                        {tx.amount.toLocaleString()} {currency}
                       </td>
                       <td className="px-5 py-4 text-xs text-gray-400">
                         {new Date(tx.date).toLocaleDateString()} at {new Date(tx.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -278,10 +281,10 @@ export default function TransactionApproval({
                               }}
                               className="bg-slate-950 text-emerald-400 font-semibold font-display text-right w-24 py-0.5 px-1 rounded border border-slate-700 text-xs focus:outline-none focus:border-indigo-500"
                             />
-                            <span className="text-[10px] text-gray-400">{lang === "fa" ? "تومان" : "Toman"}</span>
+                            <span className="text-[10px] text-gray-400">{currency}</span>
                           </div>
                         ) : (
-                          <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Tomans"}</span>
+                          <span className="text-emerald-400 font-semibold font-display">{selectedTx.amount.toLocaleString()} {currency}</span>
                         )}
                       </div>
                       <div className="flex justify-between">
@@ -409,7 +412,7 @@ export default function TransactionApproval({
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-white font-medium text-sm">@{selectedTx.username} (ID: {selectedTx.userId})</p>
-            <p className="text-emerald-400 font-bold text-base font-display">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}</p>
+            <p className="text-emerald-400 font-bold text-base font-display">{selectedTx.amount.toLocaleString()} {currency}</p>
             <p className="text-[10px] text-gray-400 font-mono">Reference: {selectedTx.id}</p>
           </div>
         </div>

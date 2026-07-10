@@ -1,13 +1,13 @@
 [English](README.md) | [فارسی](README_FA.md)
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/banner.png" alt="Daltoon Bot" width="800">
+  <img src="https://i.ibb.co/zhrG6Ljn/Banner.png" alt="Daltoon Bot" width="800">
 </div>
 
 <p align="center">
   <img src="https://img.shields.io/github/v/release/mdaltoon10/Daltoon-Bot?color=blue&label=release" alt="release">
   <img src="https://img.shields.io/badge/build-passing-brightgreen" alt="build">
-  <img src="https://img.shields.io/github/downloads/mdaltoon10/Daltoon-Bot/total?color=orange&label=downloads" alt="downloads">
+  <img src="https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/downloads.json&query=$.downloads&color=orange&label=downloads" alt="downloads">
   <img src="https://img.shields.io/github/license/mdaltoon10/Daltoon-Bot?color=blue" alt="license">
 </p>
 
@@ -31,9 +31,9 @@ Built as an all-in-one system, Daltoon Bot adds broader panel support, improved 
 
 ## 📈 Project Statistics
 
-- **Total Installations**: ![Downloads](https://img.shields.io/github/downloads/mdaltoon10/Daltoon-Bot/total?style=flat-square&color=orange)
-- **Active Version**: ![Release](https://img.shields.io/github/v/release/mdaltoon10/Daltoon-Bot?style=flat-square)
-- **License**: ![License](https://img.shields.io/github/license/mdaltoon10/Daltoon-Bot?style=flat-square)
+- **Total Installations**: ![Downloads](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/downloads.json&query=$.downloads&label=downloads&style=flat-square&color=orange)
+- **Active Version**: ![Release](https://img.shields.io/github/v/release/mdaltoon10/Daltoon-Bot&style=flat-square)
+- **License**: ![License](https://img.shields.io/github/license/mdaltoon10/Daltoon-Bot&style=flat-square)
 
 ## 📥 Downloads
 

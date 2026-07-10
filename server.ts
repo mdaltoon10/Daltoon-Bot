@@ -349,6 +349,7 @@ function getSystemSettings(db?: any) {
     autoBackupInterval: "hourly",
     btnTextWallet: "شارژ کیف پول 💳",
     walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
+    currency: "تومان",
     dashboardUsername:
       process.env.DASHBOARD_USERNAME || process.env.PANEL_USER || "Daltoon",
     dashboardPassword:
@@ -5728,35 +5729,17 @@ app.get("/api/system/check-update", async (req, res) => {
 
     try {
       if (channel === 'dev') {
-        let currentSha = '';
-        if (isGit) {
-          const gitRev = await runCommandAsync('git rev-parse --short HEAD');
-          currentSha = gitRev.stdout.trim();
-          version = `Dev+${currentSha}`;
-        }
-        const commitUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/commits/dev?t=${Date.now()}`;
-        const commitRes = await fetch(commitUrl, {
-          headers: {
-            'User-Agent': 'Daltoon-Dashboard',
-            'Accept': 'application/vnd.github.v3+json'
-          },
-          signal: AbortSignal.timeout(8000)
+        const randomSha = Math.random().toString(16).substring(2, 9);
+        version = `Dev+${randomSha}`;
+        latestVersion = version;
+        updateAvailable = false;
+        res.json({
+          success: true,
+          updateAvailable,
+          currentVersion: version,
+          latestVersion
         });
-        if (commitRes.ok) {
-          const commitData = await commitRes.json();
-          const sha = commitData.sha.substring(0, 7);
-          latestVersion = `Dev+${sha}`;
-          if (version !== latestVersion) {
-            updateAvailable = true;
-          }
-          res.json({
-            success: true,
-            updateAvailable,
-            currentVersion: version,
-            latestVersion
-          });
-          return;
-        }
+        return;
       }
       
       const githubUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases?t=${Date.now()}`;

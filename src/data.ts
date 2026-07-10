@@ -2,6 +2,7 @@ import { PanelSettings, InboundInfo, User, Transaction, VpnPlan, SubscriptionKey
 
 export const initialSettings: PanelSettings = {
   botToken: "",
+  currency: "تومان",
   baseUrl: "https://panel.example.com:8443",
   panelUrl: "https://panel.example.com:8443/secretPath",
   panelUsername: "admin",

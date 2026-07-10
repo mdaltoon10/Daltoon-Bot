@@ -441,13 +441,326 @@ export default function App() {
   // State initialization with localStorage persistence
   const [lang, setLang] = useState<Language>(() => {
     const cached = localStorage.getItem("daltoon_lang");
-    return cached === "fa" || cached === "en" ? cached : "fa"; // Default to Persian as requested
+    return (cached === "fa" || cached === "en" || cached === "ar" || cached === "ru" || cached === "tr" || cached === "es") ? (cached as Language) : "fa"; // Default to Persian as requested
   });
+
+  const appTrans = {
+    darkMode: {
+      fa: "تم تاریک",
+      en: "Dark Mode",
+      ar: "الوضع الداكن",
+      ru: "Тёмная тема",
+      tr: "Karanlık Mod",
+      es: "Modo oscuro"
+    },
+    lightMode: {
+      fa: "تم روشن",
+      en: "Light Mode",
+      ar: "الوضع الفاتح",
+      ru: "Светлая тема",
+      tr: "Aydınlık Mod",
+      es: "Modo claro"
+    },
+    selectLanguage: {
+      fa: "🌐 انتخاب زبان ربات و پنل",
+      en: "🌐 Select Language",
+      ar: "🌐 اختر اللغة",
+      ru: "🌐 Выберите язык",
+      tr: "🌐 Dil Seçin",
+      es: "🌐 Seleccione idioma"
+    },
+    refreshData: {
+      fa: "بروزرسانی داده‌ها",
+      en: "Refresh Data",
+      ar: "تحديث البيانات",
+      ru: "Обновить данные",
+      tr: "Verileri Yenile",
+      es: "Actualizar datos"
+    },
+    updating: {
+      fa: "در حال بروزرسانی...",
+      en: "Updating...",
+      ar: "جاري التحديث...",
+      ru: "Обновление...",
+      tr: "Güncelleniyor...",
+      es: "Actualizando..."
+    },
+    updateSuccess: {
+      fa: "✅ بروزرسانی موفق. در حال راه‌اندازی مجدد...",
+      en: "✅ Update success. Restarting...",
+      ar: "✅ نجح التحديث. جاري إعادة التشغيل...",
+      ru: "✅ Обновление успешно. Перезапуск...",
+      tr: "✅ Güncelleme başarılı. Yeniden başlatılıyor...",
+      es: "✅ Actualización exitosa. Reiniciando..."
+    },
+    updateFailed: {
+      fa: "❌ خطا در بروزرسانی: ",
+      en: "❌ Update failed: ",
+      ar: "❌ فشل التحديث: ",
+      ru: "❌ Ошибка обновления: ",
+      tr: "❌ Güncelleme hatası: ",
+      es: "❌ Error de actualización: "
+    },
+    communicationError: {
+      fa: "❌ خطا در برقراری ارتباط برای بروزرسانی",
+      en: "❌ Communication error during update.",
+      ar: "❌ خطأ في الاتصال أثناء التحديث.",
+      ru: "❌ Ошибка связи во время обновления.",
+      tr: "❌ Güncelleme sırasında iletişim hatası.",
+      es: "❌ Error de comunicación durante la actualización."
+    },
+    refreshSuccess: {
+      fa: "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد.",
+      en: "✅ Dashboard data refreshed successfully.",
+      ar: "✅ تم تحديث بيانات لوحة التحكم بنجاح.",
+      ru: "✅ Данные панели управления успешно обновлены.",
+      tr: "✅ Panel verileri başarıyla yenilendi.",
+      es: "✅ Datos del panel actualizados con éxito."
+    },
+    refreshError: {
+      fa: "❌ خطا در دریافت اطلاعات از سرور.",
+      en: "❌ Failed refreshing data from server.",
+      ar: "❌ فشل تحديث البيانات من الخادم.",
+      ru: "❌ Не удалось обновить данные с сервера.",
+      tr: "❌ Sunucudan veriler yenilenemedi.",
+      es: "❌ Error al actualizar los datos desde el servidor."
+    },
+    userExists: {
+      fa: "این شناسه کاربری تلگرام قبلاً در دیتابیس ثبت شده است.",
+      en: "This Telegram User ID already exists in the bot database.",
+      ar: "معرف مستخدم تليجرام هذا موجود بالفعل في قاعدة البيانات.",
+      ru: "Этот Telegram ID уже зарегистрирован в базе данных.",
+      tr: "Bu Telegram Kullanıcı ID'si zaten veritabanında mevcut.",
+      es: "Este ID de usuario de Telegram ya existe en la base de datos."
+    },
+    approvedAndCredited: {
+      fa: " - تایید و شارژ شد",
+      en: " - Approved and credited",
+      ar: " - تم اعتماده وشحنه",
+      ru: " - Подтверждено и зачислено",
+      tr: " - Onaylandı ve yüklendi",
+      es: " - Aprobado y acreditado"
+    },
+    receiptApproved: {
+      fa: "✅ فیش با موفقیت تایید و {amount} تومان شارژ شد.",
+      en: "✅ Receipt approved & {amount} Tomans credited.",
+      ar: "✅ تم قبول الإيصال وشحن {amount} تومان بنجاح.",
+      ru: "✅ Чек подтвержден, зачислено {amount} Томанов.",
+      tr: "✅ Dekont onaylandı ve {amount} Toman yüklendi.",
+      es: "✅ Recibo aprobado y se acreditaron {amount} Tomanes."
+    },
+    invalidSlipRejected: {
+      fa: " - فیش نامعتبر رد شد",
+      en: " - Invalid slip rejected",
+      ar: " - تم رفض الإيصال غير الصالح",
+      ru: " - Недействительный чек отклонен",
+      tr: " - Geçersiz dekont reddedildi",
+      es: " - Recibo inválido rechazado"
+    },
+    receiptRejected: {
+      fa: "❌ فیش پرداخت رد شد.",
+      en: "❌ Payment receipt was rejected.",
+      ar: "❌ تم رفض إيصال الدفع.",
+      ru: "❌ Чек оплаты отклонен.",
+      tr: "❌ Ödeme dekontu reddedildi.",
+      es: "❌ El recibo de pago fue rechazado."
+    },
+    settingsSaved: {
+      fa: "✅ تنظیمات با موفقیت ذخیره شد.",
+      en: "✅ Settings saved successfully.",
+      ar: "✅ تم حفظ الإعدادات بنجاح.",
+      ru: "✅ Настройки успешно сохранены.",
+      tr: "✅ Ayarlar başarıyla kaydedildi.",
+      es: "✅ Configuración guardada con éxito."
+    },
+    settingsError: {
+      fa: "❌ خطا در ذخیره تنظیمات.",
+      en: "❌ Failed to save settings.",
+      ar: "❌ فشل حفظ الإعدادات.",
+      ru: "❌ Не удалось сохранить настройки.",
+      tr: "❌ Ayarlar kaydedilemedi.",
+      es: "❌ Error al guardar la configuración."
+    },
+    vpnConfigsManagement: {
+      fa: "مدیریت کانفیگ‌ها",
+      en: "VPN Configs Management",
+      ar: "إدارة التكوينات VPN",
+      ru: "Управление ключами VPN",
+      tr: "VPN Yapılandırma Yönetimi",
+      es: "Gestión de Configuración VPN"
+    },
+    serverManagement: {
+      fa: "مدیریت سرورها",
+      en: "Server Management",
+      ar: "إدارة الخوادم",
+      ru: "Управление серверами",
+      tr: "Sunucu Yönetimi",
+      es: "Gestión de Servidores"
+    },
+    giftCodes: {
+      fa: "کدهای هدیه",
+      en: "Gift Codes",
+      ar: "أكواد الهدايا",
+      ru: "Подарочные коды",
+      tr: "Hediye Kodları",
+      es: "Códigos de Regalo"
+    },
+    supportTickets: {
+      fa: "سیستم تیکت",
+      en: "Support Tickets",
+      ar: "تذاكر الدعم",
+      ru: "Тикеты поддержки",
+      tr: "Destek Talepleri",
+      es: "Tickets de Soporte"
+    },
+    logout: {
+      fa: "خروج",
+      en: "Logout",
+      ar: "تسجيل الخروج",
+      ru: "Выйти",
+      tr: "Çıkış Yap",
+      es: "Cerrar sesión"
+    },
+    developerBy: {
+      fa: "توسعه دهنده توسط ",
+      en: "Developer by ",
+      ar: "المطور بواسطة ",
+      ru: "Разработчик: ",
+      tr: "Geliştirici: ",
+      es: "Desarrollador por "
+    },
+    updatePanel: {
+      fa: "پنل بروزرسانی",
+      en: "Update Panel",
+      ar: "لوحة التحديث",
+      ru: "Панель обновления",
+      tr: "Güncelleme Paneli",
+      es: "Panel de actualización"
+    },
+    devChannel: {
+      fa: "کانال آزمایشی (Dev)",
+      en: "Dev channel",
+      ar: "قناة التطوير (Dev)",
+      ru: "Канал для разработчиков (Dev)",
+      tr: "Geliştirici kanalı (Dev)",
+      es: "Canal de desarrollo (Dev)"
+    },
+    devChannelDesc: {
+      fa: "دریافت سریع‌ترین تغییرات (ناپایدار)",
+      en: "Get fastest changes (unstable)",
+      ar: "احصل على أسرع التغييرات (غير مستقرة)",
+      ru: "Получайте самые быстрые обновления (нестабильно)",
+      tr: "En hızlı değişiklikleri alın (kararsız)",
+      es: "Obtenga los cambios más rápidos (inestables)"
+    },
+    currentVersion: {
+      fa: "نسخه فعلی پنل",
+      en: "Current panel version",
+      ar: "نسخة اللوحة الحالية",
+      ru: "Текущая версия панели",
+      tr: "Mevcut panel sürümü",
+      es: "Versión actual del panel"
+    },
+    newVersionAvailable: {
+      fa: "نسخه جدید در دسترس است",
+      en: "Update available",
+      ar: "التحديث متاح",
+      ru: "Доступно обновление",
+      tr: "Güncelleme mevcut",
+      es: "Actualización disponible"
+    },
+    panelIsUpToDate: {
+      fa: "پنل بروز است",
+      en: "Panel is up to date",
+      ar: "اللوحة محدثة",
+      ru: "Панель обновлена",
+      tr: "Panel güncel",
+      es: "El panel está actualizado"
+    },
+    forceUpdate: {
+      fa: "مشکلی در شناسایی نسخه وجود دارد؟ بروزرسانی اجباری",
+      en: "Trouble checking? Force Update",
+      ar: "هل تواجه مشكلة في التحقق؟ تحديث إجباري",
+      ru: "Проблемы с проверкой? Принудительное обновление",
+      tr: "Kontrol etmede sorun mu var? Zorunlu Güncelleme",
+      es: "¿Problemas al verificar? Actualización forzada"
+    },
+    confirmUpdate: {
+      fa: "تایید بروزرسانی",
+      en: "Confirm Update",
+      ar: "تأكيد التحديث",
+      ru: "Подтвердить обновление",
+      tr: "Güncellemeyi Onayla",
+      es: "Confirmar actualización"
+    },
+    confirmUpdateDesc: {
+      fa: "آیا از بروزرسانی پنل به آخرین نسخه اطمینان دارید؟ این فرآیند ممکن است چند دقیقه طول بکشد.",
+      en: "Are you sure you want to update the panel to the latest version? This may take a few minutes.",
+      ar: "هل أنت متأكد من رغبتك في تحديث اللوحة إلى أحدث إصدار؟ قد يستغرق ذلك بضع دقائق.",
+      ru: "Вы уверены, что хотите обновить панель до последней версии? Это может занять несколько минут.",
+      tr: "Paneli en son sürüme güncellemek istediğinizden emin misiniz? Bu işlem birkaç dakika sürebilir.",
+      es: "¿Está seguro de que desea actualizar el panel a la última versión? Esto puede tardar unos minutos."
+    },
+    startUpdate: {
+      fa: "شروع بروزرسانی",
+      en: "Start Update",
+      ar: "بدء التحديث",
+      ru: "Начать обновление",
+      tr: "Güncellemeyi Başlat",
+      es: "Iniciar actualización"
+    },
+    cancel: {
+      fa: "انصراف",
+      en: "Cancel",
+      ar: "إلغاء",
+      ru: "Отмена",
+      tr: "İptal",
+      es: "Cancelar"
+    }
+  };
+
+  const curAppT = (key: keyof typeof appTrans) => {
+    return appTrans[key][lang] || appTrans[key]["en"];
+  };
+
+  const isRtl = lang === "fa" || lang === "ar";
+
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
 
   const [settings, setSettings] = useState<PanelSettings>(() => {
     const cached = localStorage.getItem("daltoon_settings");
     return cached ? JSON.parse(cached) : initialSettings;
   });
+
+  const handleLanguageSelect = (newLang: Language) => {
+    setLang(newLang);
+    localStorage.setItem("daltoon_lang", newLang);
+    setShowLangDropdown(false);
+
+    const updatedSettings = { ...settings, LANG: newLang };
+    setSettings(updatedSettings);
+    localStorage.setItem("daltoon_settings", JSON.stringify(updatedSettings));
+
+    fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedSettings),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success) {
+          setToastMessage(
+            newLang === "fa"
+              ? "🌐 زبان ربات تلگرام و داشبورد با موفقیت هماهنگ شد."
+              : "🌐 Dashboard & Telegram bot language synchronized successfully.",
+          );
+          setTimeout(() => setToastMessage(null), 3000);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to synchronize language settings:", err);
+      });
+  };
 
   const [inbounds, setInbounds] = useState<InboundInfo[]>(() => {
     const cached = localStorage.getItem("daltoon_inbounds");
@@ -572,7 +885,7 @@ export default function App() {
 
   const [updateChannel, setUpdateChannel] = useState<"stable" | "dev">(() => {
     const cached = localStorage.getItem("daltoon_update_channel");
-    return (cached as any) || (appVersion.includes("dev") ? "dev" : "stable");
+    return (cached as any) || (appVersion.toLowerCase().includes("dev") ? "dev" : "stable");
   });
   const [showUpdatePanel, setShowUpdatePanel] = useState(false);
 
@@ -631,17 +944,6 @@ export default function App() {
     }
   }, [isAuthenticated, settings, isNewInstall]);
 
-  useEffect(() => {
-    fetch("/api/system/check-update")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.currentVersion) setAppVersion(data.currentVersion);
-        if (data.latestVersion) setLatestVersion(data.latestVersion);
-        if (data.updateAvailable) setUpdateAvailable(true);
-      })
-      .catch((err) => console.warn("Check update failed", err));
-  }, []);
-
   const handleUpdate = () => {
     setShowUpdateConfirm(true);
   };
@@ -649,7 +951,7 @@ export default function App() {
   const executeUpdate = () => {
     setShowUpdateConfirm(false);
     setIsUpdating(true);
-    setToastMessage(lang === "fa" ? "در حال بروزرسانی..." : "Updating...");
+    setToastMessage(curAppT("updating"));
     fetch("/api/system/update", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -658,27 +960,15 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         if (data.success) {
-          setToastMessage(
-            lang === "fa"
-              ? "✅ بروزرسانی موفق. در حال راه‌اندازی مجدد..."
-              : "✅ Update success. Restarting...",
-          );
+          setToastMessage(curAppT("updateSuccess"));
           setTimeout(() => window.location.reload(), 4000);
         } else {
-          setToastMessage(
-            lang === "fa"
-              ? "❌ خطا در بروزرسانی: " + (data.error || "")
-              : "❌ Update failed.",
-          );
+          setToastMessage(curAppT("updateFailed") + (data.error || ""));
           setIsUpdating(false);
         }
       })
       .catch((err) => {
-        setToastMessage(
-          lang === "fa"
-            ? "❌ خطا در برقراری ارتباط برای بروزرسانی"
-            : "❌ Communication error during update.",
-        );
+        setToastMessage(curAppT("communicationError"));
         setIsUpdating(false);
       });
   };
@@ -736,6 +1026,253 @@ export default function App() {
   }, [activeTab]);
 
   const t = translations[lang];
+
+  const _unusedAppTrans = {
+    updating: {
+      fa: "در حال بروزرسانی...",
+      en: "Updating...",
+      ar: "جاري التحديث...",
+      ru: "Обновление...",
+      tr: "Güncelleniyor...",
+      es: "Actualizando..."
+    },
+    updateSuccess: {
+      fa: "✅ بروزرسانی موفق. در حال راه‌اندازی مجدد...",
+      en: "✅ Update success. Restarting...",
+      ar: "✅ نجح التحديث. جاري إعادة التشغيل...",
+      ru: "✅ Обновление успешно. Перезапуск...",
+      tr: "✅ Güncelleme başarılı. Yeniden başlatılıyor...",
+      es: "✅ Actualización exitosa. Reiniciando..."
+    },
+    updateFailed: {
+      fa: "❌ خطا در بروزرسانی: ",
+      en: "❌ Update failed: ",
+      ar: "❌ فشل التحديث: ",
+      ru: "❌ Ошибка обновления: ",
+      tr: "❌ Güncelleme hatası: ",
+      es: "❌ Error de actualización: "
+    },
+    communicationError: {
+      fa: "❌ خطا در برقراری ارتباط برای بروزرسانی",
+      en: "❌ Communication error during update.",
+      ar: "❌ خطأ في الاتصال أثناء التحديث.",
+      ru: "❌ Ошибка связи во время обновления.",
+      tr: "❌ Güncelleme sırasında iletişim hatası.",
+      es: "❌ Error de comunicación durante la actualización."
+    },
+    refreshSuccess: {
+      fa: "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد.",
+      en: "✅ Dashboard data refreshed successfully.",
+      ar: "✅ تم تحديث بيانات لوحة التحكم بنجاح.",
+      ru: "✅ Данные панели управления успешно обновлены.",
+      tr: "✅ Panel verileri başarıyla yenilendi.",
+      es: "✅ Datos del panel actualizados con éxito."
+    },
+    refreshError: {
+      fa: "❌ خطا در دریافت اطلاعات از سرور.",
+      en: "❌ Failed refreshing data from server.",
+      ar: "❌ فشل تحديث البيانات من الخادم.",
+      ru: "❌ Не удалось обновить данные с сервера.",
+      tr: "❌ Sunucudan veriler yenilenemedi.",
+      es: "❌ Error al actualizar los datos desde el servidor."
+    },
+    userExists: {
+      fa: "این شناسه کاربری تلگرام قبلاً در دیتابیس ثبت شده است.",
+      en: "This Telegram User ID already exists in the bot database.",
+      ar: "معرف مستخدم تليجرام هذا موجود بالفعل في قاعدة البيانات.",
+      ru: "Этот Telegram ID уже зарегистрирован в базе данных.",
+      tr: "Bu Telegram Kullanıcı ID'si zaten veritabanında mevcut.",
+      es: "Este ID de usuario de Telegram ya existe en la base de datos."
+    },
+    approvedAndCredited: {
+      fa: " - تایید و شارژ شد",
+      en: " - Approved and credited",
+      ar: " - تم اعتماده وشحنه",
+      ru: " - Подтверждено и зачислено",
+      tr: " - Onaylandı ve yüklendi",
+      es: " - Aprobado y acreditado"
+    },
+    receiptApproved: {
+      fa: "✅ فیش با موفقیت تایید و {amount} تومان شارژ شد.",
+      en: "✅ Receipt approved & {amount} Tomans credited.",
+      ar: "✅ تم قبول الإيصال وشحن {amount} تومان بنجاح.",
+      ru: "✅ Чек подтвержден, зачислено {amount} Томанов.",
+      tr: "✅ Dekont onaylandı ve {amount} Toman yüklendi.",
+      es: "✅ Recibo aprobado y se acreditaron {amount} Tomanes."
+    },
+    invalidSlipRejected: {
+      fa: " - فیش نامعتبر رد شد",
+      en: " - Invalid slip rejected",
+      ar: " - تم رفض الإيصال غير الصالح",
+      ru: " - Недействительный чек отклонен",
+      tr: " - Geçersiz dekont reddedildi",
+      es: " - Recibo inválido rechazado"
+    },
+    receiptRejected: {
+      fa: "❌ فیش پرداخت رد شد.",
+      en: "❌ Payment receipt was rejected.",
+      ar: "❌ تم رفض إيصال الدفع.",
+      ru: "❌ Чек оплаты отклонен.",
+      tr: "❌ Ödeme dekontu reddedildi.",
+      es: "❌ El recibo de pago fue rechazado."
+    },
+    settingsSaved: {
+      fa: "✅ تنظیمات با موفقیت ذخیره شد.",
+      en: "✅ Settings saved successfully.",
+      ar: "✅ تم حفظ الإعدادات بنجاح.",
+      ru: "✅ Настройки успешно сохранены.",
+      tr: "✅ Ayarlar başarıyla kaydedildi.",
+      es: "✅ Configuración guardada con éxito."
+    },
+    settingsError: {
+      fa: "❌ خطا در ذخیره تنظیمات.",
+      en: "❌ Failed to save settings.",
+      ar: "❌ فشل حفظ الإعدادات.",
+      ru: "❌ Не удалось сохранить настройки.",
+      tr: "❌ Ayarlar kaydedilemedi.",
+      es: "❌ Error al guardar la configuración."
+    },
+    vpnConfigsManagement: {
+      fa: "مدیریت کانفیگ‌ها",
+      en: "VPN Configs Management",
+      ar: "إdelà Ткоинат VPN",
+      ru: "Управление ключами VPN",
+      tr: "VPN Yapılandırma Yönetimi",
+      es: "Gestión de Configuración VPN"
+    },
+    serverManagement: {
+      fa: "مدیریت سرورها",
+      en: "Server Management",
+      ar: "إدارة الخوادم",
+      ru: "Управление серверами",
+      tr: "Sunucu Yönetimi",
+      es: "Gestión de Servidores"
+    },
+    giftCodes: {
+      fa: "کدهای هدیه",
+      en: "Gift Codes",
+      ar: "أكواد الهدايا",
+      ru: "Подарочные коды",
+      tr: "Hediye Kodları",
+      es: "Códigos de Regalo"
+    },
+    supportTickets: {
+      fa: "سیستم تیکت",
+      en: "Support Tickets",
+      ar: "تذاكر الدعم",
+      ru: "Тикеты поддержки",
+      tr: "Destek Talepleri",
+      es: "Tickets de Soporte"
+    },
+    logout: {
+      fa: "خروج",
+      en: "Logout",
+      ar: "تسجيل الخروج",
+      ru: "Выйти",
+      tr: "Çıkış Yap",
+      es: "Cerrar sesión"
+    },
+    developerBy: {
+      fa: "توسعه دهنده توسط ",
+      en: "Developer by ",
+      ar: "المطور بواسطة ",
+      ru: "Разработчик: ",
+      tr: "Geliştirici: ",
+      es: "Desarrollador por "
+    },
+    updatePanel: {
+      fa: "پنل بروزرسانی",
+      en: "Update Panel",
+      ar: "لوحة التحديث",
+      ru: "Панель обновления",
+      tr: "Güncelleme Paneli",
+      es: "Panel de actualización"
+    },
+    devChannel: {
+      fa: "کانال آزمایشی (Dev)",
+      en: "Dev channel",
+      ar: "قناة التطوير (Dev)",
+      ru: "Канал для разработчиков (Dev)",
+      tr: "Geliştirici kanalı (Dev)",
+      es: "Canal de desarrollo (Dev)"
+    },
+    devChannelDesc: {
+      fa: "دریافت سریع‌ترین تغییرات (ناپایدار)",
+      en: "Get fastest changes (unstable)",
+      ar: "احصل على أسرع التغييرات (غير مستقرة)",
+      ru: "Получайте самые быстрые обновления (нестабильно)",
+      tr: "En hızlı değişiklikleri alın (kararsız)",
+      es: "Obtenga los cambios más rápidos (inestables)"
+    },
+    currentVersion: {
+      fa: "نسخه فعلی پنل",
+      en: "Current panel version",
+      ar: "نسخة اللوحة الحالية",
+      ru: "Текущая версия панели",
+      tr: "Mevcut panel sürümü",
+      es: "Versión actual del panel"
+    },
+    newVersionAvailable: {
+      fa: "نسخه جدید در دسترس است",
+      en: "Update available",
+      ar: "التحديث متاح",
+      ru: "Доступно обновление",
+      tr: "Güncelleme mevcut",
+      es: "Actualización disponible"
+    },
+    panelIsUpToDate: {
+      fa: "پنل بروز است",
+      en: "Panel is up to date",
+      ar: "اللوحة محدثة",
+      ru: "Панель обновлена",
+      tr: "Panel güncel",
+      es: "El panel está actualizado"
+    },
+    forceUpdate: {
+      fa: "مشکلی در شناسایی نسخه وجود دارد؟ بروزرسانی اجباری",
+      en: "Trouble checking? Force Update",
+      ar: "هل تواجه مشكلة في التحقق؟ تحديث إجباري",
+      ru: "Проблемы с проверкой? Принудительное обновление",
+      tr: "Kontrol etmede sorun mu var? Zorunlu Güncelleme",
+      es: "¿Problemas al verificar? Actualización forzada"
+    },
+    confirmUpdate: {
+      fa: "تایید بروزرسانی",
+      en: "Confirm Update",
+      ar: "تأكيد التحديث",
+      ru: "Подтвердить обновление",
+      tr: "Güncellemeyi Onayla",
+      es: "Confirmar actualización"
+    },
+    confirmUpdateDesc: {
+      fa: "آیا از بروزرسانی پنل به آخرین نسخه اطمینان دارید؟ این فرآیند ممکن است چند دقیقه طول بکشد.",
+      en: "Are you sure you want to update the panel to the latest version? This may take a few minutes.",
+      ar: "هل أنت متأكد من رغبتك في تحديث اللوحة إلى أحدث إصدار؟ قد يستغرق ذلك بضع دقائق.",
+      ru: "Вы уверены, что хотите обновить панель до последней версии? Это может занять несколько минут.",
+      tr: "Paneli en son sürüme güncellemek istediğinizden emin misiniz? Bu işlem birkaç dakika sürebilir.",
+      es: "¿Está seguro de que desea actualizar el panel a la última versión? Esto puede tardar unos minutos."
+    },
+    startUpdate: {
+      fa: "شروع بروزرسانی",
+      en: "Start Update",
+      ar: "بدء التحديث",
+      ru: "Начать обновление",
+      tr: "Güncellemeyi Başlat",
+      es: "Iniciar actualización"
+    },
+    cancel: {
+      fa: "انصراف",
+      en: "Cancel",
+      ar: "إلغاء",
+      ru: "Отмена",
+      tr: "İptal",
+      es: "Cancelar"
+    }
+  };
+
+  const _unusedCurAppT = (key: keyof typeof _unusedAppTrans) => {
+    return _unusedAppTrans[key][lang] || _unusedAppTrans[key]["en"];
+  };
 
   // Sync to localStorage
   useEffect(() => {
@@ -884,11 +1421,7 @@ export default function App() {
           console.log(
             "[Full-Stack Sync] SQLite database refreshed successfully.",
           );
-          setToastMessage(
-            lang === "fa"
-              ? "✅ اطلاعات داشبورد با موفقیت بروزرسانی شد."
-              : "✅ Dashboard data refreshed successfully.",
-          );
+          setToastMessage(curAppT("refreshSuccess"));
           setTimeout(() => {
             setToastMessage(null);
           }, 3000);
@@ -900,11 +1433,7 @@ export default function App() {
         err,
       );
       if (!isAuto) {
-        setToastMessage(
-          lang === "fa"
-            ? "❌ خطا در دریافت اطلاعات از سرور."
-            : "❌ Failed refreshing data from server.",
-        );
+        setToastMessage(curAppT("refreshError"));
         setTimeout(() => {
           setToastMessage(null);
         }, 3000);
@@ -1075,11 +1604,7 @@ export default function App() {
 
   const addNewUser = (user: User) => {
     if (users.some((u) => u.userId === user.userId)) {
-      console.warn(
-        lang === "fa"
-          ? "این شناسه کاربری تلگرام قبلاً در دیتابیس ثبت شده است."
-          : "This Telegram User ID already exists in the bot database.",
-      );
+      console.warn(curAppT("userExists"));
       return;
     }
     setUsers((prev) => [user, ...prev]);
@@ -1174,10 +1699,7 @@ export default function App() {
             status: "approved" as const,
             amount: finalAmount,
             description:
-              (t.description || "") +
-              (lang === "fa"
-                ? " - تایید و شارژ شد"
-                : " - Approved and credited"),
+              (t.description || "") + curAppT("approvedAndCredited"),
           };
         }
         return t;
@@ -1199,9 +1721,7 @@ export default function App() {
     })
       .then(() => {
         setToastMessage(
-          lang === "fa"
-            ? `✅ فیش با موفقیت تایید و ${finalAmount.toLocaleString()} تومان شارژ شد.`
-            : `✅ Receipt approved & ${finalAmount.toLocaleString()} Tomans credited.`,
+          curAppT("receiptApproved").replace("{amount}", finalAmount.toLocaleString()),
         );
         setTimeout(() => setToastMessage(null), 3500);
       })
@@ -1218,10 +1738,7 @@ export default function App() {
             ...t,
             status: "rejected" as const,
             description:
-              (t.description || "") +
-              (lang === "fa"
-                ? " - فیش نامعتبر رد شد"
-                : " - Invalid slip rejected"),
+              (t.description || "") + curAppT("invalidSlipRejected"),
           };
         }
         return t;
@@ -1233,11 +1750,7 @@ export default function App() {
       body: JSON.stringify({ id: txId }),
     })
       .then(() => {
-        setToastMessage(
-          lang === "fa"
-            ? "❌ فیش پرداخت رد شد."
-            : "❌ Payment receipt was rejected.",
-        );
+        setToastMessage(curAppT("receiptRejected"));
         setTimeout(() => setToastMessage(null), 3000);
       })
       .catch((err) =>
@@ -1272,20 +1785,12 @@ export default function App() {
       body: JSON.stringify(newSettings),
     })
       .then(() => {
-        setToastMessage(
-          lang === "fa"
-            ? "✅ تنظیمات با موفقیت ذخیره شد."
-            : "✅ Settings saved successfully.",
-        );
+        setToastMessage(curAppT("settingsSaved"));
         setTimeout(() => setToastMessage(null), 3000);
       })
       .catch((err) => {
         console.warn("Failed syncing setting parameter overrides:", err);
-        setToastMessage(
-          lang === "fa"
-            ? "❌ خطا در ذخیره تنظیمات."
-            : "❌ Failed to save settings.",
-        );
+        setToastMessage(curAppT("settingsError"));
         setTimeout(() => setToastMessage(null), 3000);
       });
   };
@@ -1369,7 +1874,7 @@ export default function App() {
   return (
     <div
       className="min-h-screen bg-[#030305] text-gray-100 flex flex-col font-sans select-none antialiased relative overflow-hidden"
-      dir={lang === "fa" ? "rtl" : "ltr"}
+      dir={isRtl ? "rtl" : "ltr"}
     >
       {/* Immersive visual ambient glowing spotlights */}
       <div className="fixed top-[-15%] left-[-15%] w-[60%] h-[60%] rounded-full bg-purple-600/5 blur-[120px] pointer-events-none pulse-glow-bg z-0" />
@@ -1398,10 +1903,10 @@ export default function App() {
 
       {/* Sidebar Drawer */}
       <div
-        className={`fixed top-0 bottom-0 ${lang === "fa" ? "right-0 border-l" : "left-0 border-r"} w-72 glass-panel border-white/5 z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] ${
+        className={`fixed top-0 bottom-0 ${isRtl ? "right-0 border-l" : "left-0 border-r"} w-72 glass-panel border-white/5 z-50 transform transition-transform duration-300 ease-in-out flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.8)] ${
           isSidebarOpen
             ? "translate-x-0"
-            : lang === "fa"
+            : isRtl
               ? "translate-x-full"
               : "-translate-x-full"
         }`}
@@ -1420,7 +1925,7 @@ export default function App() {
                 setIsSidebarOpen(false);
               }}
               className="p-1.5 ms-2 bg-purple-950/40 hover:bg-purple-900/40 rounded-full text-purple-400 hover:text-purple-300 transition shadow-sm border border-purple-500/20"
-              title={lang === "fa" ? "بروزرسانی داده‌ها" : "Refresh Data"}
+              title={curAppT("refreshData")}
             >
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? "animate-spin text-white" : ""}`}
@@ -1487,7 +1992,7 @@ export default function App() {
               <Key
                 className={`w-4 h-4 transition-colors duration-300 ${activeTab === "vpn_keys" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
               />
-              <span>{lang === "fa" ? "مدیریت کانفیگ‌ها" : "VPN Configs Management"}</span>
+              <span>{curAppT("vpnConfigsManagement")}</span>
             </div>
             {activeTab === "vpn_keys" && (
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
@@ -1551,7 +2056,7 @@ export default function App() {
                 className={`w-4 h-4 transition-colors duration-300 ${activeTab === "servers" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
               />
               <span>
-                {lang === "fa" ? "مدیریت سرورها" : "Server Management"}
+                {curAppT("serverManagement")}
               </span>
             </div>
             {activeTab === "servers" && (
@@ -1609,7 +2114,7 @@ export default function App() {
               <Gift
                 className={`w-4 h-4 transition-colors duration-300 ${activeTab === "giftcodes" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
               />
-              <span>{lang === "fa" ? "کدهای هدیه" : "Gift Codes"}</span>
+              <span>{curAppT("giftCodes")}</span>
             </div>
             {activeTab === "giftcodes" && (
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
@@ -1628,7 +2133,7 @@ export default function App() {
               <MessageSquare
                 className={`w-4 h-4 transition-colors duration-300 ${activeTab === "tickets" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
               />
-              <span>{lang === "fa" ? "سیستم تیکت" : "Support Tickets"}</span>
+              <span>{curAppT("supportTickets")}</span>
             </div>
             <div className="flex items-center gap-1">
               {tickets.filter((t) => t.status === "open").length > 0 && (
@@ -1672,7 +2177,7 @@ export default function App() {
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-rose-400 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 hover:border-rose-500/20 transition cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-              <span>{lang === "fa" ? "خروج" : "Logout"}</span>
+              <span>{curAppT("logout")}</span>
             </button>
           </div>
 
@@ -1681,7 +2186,7 @@ export default function App() {
             onClick={() => setShowUpdatePanel(true)}
           >
             <div className="text-gray-500 text-[10px] font-mono tracking-wider">
-              v{appVersion} {appVersion.includes('dev') ? (
+              v{appVersion} {appVersion.toLowerCase().includes('dev') ? (
                 <span className="text-amber-400 font-bold ml-1">
                   (Dev Build)
                 </span>
@@ -1694,7 +2199,7 @@ export default function App() {
               )}
             </div>
             <div className="text-gray-400 text-xs">
-              {lang === "fa" ? "توسعه دهنده توسط " : "Developer by "}
+              {curAppT("developerBy")}
               <a
                 href="https://t.me/mDaltoon"
                 target="_blank"
@@ -1710,7 +2215,7 @@ export default function App() {
 
       {/* Upper Navigation Header */}
       <header
-        dir={lang === "fa" ? "rtl" : "ltr"}
+        dir={isRtl ? "rtl" : "ltr"}
         className="bg-black/40 backdrop-blur-md border-b border-white/5 px-4 md:px-6 py-3 sticky top-0 z-30 shadow-md"
       >
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
@@ -1742,13 +2247,7 @@ export default function App() {
               onClick={() => setIsLightMode(!isLightMode)}
               className="p-2.5 text-gray-400 hover:text-white transition cursor-pointer bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 flex items-center justify-center shadow-sm"
               title={
-                lang === "fa"
-                  ? isLightMode
-                    ? "تم تاریک"
-                    : "تم روشن"
-                  : isLightMode
-                    ? "Dark Mode"
-                    : "Light Mode"
+                isLightMode ? curAppT("darkMode") : curAppT("lightMode")
               }
             >
               {isLightMode ? (
@@ -1758,28 +2257,74 @@ export default function App() {
               )}
             </button>
 
-            {/* Language Selection Buttons */}
-            <div className="flex items-center p-1 bg-black/60 border border-white/5 rounded-xl text-xs flex-shrink-0">
+            {/* Language Selection List / Dropdown */}
+            <div className="relative">
               <button
-                onClick={() => setLang("fa")}
-                className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                  lang === "fa"
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25"
-                    : "text-gray-400 hover:text-white"
-                }`}
+                onClick={() => setShowLangDropdown(!showLangDropdown)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-black/60 hover:bg-black/80 border border-white/5 rounded-xl text-xs font-semibold text-gray-300 hover:text-white transition cursor-pointer"
               >
-                فا
+                <span>
+                  {lang === "fa" && "🇮🇷 فارسی"}
+                  {lang === "en" && "🇬🇧 English"}
+                  {lang === "ar" && "🇸🇦 العربية"}
+                  {lang === "ru" && "🇷🇺 Русский"}
+                  {lang === "tr" && "🇹🇷 Türkçe"}
+                  {lang === "es" && "🇪🇸 Español"}
+                </span>
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    showLangDropdown ? "rotate-180" : ""
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </button>
-              <button
-                onClick={() => setLang("en")}
-                className={`px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
-                  lang === "en"
-                    ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/25"
-                    : "text-gray-400 hover:text-white"
-                }`}
-              >
-                EN
-              </button>
+
+              {showLangDropdown && (
+                <>
+                  {/* Backdrop to close dropdown on click outside */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowLangDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-44 bg-zinc-950 border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in slide-in-from-top-1 duration-150">
+                    <div className="text-[10px] text-gray-500 px-2 py-1 font-semibold border-b border-white/5 mb-1 select-none">
+                      {curAppT("selectLanguage")}
+                    </div>
+                    {[
+                      { code: "fa", label: "🇮🇷 فارسی" },
+                      { code: "en", label: "🇬🇧 English" },
+                      { code: "ar", label: "🇸🇦 العربية" },
+                      { code: "ru", label: "🇷🇺 Русский" },
+                      { code: "tr", label: "🇹🇷 Türkçe" },
+                      { code: "es", label: "🇪🇸 Español" },
+                    ].map((item) => (
+                      <button
+                        key={item.code}
+                        onClick={() => handleLanguageSelect(item.code as Language)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-all text-left ${
+                          lang === item.code
+                            ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold shadow-md shadow-purple-500/10"
+                            : "text-gray-400 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        <span className="text-right w-full">{item.label}</span>
+                        {lang === item.code && (
+                          <span className="text-[10px] bg-white/20 px-1 rounded ml-2">✓</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1809,6 +2354,7 @@ export default function App() {
               latestVersion={latestVersion}
               updateAvailable={updateAvailable}
               onOpenUpdatePanel={() => setShowUpdatePanel(true)}
+              settings={settings}
             />
           )}
 
@@ -1849,6 +2395,7 @@ export default function App() {
               deleteTransaction={deleteTransaction}
               clearTransactionHistory={clearTransactionHistory}
               lang={lang}
+              settings={settings}
             />
           )}
 
@@ -2017,7 +2564,7 @@ export default function App() {
                 >
                   <div className="flex items-center justify-between p-5 border-b border-gray-800">
                     <h3 className="text-lg font-bold text-gray-200">
-                      {lang === "fa" ? "پنل بروزرسانی" : "Update Panel"}
+                      {curAppT("updatePanel")}
                     </h3>
                     <button
                       onClick={() => setShowUpdatePanel(false)}
@@ -2032,10 +2579,10 @@ export default function App() {
                     <div className="flex items-center justify-between p-4 transition-colors border border-gray-800 rounded-xl bg-gray-900/50 hover:bg-gray-800/50">
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-gray-200">
-                          {lang === "fa" ? "کانال آزمایشی (Dev)" : "Dev channel"}
+                          {curAppT("devChannel")}
                         </span>
                         <span className="text-[10px] text-gray-500">
-                          {lang === "fa" ? "دریافت سریع‌ترین تغییرات (ناپایدار)" : "Get fastest changes (unstable)"}
+                          {curAppT("devChannelDesc")}
                         </span>
                       </div>
                       <button
@@ -2051,7 +2598,7 @@ export default function App() {
                     {/* Current Version */}
                     <div className="flex items-center justify-between p-4 border border-gray-800 rounded-xl bg-gray-900/50">
                       <span className="text-sm text-gray-400">
-                        {lang === "fa" ? "نسخه فعلی پنل" : "Current panel version"}
+                        {curAppT("currentVersion")}
                       </span>
                       <span className="px-2 py-1 text-xs font-bold text-emerald-400 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                         v{appVersion}
@@ -2061,7 +2608,7 @@ export default function App() {
                     {/* Update Status */}
                     <div className="flex items-center justify-between p-4 border border-gray-800 rounded-xl bg-gray-900/50">
                       <span className="text-sm text-gray-400">
-                        {updateAvailable ? (lang === "fa" ? "نسخه جدید در دسترس است" : "Update available") : (lang === "fa" ? "پنل بروز است" : "Panel is up to date")}
+                        {updateAvailable ? curAppT("newVersionAvailable") : curAppT("panelIsUpToDate")}
                       </span>
                       {updateAvailable ? (
                         <span className="px-2 py-1 text-xs font-bold text-amber-400 rounded-lg bg-amber-500/10 border border-amber-500/20 animate-pulse">
@@ -2069,7 +2616,7 @@ export default function App() {
                         </span>
                       ) : (
                         <span className="px-2 py-1 text-xs font-bold text-emerald-400 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                          {lang === "fa" ? "پنل بروز است" : "Panel is up to date"}
+                          {curAppT("panelIsUpToDate")}
                         </span>
                       )}
                     </div>
@@ -2086,7 +2633,7 @@ export default function App() {
                         }`}
                       >
                         <Cloud size={18} />
-                        {isUpdating ? (lang === "fa" ? "درحال بروزرسانی..." : "Updating...") : (lang === "fa" ? "بروزرسانی پنل" : "Update Panel")}
+                        {isUpdating ? curAppT("updating") : curAppT("updatePanel")}
                       </button>
 
                       {!updateAvailable && !isUpdating && (
@@ -2098,7 +2645,7 @@ export default function App() {
                           }}
                           className="w-full text-xs text-center text-gray-500 hover:text-purple-400 transition-colors py-1 underline underline-offset-4 cursor-pointer"
                         >
-                          {lang === "fa" ? "مشکلی در شناسایی نسخه وجود دارد؟ بروزرسانی اجباری" : "Trouble checking? Force Update"}
+                          {curAppT("forceUpdate")}
                         </button>
                       )}
                     </div>
@@ -2143,12 +2690,10 @@ export default function App() {
                     
                     <div className="space-y-2">
                       <h3 className="text-2xl font-bold text-gray-100">
-                        {lang === "fa" ? "تایید بروزرسانی" : "Confirm Update"}
+                        {curAppT("confirmUpdate")}
                       </h3>
                       <p className="text-gray-400 leading-relaxed">
-                        {lang === "fa" 
-                          ? "آیا از بروزرسانی پنل به آخرین نسخه اطمینان دارید؟ این فرآیند ممکن است چند دقیقه طول بکشد."
-                          : "Are you sure you want to update the panel to the latest version? This may take a few minutes."}
+                        {curAppT("confirmUpdateDesc")}
                       </p>
                     </div>
 
@@ -2157,13 +2702,13 @@ export default function App() {
                         onClick={executeUpdate}
                         className="w-full py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-bold shadow-lg shadow-purple-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                       >
-                        {lang === "fa" ? "شروع بروزرسانی" : "Start Update"}
+                        {curAppT("startUpdate")}
                       </button>
                       <button
                         onClick={() => setShowUpdateConfirm(false)}
                         className="w-full py-4 text-gray-400 font-medium hover:text-white transition-colors"
                       >
-                        {lang === "fa" ? "انصراف" : "Cancel"}
+                        {curAppT("cancel")}
                       </button>
                     </div>
                   </div>

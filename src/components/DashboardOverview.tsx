@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { InboundInfo, Transaction } from "../types";
+import { InboundInfo, Transaction, PanelSettings } from "../types";
 import { Language, translations } from "../locales";
 import SystemResourceMonitor from "./SystemResourceMonitor";
 import SystemHealthAssessment from "./SystemHealthAssessment";
@@ -47,7 +47,161 @@ interface DashboardOverviewProps {
   latestVersion: string;
   updateAvailable: boolean;
   onOpenUpdatePanel: () => void;
+  settings?: PanelSettings;
 }
+
+const dTrans = {
+  fa: {
+    newUpdate: "نسخه جدید در دسترس است",
+    manageBot: "مدیریت، بررسی وضعیت و بروزرسانی ربات دالتون",
+    update: "بروزرسانی",
+    liveTreasury: "گزارش زنده درآمدهای ربات دالتون",
+    liveTreasuryDesc: "بررسی و پایش دقیق مالی در بازه‌های زمانی مختلف بر اساس تراکنش‌های تایید شده",
+    liveSync: "به‌روزرسانی آنی فعال",
+    last24h: "۲۴ ساعت گذشته",
+    daily: "امروز",
+    last48h: "۴۸ ساعت گذشته",
+    h48: "۲ روز",
+    last72h: "۷۲ ساعت گذشته",
+    h72: "۳ روز",
+    weeklyLast7d: "هفتگی (۷ روز اخیر)",
+    weekly: "هفته",
+    monthlyLast30d: "ماهانه (۳۰ روز اخیر)",
+    monthly: "ماه",
+    activityChart: "نمودار فعالیت",
+    load: "بار سیستم: ",
+    dbBackupRestore: "نسخه پشتیبان (بکاپ)",
+    dbBackupDesc: "برای انتقال به سرور جدید یا نگهداری ایمن اطلاعات، می‌توانید دستی فایل دیتابیس را دانلود کنید و یا یک بکاپ قدیمی را اینجا بارگذاری نمایید تا همه تنظیمات، پیام‌ها اکانت‌ها و... برگردد.",
+    downloadBackup: "دریافت بکاپ",
+    restore: "بارگذاری",
+    backupSuccess: "بکاپ با موفقیت بازگردانی شد. داشبورد تا ثانیه‌هایی دیگر بروز خواهد شد."
+  },
+  en: {
+    newUpdate: "New update available",
+    manageBot: "Manage, monitor, and update Daltoon Bot",
+    update: "Update",
+    liveTreasury: "Daltoon Bot Live Treasury Analytics",
+    liveTreasuryDesc: "Real-time auditing of approved store transactions across custom temporal windows",
+    liveSync: "Live Synchronization Active",
+    last24h: "Last 24 Hours",
+    daily: "Daily",
+    last48h: "Last 48 Hours",
+    h48: "48h",
+    last72h: "Last 72 Hours",
+    h72: "72h",
+    weeklyLast7d: "Weekly (Last 7 Days)",
+    weekly: "Weekly",
+    monthlyLast30d: "Monthly (Last 30 Days)",
+    monthly: "Monthly",
+    activityChart: "Activity Chart",
+    load: "Load: ",
+    dbBackupRestore: "Database Backup & Restore",
+    dbBackupDesc: "Download a full database backup or restore from an existing one.",
+    downloadBackup: "Download Backup",
+    restore: "Restore",
+    backupSuccess: "Backup restored. Dashboard will be reloaded soon."
+  },
+  ar: {
+    newUpdate: "تحديث جديد متاح",
+    manageBot: "إدارة ومراقبة وتحديث بوت دالتون",
+    update: "تحديث",
+    liveTreasury: "تحليلات الخزينة الحية لبوت دالتون",
+    liveTreasuryDesc: "تدقيق فوري للمعاملات المعتمدة للمتجر عبر فترات زمنية مخصصة",
+    liveSync: "التزامن المباشر نشط",
+    last24h: "آخر 24 ساعة",
+    daily: "يومي",
+    last48h: "آخر 48 ساعة",
+    h48: "48 ساعة",
+    last72h: "آخر 72 ساعة",
+    h72: "72 ساعة",
+    weeklyLast7d: "أسبوعي (آخر 7 أيام)",
+    weekly: "أسبوعي",
+    monthlyLast30d: "شهري (آخر 30 يوم)",
+    monthly: "شهري",
+    activityChart: "مخطط النشاط",
+    load: "حمل النظام: ",
+    dbBackupRestore: "نسخ احتياطي واستعادة قاعدة البيانات",
+    dbBackupDesc: "قم بتنزيل نسخة احتياطية كاملة لقاعدة البيانات أو استعادتها من نسخة موجودة.",
+    downloadBackup: "تنزيل النسخة الاحتياطية",
+    restore: "استعادة",
+    backupSuccess: "تم استعادة النسخة الاحتياطية بنجاح. سيتم إعادة تحميل لوحة التحكم قريباً."
+  },
+  ru: {
+    newUpdate: "Доступно новое обновление",
+    manageBot: "Управление, мониторинг и обновление Daltoon Bot",
+    update: "Обновить",
+    liveTreasury: "Аналитика казны Daltoon Bot в реальном времени",
+    liveTreasuryDesc: "Аудит одобренных транзакций магазина в реальном времени по временным окнам",
+    liveSync: "Активная синхронизация в реальном времени",
+    last24h: "За последние 24 часа",
+    daily: "Ежедневно",
+    last48h: "За последние 48 часов",
+    h48: "48 ч",
+    last72h: "За последние 72 часов",
+    h72: "72 ч",
+    weeklyLast7d: "Еженедельно (За последние 7 дней)",
+    weekly: "Еженедельно",
+    monthlyLast30d: "Ежемесячно (За последние 30 дней)",
+    monthly: "Ежемесячно",
+    activityChart: "График активности",
+    load: "Нагрузка: ",
+    dbBackupRestore: "Резервное копирование и восстановление",
+    dbBackupDesc: "Скачайте полную резервную копию базы данных или восстановите ее из существующей.",
+    downloadBackup: "Скачать резервную копию",
+    restore: "Восстановить",
+    backupSuccess: "Резервная копия восстановлена. Панель управления скоро обновится."
+  },
+  tr: {
+    newUpdate: "Yeni güncelleme mevcut",
+    manageBot: "Daltoon Bot'u yönetin, izleyin ve güncelleyin",
+    update: "Güncelle",
+    liveTreasury: "Daltoon Bot Canlı Hazine Analitiği",
+    liveTreasuryDesc: "Özel zaman pencerelerinde onaylanmış mağaza işlemlerinin gerçek zamanlı denetimi",
+    liveSync: "Canlı Senkronizasyon Aktif",
+    last24h: "Son 24 Saat",
+    daily: "Günlük",
+    last48h: "Son 48 Saat",
+    h48: "48s",
+    last72h: "Son 72 Saat",
+    h72: "72s",
+    weeklyLast7d: "Haftalık (Son 7 Gün)",
+    weekly: "Haftalık",
+    monthlyLast30d: "Aylık (Son 30 Gün)",
+    monthly: "Aylık",
+    activityChart: "Aktivite Grafiği",
+    load: "Sistem Yükü: ",
+    dbBackupRestore: "Veritabanı Yedekleme ve Geri Yükleme",
+    dbBackupDesc: "Tam bir veritabanı yedeği indirin veya mevcut bir yedekten geri yükleyin.",
+    downloadBackup: "Yedeği İndir",
+    restore: "Geri Yükle",
+    backupSuccess: "Yedek geri yüklendi. Kontrol paneli yakında yeniden yükelnecek."
+  },
+  es: {
+    newUpdate: "Nueva actualización disponible",
+    manageBot: "Administrar, monitorear y actualizar Daltoon Bot",
+    update: "Actualizar",
+    liveTreasury: "Análisis de Tesorería en Vivo de Daltoon Bot",
+    liveTreasuryDesc: "Auditoría en tiempo real de transacciones aprobadas de la tienda",
+    liveSync: "Sincronización en Vivo Activa",
+    last24h: "Últimas 24 horas",
+    daily: "Diario",
+    last48h: "Últimas 48 horas",
+    h48: "48h",
+    last72h: "Últimas 72 horas",
+    h72: "72h",
+    weeklyLast7d: "Semanal (Últimos 7 días)",
+    weekly: "Semanal",
+    monthlyLast30d: "Mensual (Últimos 30 días)",
+    monthly: "Mensual",
+    activityChart: "Gráfico de Actividad",
+    load: "Carga: ",
+    dbBackupRestore: "Copia de Seguridad y Restauración de Base de Datos",
+    dbBackupDesc: "Descargue una copia de seguridad completa de la base de datos o restáurela desde una existente.",
+    downloadBackup: "Descargar Copia de Seguridad",
+    restore: "Restaurar",
+    backupSuccess: "Copia de seguridad restaurada. El tablero se recargará pronto."
+  }
+};
 
 export default function DashboardOverview({
   inbounds,
@@ -62,9 +216,12 @@ export default function DashboardOverview({
   appVersion,
   latestVersion,
   updateAvailable,
-  onOpenUpdatePanel
+  onOpenUpdatePanel,
+  settings
 }: DashboardOverviewProps) {
   const t = translations[lang];
+  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const dt = dTrans[lang in dTrans ? lang : "en"];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
   const [showIp, setShowIp] = useState(false);
   const [systemInfo, setSystemInfo] = useState<{ publicIp: string, ipv4: string, ipv6: string, activityData: number[], uptime: number, load: number[] } | null>(null);
@@ -138,7 +295,7 @@ export default function DashboardOverview({
               <h3 className="text-2xl font-bold font-display text-indigo-400">
                 {totalIncome.toLocaleString()}
               </h3>
-              <span className="text-xs text-gray-400">{lang === "fa" ? "تومان" : "Toman"}</span>
+              <span className="text-xs text-gray-400">{currency}</span>
             </div>
             <span className="text-xs text-gray-500 flex items-center mt-1">
               {t.fromApproved}
@@ -178,13 +335,13 @@ export default function DashboardOverview({
                 </span>
                 {updateAvailable && (
                   <span className="px-2 py-0.5 text-[10px] font-bold text-amber-400 rounded-md bg-amber-500/10 border border-amber-500/20 animate-pulse whitespace-nowrap">
-                    {lang === "fa" ? "نسخه جدید در دسترس است" : "New update available"}
+                    {dt.newUpdate}
                   </span>
                 )}
               </div>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              {lang === "fa" ? "مدیریت، بررسی وضعیت و بروزرسانی ربات دالتون" : "Manage, monitor, and update Daltoon Bot"}
+              {dt.manageBot}
             </p>
           </div>
         </div>
@@ -198,7 +355,7 @@ export default function DashboardOverview({
             }`}
           >
             <Cloud className="w-3.5 h-3.5" />
-            {updateAvailable ? (lang === "fa" ? "بروزرسانی" : "Update") : (lang === "fa" ? "بروزرسانی" : "Update")}
+            {dt.update}
           </button>
           <a 
             href="https://t.me/mDaltoon" 
@@ -227,12 +384,10 @@ export default function DashboardOverview({
               <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
                 <TrendingUp className="w-4 h-4" />
               </span>
-              {lang === "fa" ? "گزارش زنده درآمدهای ربات دالتون" : "Daltoon Bot Live Treasury Analytics"}
+              {dt.liveTreasury}
             </h3>
             <p className="text-xs text-gray-400 mt-1">
-              {lang === "fa" 
-                ? "بررسی و پایش دقیق مالی در بازه‌های زمانی مختلف بر اساس تراکنش‌های تایید شده" 
-                : "Real-time auditing of approved store transactions across custom temporal windows"}
+              {dt.liveTreasuryDesc}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -241,7 +396,7 @@ export default function DashboardOverview({
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             <span className="text-[10px] uppercase tracking-wider font-mono text-emerald-400 font-semibold">
-              {lang === "fa" ? "به‌روزرسانی آنی فعال" : "Live Synchronization Active"}
+              {dt.liveSync}
             </span>
           </div>
         </div>
@@ -252,10 +407,10 @@ export default function DashboardOverview({
           <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-medium font-sans">
-                {lang === "fa" ? "۲۴ ساعت گذشته" : "Last 24 Hours"}
+                {dt.last24h}
               </span>
               <span className="p-1.5 rounded-lg bg-teal-500/10 text-teal-400 text-[10px] font-bold">
-                {lang === "fa" ? "امروز" : "Daily"}
+                {dt.daily}
               </span>
             </div>
             <div>
@@ -263,7 +418,7 @@ export default function DashboardOverview({
                 <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
                   {dailyIncome.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+                <span className="text-[10px] text-gray-500">{currency}</span>
               </div>
               <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
                 <div 
@@ -278,10 +433,10 @@ export default function DashboardOverview({
           <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-medium font-sans">
-                {lang === "fa" ? "۴۸ ساعت گذشته" : "Last 48 Hours"}
+                {dt.last48h}
               </span>
               <span className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 text-[10px] font-bold">
-                {lang === "fa" ? "۲ روز" : "48h"}
+                {dt.h48}
               </span>
             </div>
             <div>
@@ -289,7 +444,7 @@ export default function DashboardOverview({
                 <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
                   {fortyEightHoursIncome.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+                <span className="text-[10px] text-gray-500">{currency}</span>
               </div>
               <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
                 <div 
@@ -304,10 +459,10 @@ export default function DashboardOverview({
           <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-medium font-sans">
-                {lang === "fa" ? "۷۲ ساعت گذشته" : "Last 72 Hours"}
+                {dt.last72h}
               </span>
               <span className="p-1.5 rounded-lg bg-pink-500/10 text-pink-400 text-[10px] font-bold">
-                {lang === "fa" ? "۳ روز" : "72h"}
+                {dt.h72}
               </span>
             </div>
             <div>
@@ -315,7 +470,7 @@ export default function DashboardOverview({
                 <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
                   {seventyTwoHoursIncome.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+                <span className="text-[10px] text-gray-500">{currency}</span>
               </div>
               <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
                 <div 
@@ -330,10 +485,10 @@ export default function DashboardOverview({
           <div className="group relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-medium font-sans">
-                {lang === "fa" ? "هفتگی (۷ روز اخیر)" : "Weekly (Last 7 Days)"}
+                {dt.weeklyLast7d}
               </span>
               <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 text-[10px] font-bold">
-                {lang === "fa" ? "هفته" : "Weekly"}
+                {dt.weekly}
               </span>
             </div>
             <div>
@@ -341,7 +496,7 @@ export default function DashboardOverview({
                 <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
                   {weeklyIncome.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+                <span className="text-[10px] text-gray-500">{currency}</span>
               </div>
               <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
                 <div 
@@ -356,10 +511,10 @@ export default function DashboardOverview({
           <div className="group col-span-2 md:col-span-1 relative bg-[#1f2937]/20 hover:bg-[#1f2937]/35 border border-gray-800 hover:border-indigo-500/40 p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.02] flex flex-col justify-between h-32">
             <div className="flex items-center justify-between">
               <span className="text-xs text-gray-400 font-medium font-sans">
-                {lang === "fa" ? "ماهانه (۳۰ روز اخیر)" : "Monthly (Last 30 Days)"}
+                {dt.monthlyLast30d}
               </span>
               <span className="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 text-[10px] font-bold">
-                {lang === "fa" ? "ماه" : "Monthly"}
+                {dt.monthly}
               </span>
             </div>
             <div>
@@ -367,7 +522,7 @@ export default function DashboardOverview({
                 <span className="text-xl font-bold font-display text-white group-hover:text-indigo-300 transition-colors">
                   {monthlyIncome.toLocaleString()}
                 </span>
-                <span className="text-[10px] text-gray-500">{lang === "fa" ? "تومان" : "TOM"}</span>
+                <span className="text-[10px] text-gray-500">{currency}</span>
               </div>
               <div className="w-full bg-gray-800 h-1 rounded-full mt-3 overflow-hidden">
                 <div 
@@ -386,9 +541,9 @@ export default function DashboardOverview({
         <div className="md:col-span-2 bg-[#111827] border border-[#1f2937] p-4 rounded-xl flex flex-col h-[140px]">
           <div className="flex items-center justify-between mb-1">
             <div className="flex flex-col">
-              <h3 className="font-bold text-gray-200 text-xs">{lang === "fa" ? "نمودار فعالیت" : "Activity Chart"}</h3>
+              <h3 className="font-bold text-gray-200 text-xs">{dt.activityChart}</h3>
               <span className="text-[10px] text-emerald-400 font-mono">
-                {lang === "fa" ? "بار سیستم: " : "Load: "} {systemInfo?.load[0].toFixed(2)}
+                {dt.load} {systemInfo?.load[0].toFixed(2)}
               </span>
             </div>
             <BarChart3 className="w-3.5 h-3.5 text-gray-500" />
@@ -456,10 +611,10 @@ export default function DashboardOverview({
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl flex flex-col justify-center">
           <div className="flex items-center gap-3 mb-4">
             <Database className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-gray-200">{lang === "fa" ? "نسخه پشتیبان (بکاپ)" : "Database Backup & Restore"}</h3>
+            <h3 className="font-bold text-gray-200">{dt.dbBackupRestore}</h3>
           </div>
           <p className="text-sm text-gray-400 mb-6 leading-relaxed">
-            {lang === "fa" ? "برای انتقال به سرور جدید یا نگهداری ایمن اطلاعات، می‌توانید دستی فایل دیتابیس را دانلود کنید و یا یک بکاپ قدیمی را اینجا بارگذاری نمایید تا همه تنظیمات، پیام‌ها اکانت‌ها و... برگردد." : "Download a full database backup or restore from an existing one."}
+            {dt.dbBackupDesc}
           </p>
           <div className="flex gap-4">
             <button 
@@ -469,12 +624,12 @@ export default function DashboardOverview({
               className="flex-1 flex items-center justify-center gap-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 py-3 rounded-lg border border-indigo-500/30 transition-all text-sm font-medium"
             >
               <DownloadCloud className="w-4 h-4" />
-              {lang === "fa" ? "دریافت بکاپ" : "Download Backup"}
+              {dt.downloadBackup}
             </button>
             
             <label className="flex-1 flex items-center justify-center gap-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 py-3 rounded-lg border border-emerald-500/30 transition-all text-sm font-medium cursor-pointer">
               <UploadCloud className="w-4 h-4" />
-              {lang === "fa" ? "بارگذاری" : "Restore"}
+              {dt.restore}
               <input 
                 type="file" 
                 accept=".json" 
@@ -495,7 +650,7 @@ export default function DashboardOverview({
                               });
                               const rJson = await fb.json();
                               if (rJson.success) {
-                                console.log(lang === "fa" ? "بکاپ با موفقیت بازگردانی شد. داشبورد تا ثانیه‌هایی دیگر بروز خواهد شد." : "Backup restored. Dashboard will be reloaded soon.");
+                                console.log(dt.backupSuccess);
                                 setTimeout(() => window.location.reload(), 1500);
                               } else {
                                 console.error(rJson.error || "Error restoring backup");

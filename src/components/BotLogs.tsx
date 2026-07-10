@@ -1,10 +1,11 @@
 import React from "react";
 import { BotActionLog } from "../types";
 import { Clock } from "lucide-react";
+import { Language } from "../locales";
 
 interface Props {
   logs: BotActionLog[];
-  lang: "fa" | "en";
+  lang: Language;
 }
 
 export default function BotLogs({ logs, lang }: Props) {

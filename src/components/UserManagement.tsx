@@ -58,6 +58,7 @@ export default function UserManagement({
   updateSubscriptionKey
 }: UserManagementProps) {
   const t = translations[lang];
+  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
   const [searchTerm, setSearchTerm] = useState("");
 
   const getCalculatedPrice = () => {
@@ -519,7 +520,7 @@ export default function UserManagement({
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-1.5 font-display text-emerald-400 font-semibold">
                           <Wallet className="w-4 h-4" />
-                          {user.walletBalance.toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}
+                          {user.walletBalance.toLocaleString()} {currency}
                         </div>
                       </td>
                       <td className="px-5 py-3">
@@ -1129,7 +1130,7 @@ export default function UserManagement({
                   {lang === "fa" ? "هزینه محاسباتی تمدید" : "Calculated Renewal Cost"}
                 </span>
                 <span className="text-base font-bold text-emerald-400 font-mono">
-                  {getCalculatedPrice().toLocaleString()} {lang === "fa" ? "تومان" : "Toman"}
+                  {getCalculatedPrice().toLocaleString()} {currency}
                 </span>
               </div>
 

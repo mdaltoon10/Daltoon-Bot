@@ -141,8 +141,148 @@ export default function SystemHealthAssessment({ lang }: SystemHealthAssessmentP
       optimized: "Optimized",
       running: "Running",
       secure: "SSL Secured",
+    },
+    ar: {
+      title: "تقييم صحة واستقرار النظام",
+      subtitle: "تقرير تشخيصي فوري لخادم الويب وبنية دالتون وقاعدة البيانات ونواة البوت",
+      reEvaluate: "إعادة تقييم النظام",
+      evaluating: "جاري الفحص...",
+      overallGrade: "الدرجة الكلية",
+      statusOptimal: "مثالي ومستقر",
+      statusWarning: "يتطلب اهتماماً",
+      statusCritical: "حرج",
+      latency: "تأخير استجابة الخادم (Ping)",
+      ms: "ملي ثانية",
+      excellent: "ممتاز",
+      good: "جيد",
+      fair: "مقبول",
+      poor: "ضعيف",
+      
+      apiConnection: "خادم الويب وبوابة واجهة برمجة التطبيقات",
+      apiDesc: "التحقق من التوجيه وتبادل البيانات بسلاسة عبر نقاط النهاية الرئيسية",
+      
+      databaseStatus: "سلامة قاعدة البيانات وحالة القفل",
+      databaseDesc: "فحص صحة معاملات SQLite وفهرسة السجلات لقاعدة البيانات",
+      
+      daemonStatus: "حالة جاهزية نواة البوت",
+      daemonDesc: "التحقق من استجابة عملية نواة البوت في الخلفية",
+      
+      securityStatus: "درع الأمن والتشفير",
+      securityDesc: "التحقق من صلاحية رموز مصادقة المسؤول النشطة وطبقات الاتصال الآمنة",
+      
+      active: "نشط وسليم",
+      failed: "خطأ في الاتصال",
+      checking: "جاري التحقق...",
+      optimized: "محسّن",
+      running: "يعمل",
+      secure: "محمي بـ SSL",
+    },
+    ru: {
+      title: "Оценка здоровья и стабильности системы",
+      subtitle: "Диагностический отчет в реальном времени веб-сервера Dalton, базы данных и ядра бота",
+      reEvaluate: "Переоценить систему",
+      evaluating: "Сканирование...",
+      overallGrade: "Общая оценка",
+      statusOptimal: "Оптимально и стабильно",
+      statusWarning: "Требует внимания",
+      statusCritical: "Критично",
+      latency: "Задержка ответа сервера (Пинг)",
+      ms: "мс",
+      excellent: "Отлично",
+      good: "Хорошо",
+      fair: "Средне",
+      poor: "Плохо",
+      
+      apiConnection: "Веб-сервер и API-шлюз",
+      apiDesc: "Проверяет маршрутизацию и бесперебойный обмен данными по основным конечным точкам",
+      
+      databaseStatus: "Целостность БД и блокировки",
+      databaseDesc: "Проверяет состояние транзакций SQLite базы данных и индексацию записей",
+      
+      daemonStatus: "Состояние демона ядра бота",
+      daemonDesc: "Проверяет, реагирует ли фоновый процесс демона бота",
+      
+      securityStatus: "Защитный экран и шифрование",
+      securityDesc: "Проверяет активные токены аутентификации администратора и уровни безопасного соединения",
+      
+      active: "Активно и здорово",
+      failed: "Ошибка соединения",
+      checking: "Проверка...",
+      optimized: "Оптимизировано",
+      running: "Запущено",
+      secure: "SSL защищено",
+    },
+    tr: {
+      title: "Sistem Sağlığı ve Kararlılık Değerlendirmesi",
+      subtitle: "Dalton backend web sunucusu, veritabanı ve bot çekirdeğinin gerçek zamanlı tanı raporu",
+      reEvaluate: "Sistemi Yeniden Değerlendir",
+      evaluating: "Taranıyor...",
+      overallGrade: "Genel Not",
+      statusOptimal: "Optimal ve Kararlı",
+      statusWarning: "Dikkat Gerektiriyor",
+      statusCritical: "Kritik",
+      latency: "Sunucu Yanıt Gecikmesi (Ping)",
+      ms: "ms",
+      excellent: "Mükemmel",
+      good: "İyi",
+      fair: "Orta",
+      poor: "Zayıf",
+      
+      apiConnection: "Web Sunucusu ve API Geçidi",
+      apiDesc: "Ana uç noktalar üzerinden yönlendirmeyi ve sorunsuz veri alışverişini doğrular",
+      
+      databaseStatus: "Veritabanı Bütünlüğü ve Kilit Durumu",
+      databaseDesc: "SQLite veritabanı işlemlerinin sağlığını ve kayıt indekslemesini kontrol eder",
+      
+      daemonStatus: "Bot Çekirdek Servis Durumu",
+      daemonDesc: "Arka plan bot servis sürecinin yanıt verip vermediğini doğrular",
+      
+      securityStatus: "Güvenlik Kalkanı ve Şifreleme",
+      securityDesc: "Etkin yönetici kimlik doğrulama belirteçlerini ve güvenli bağlantı katmanlarını doğrular",
+      
+      active: "Aktif ve Sağlıklı",
+      failed: "Bağlantı Hatası",
+      checking: "Kontrol ediliyor...",
+      optimized: "Optimize Edildi",
+      running: "Çalışıyor",
+      secure: "SSL Korumalı",
+    },
+    es: {
+      title: "Evaluación de Salud y Estabilidad del Sistema",
+      subtitle: "Informe de diagnóstico en tiempo real del servidor web, base de datos y núcleo del bot Dalton",
+      reEvaluate: "Reevaluar Sistema",
+      evaluating: "Escaneando...",
+      overallGrade: "Calificación General",
+      statusOptimal: "Óptimo y Estable",
+      statusWarning: "Requiere Atención",
+      statusCritical: "Crítico",
+      latency: "Latencia de Respuesta del Servidor (Ping)",
+      ms: "ms",
+      excellent: "Excelente",
+      good: "Bueno",
+      fair: "Regular",
+      poor: "Malo",
+      
+      apiConnection: "Servidor Web y API Gateway",
+      apiDesc: "Valida el enrutamiento y el intercambio fluido de datos sobre los endpoints principales",
+      
+      databaseStatus: "Integridad de la Base de Datos y Bloqueos",
+      databaseDesc: "Verifica el estado de las transacciones SQLite de la base de datos y la indexación de registros",
+      
+      daemonStatus: "Estado del Demonio del Núcleo del Bot",
+      daemonDesc: "Valida si el proceso en segundo plano del demonio del bot responde",
+      
+      securityStatus: "Escudo de Seguridad y Cifrado",
+      securityDesc: "Valida los tokens de autenticación de administrador activos y las capas de conexión segura",
+      
+      active: "Activo y Saludable",
+      failed: "Error de Conexión",
+      checking: "Comprobando...",
+      optimized: "Optimizado",
+      running: "Ejecutando",
+      secure: "SSL Asegurado",
     }
-  }[lang === "fa" ? "fa" : "en"];
+  }[lang in { fa: 1, en: 1, ar: 1, ru: 1, tr: 1, es: 1 } ? lang : "en"];
 
   const getLatencyLabel = (ms: number) => {
     if (ms < 50) return { text: t.excellent, color: "text-emerald-400 bg-emerald-500/10" };
