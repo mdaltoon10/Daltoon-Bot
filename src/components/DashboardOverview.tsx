@@ -632,7 +632,7 @@ export default function DashboardOverview({
               {dt.restore}
               <input 
                 type="file" 
-                accept=".json" 
+                accept="*/*" 
                 className="hidden" 
                 onChange={async (e) => {
                   const file = e.target.files?.[0];

@@ -640,6 +640,15 @@ BOT_TRANSLATIONS = {
         "بازگشت به منوی اصلی": "🔙 Return to main menu",
         "بازگشت": "🔙 Back",
         "انصراف": "❌ Cancel",
+        "پلن‌های بخش": "Plans for",
+        "لطفاً یکی از تعرفه‌های معتبر زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:": "Please select one of the valid plans below to begin the immediate activation process:",
+        "لطفاً یک نام کاربری دلخواه (فقط حروف انگلیسی و اعداد، بدون فاصله) برای کانفیگ خود ارسال نمایید:": "Please send a custom username (English letters and numbers only, no spaces) for your config:",
+        "طرح انتخابی:": "Selected Plan:",
+        "🔙 بازگشت به دسته‌بندی‌ها": "🔙 Back to Categories",
+        "🔙 بازگشت به لیست سرورها": "🔙 Back to Servers",
+        "✨ ساخت کانفیگ با حجم دلخواه": "✨ Create Custom Volume Config",
+        "سایر": "Others",
+        "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:": "Please select one of the categories below to view plans:",
         "تومان": "Toman",
         "دستیار هوشمند فعال شد": "🤖 Intelligent assistant activated!",
         "سوال خود را در رابطه با": "Ask your question about purchases, tariffs, and connection:",
@@ -655,7 +664,23 @@ BOT_TRANSLATIONS = {
         "موفق": "Success",
         "تایید": "Approve",
         "رد کردن": "Reject",
-    },
+
+        "موجودی کیف پول شما کافی نیست": "Your wallet balance is insufficient",
+        "لطفا ابتدا حساب خود را شارژ کنید": "Please top-up your account first",
+        "مشخصات حساب شما تغییر کرد": "Your account details have been changed",
+        "یوزرنیم جدید": "New username",
+        "رمز عبور جدید": "New password",
+        "جهت ورود به پنل از منوی همکاران استفاده کنید": "Use the Partners menu to login to the panel",
+        "خطا در اتصال به سرور": "Error connecting to the server",
+        "تمدید کاربر با موفقیت انجام شد": "User renewed successfully",
+        "کاربر با موفقیت حذف شد": "User deleted successfully",
+        "بسته همکار تمدید شد": "Partner package renewed",
+        "افزایش حجم": "Volume increased",
+        "ورود موفقیت‌آمیز بود": "Login successful",
+        "اشتراک شما با موفقیت تمدید شد": "Your subscription was successfully renewed",
+        "افزودن": "Added",
+        "روز برای سرویس": "days for service",
+        "تمدید اشتراک دلخواه": "Custom subscription renewal"},
     "ar": {
         "🚀 به ربات پرسرعت": "🚀 مرحباً بك في بوت",
         "خوش آمدید": "أهلاً بك",
@@ -834,15 +859,44 @@ BOT_TRANSLATIONS = {
     }
 }
 
+from deep_translator import GoogleTranslator
+import time
+
+_translation_cache = {}
+
 def translate_text(text, lang):
     if not text or not isinstance(text, str):
         return text
     if lang == "fa":
         return text
+    
+    # First, use the static dictionary for fast exact matches
     target_dict = BOT_TRANSLATIONS.get(lang, {})
+    
+    # If the text is exactly in the dict, return it
+    if text in target_dict:
+        return target_dict[text]
+        
     translated = text
     for fa_key, translation in target_dict.items():
         translated = translated.replace(fa_key, translation)
+        
+    # If we still have Persian characters, use Google Translator dynamically
+    if any('؀' <= c <= 'ۿ' for c in translated):
+        cache_key = f"{lang}:{translated}"
+        if cache_key in _translation_cache:
+            return _translation_cache[cache_key]
+        
+        try:
+            # We must be careful not to break HTML tags during translation
+            # Google Translate handles simple HTML but can sometimes add spaces
+            translator = GoogleTranslator(source='fa', target=lang)
+            final_translation = translator.translate(translated)
+            _translation_cache[cache_key] = final_translation
+            return final_translation
+        except Exception as e:
+            print(f"[Translation Error] {e}")
+            
     return translated
 
 def translate_markup(markup, lang):
@@ -890,7 +944,8 @@ def wrapped_edit_message_text(*args, **kwargs):
     cfg = get_config()
     lang = cfg.get("LANG", "fa")
     args_list = list(args)
-    if len(args_list) > 0:
+    # edit_message_text: first arg is usually text, but sometimes it's text, chat_id, message_id
+    if len(args_list) > 0 and isinstance(args_list[0], str):
         args_list[0] = translate_text(args_list[0], lang)
     elif "text" in kwargs:
         kwargs["text"] = translate_text(kwargs["text"], lang)
@@ -922,6 +977,35 @@ def wrapped_send_photo(*args, **kwargs):
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
     return orig_send_photo(*args, **kwargs)
 bot.send_photo = wrapped_send_photo
+
+orig_edit_message_caption = bot.edit_message_caption
+def wrapped_edit_message_caption(*args, **kwargs):
+    cfg = get_config()
+    lang = cfg.get("LANG", "fa")
+    if "caption" in kwargs:
+        kwargs["caption"] = translate_text(kwargs["caption"], lang)
+    elif len(args) > 0 and isinstance(args[0], str):
+        args_list = list(args)
+        args_list[0] = translate_text(args_list[0], lang)
+        args = tuple(args_list)
+    if "reply_markup" in kwargs and kwargs["reply_markup"]:
+        kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+    return orig_edit_message_caption(*args, **kwargs)
+bot.edit_message_caption = wrapped_edit_message_caption
+
+orig_edit_message_reply_markup = bot.edit_message_reply_markup
+def wrapped_edit_message_reply_markup(*args, **kwargs):
+    cfg = get_config()
+    lang = cfg.get("LANG", "fa")
+    if "reply_markup" in kwargs and kwargs["reply_markup"]:
+        kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+    elif len(args) > 0 and len(args) > 2:
+        args_list = list(args)
+        args_list[2] = translate_markup(args_list[2], lang)
+        args = tuple(args_list)
+    return orig_edit_message_reply_markup(*args, **kwargs)
+bot.edit_message_reply_markup = wrapped_edit_message_reply_markup
+
 
 _sessions = {}
 _session_default = None
@@ -3567,7 +3651,7 @@ def buy_cmd(message):
         # Legacy fallback: derive from plans
         seen_cats = set()
         for p in db_plans:
-            cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
+            cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others",))
             if cat not in seen_cats:
                 categories.append(cat)
                 seen_cats.add(cat)
@@ -6192,7 +6276,7 @@ def callback_handler(call):
         else:
             seen_cats = set()
             for p in db_plans:
-                cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
+                cat = p.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others",))
                 # In legacy mode we cannot filter by ID.
                 if cat not in seen_cats:
                     categories.append(cat)
@@ -6264,7 +6348,7 @@ def callback_handler(call):
         
         plans_data = []
         for dp in db_plans:
-            cat = dp.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others"))
+            cat = dp.get("category", (cfg.get("LANG", "fa") == "fa" and "سایر" or "Others",))
             # Case insensitive comparison for robustness
             if cat.lower() == category_name.lower():
                 plans_data.append({

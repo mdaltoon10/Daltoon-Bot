@@ -27,6 +27,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   appVersion,
 }) => {
   const [plans, setPlans] = useState<any[]>([]);
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
 
   useEffect(() => {
     fetch("/api/vpn-plans")
@@ -154,13 +155,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </span>
           </div>
 
-          <button
-            onClick={() => setLang(lang === "fa" ? "en" : "fa")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-white/5 hover:border-purple-500/20 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition cursor-pointer"
-          >
-            <Globe className="w-3.5 h-3.5 text-purple-400" />
-            <span>{lang === "fa" ? "English" : "فارسی"}</span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowLangDropdown(!showLangDropdown)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs border border-white/5 hover:border-purple-500/20 bg-white/5 hover:bg-white/10 rounded-xl text-gray-400 hover:text-white transition cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-purple-400" />
+              <span>
+                {lang === "fa" && "🇮🇷 فارسی"}
+                {lang === "en" && "🇬🇧 English"}
+                {lang === "ar" && "🇸🇦 العربية"}
+                {lang === "ru" && "🇷🇺 Русский"}
+                {lang === "tr" && "🇹🇷 Türkçe"}
+                {lang === "es" && "🇪🇸 Español"}
+              </span>
+              <svg className={`w-3.5 h-3.5 transition-transform duration-200 ${showLangDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showLangDropdown && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowLangDropdown(false)} />
+                <div className="absolute right-0 mt-2 w-44 bg-zinc-950 border border-white/10 rounded-xl shadow-2xl p-1.5 z-50">
+                  {[
+                    { code: "fa", label: "🇮🇷 فارسی" },
+                    { code: "en", label: "🇬🇧 English" },
+                    { code: "ar", label: "🇸🇦 العربية" },
+                    { code: "ru", label: "🇷🇺 Русский" },
+                    { code: "tr", label: "🇹🇷 Türkçe" },
+                    { code: "es", label: "🇪🇸 Español" },
+                  ].map((l) => (
+                    <button
+                      key={l.code}
+                      onClick={() => {
+                        setLang(l.code as any);
+                        setShowLangDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs rounded-lg transition ${lang === l.code ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'}`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Brand Banner */}

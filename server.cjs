@@ -1,39 +1,52 @@
-import express from "express"; // core
-import path from "path";
-import fs from "fs";
-import os from "os";
-import { createServer as createViteServer } from "vite";
-import { spawn, ChildProcess, exec, execSync } from "child_process";
-import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import dns from "dns";
-import Database from "better-sqlite3";
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 
-// Prefer IPv4 DNS resolution first to fix native fetch failing on self-hosted VPS servers (especially with dual-stack domain names like AwanLLM)
-dns.setDefaultResultOrder("ipv4first");
-
-// Explicit absolute dotenv loads for absolute correctness across nested builds
-dotenv.config();
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-
-const _dirname =
-  typeof __dirname !== "undefined"
-    ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
-
+// server.ts
+var import_express = __toESM(require("express"), 1);
+var import_path = __toESM(require("path"), 1);
+var import_fs = __toESM(require("fs"), 1);
+var import_os = __toESM(require("os"), 1);
+var import_vite = require("vite");
+var import_child_process = require("child_process");
+var import_genai = require("@google/genai");
+var import_dotenv = __toESM(require("dotenv"), 1);
+var import_url = require("url");
+var import_dns = __toESM(require("dns"), 1);
+var import_better_sqlite3 = __toESM(require("better-sqlite3"), 1);
+var import_meta = {};
+import_dns.default.setDefaultResultOrder("ipv4first");
+import_dotenv.default.config();
+import_dotenv.default.config({ path: import_path.default.resolve(process.cwd(), ".env") });
+var _dirname = typeof __dirname !== "undefined" ? __dirname : import_path.default.dirname((0, import_url.fileURLToPath)(import_meta.url));
 try {
-  dotenv.config({ path: path.resolve(_dirname, ".env") });
-  dotenv.config({ path: path.resolve(_dirname, "..", ".env") });
-} catch (e) {}
-
-// Disable SSL verification for outgoing requests to 3x-ui panels
+  import_dotenv.default.config({ path: import_path.default.resolve(_dirname, ".env") });
+  import_dotenv.default.config({ path: import_path.default.resolve(_dirname, "..", ".env") });
+} catch (e) {
+}
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
-// Path to SQLite DB store
-const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
-const sqliteDb = (() => {
-  const db = new Database(dbSqlitePath);
+var dbSqlitePath = import_path.default.resolve(process.cwd(), "Daltoon_Bot.db");
+var sqliteDb = (() => {
+  const db = new import_better_sqlite3.default(dbSqlitePath);
   db.pragma("journal_mode = WAL");
   db.pragma("synchronous = NORMAL");
   db.exec(`
@@ -44,28 +57,26 @@ const sqliteDb = (() => {
   `);
   return db;
 })();
-
 function migrateLegacyJsonToSqlite() {
   const possibleFiles = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"];
   let bestFile = "";
   for (const f of possibleFiles) {
-    const p = path.resolve(process.cwd(), f);
-    if (fs.existsSync(p)) {
+    const p = import_path.default.resolve(process.cwd(), f);
+    if (import_fs.default.existsSync(p)) {
       bestFile = p;
       break;
     }
   }
-
   if (bestFile) {
     try {
-      const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
+      const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get();
       if (rowCountRow.count === 0) {
         console.log(`[SQLite Migration] Migrating active database from legacy ${bestFile} to SQLite...`);
-        const raw = fs.readFileSync(bestFile, "utf8").trim();
+        const raw = import_fs.default.readFileSync(bestFile, "utf8").trim();
         if (raw) {
           const data = JSON.parse(raw);
           const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
-          const transaction = sqliteDb.transaction((obj: any) => {
+          const transaction = sqliteDb.transaction((obj) => {
             for (const key of Object.keys(obj)) {
               insert.run(key, JSON.stringify(obj[key]));
             }
@@ -74,22 +85,18 @@ function migrateLegacyJsonToSqlite() {
           console.log("[SQLite Migration] Migration completed successfully!");
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error("[SQLite Migration Error]", e.message);
     }
   }
 }
-
 migrateLegacyJsonToSqlite();
-
-// Helper to load port dynamically from DB config
-function getServerPort(): number {
+function getServerPort() {
   if (process.env.PORT && !isNaN(Number(process.env.PORT))) {
     return Number(process.env.PORT);
   }
-  // Try to load port from database
   try {
-    const row = sqliteDb.prepare("SELECT value FROM kv WHERE key = 'settings'").get() as { value: string } | undefined;
+    const row = sqliteDb.prepare("SELECT value FROM kv WHERE key = 'settings'").get();
     if (row) {
       const settings = JSON.parse(row.value);
       if (settings && settings.panel_config) {
@@ -103,90 +110,29 @@ function getServerPort(): number {
   } catch (err) {
     console.error(
       "Error reading port from DB configurations, defaulting to 3000",
-      err,
+      err
     );
   }
-  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  return process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
 }
-
-// Set up server port
-const PORT = getServerPort();
-const app = express();
-
+var PORT = getServerPort();
+var app = (0, import_express.default)();
 console.log(
   "[Debug] process.env.GEMINI_API_KEY loaded:",
-  process.env.GEMINI_API_KEY
-    ? `Yes (length: ${process.env.GEMINI_API_KEY.length}, starts with: ${process.env.GEMINI_API_KEY.substring(0, 5)})`
-    : "No (undefined/empty)",
+  process.env.GEMINI_API_KEY ? `Yes (length: ${process.env.GEMINI_API_KEY.length}, starts with: ${process.env.GEMINI_API_KEY.substring(0, 5)})` : "No (undefined/empty)"
 );
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+app.use(import_express.default.json({ limit: "50mb" }));
+app.use(import_express.default.urlencoded({ limit: "50mb", extended: true }));
+app.use("/uploads", import_express.default.static(import_path.default.join(process.cwd(), "uploads")));
 console.log(`[Database] Connecting to JSON file database at: ${dbSqlitePath}`);
-
-// Define types for pure JSON database to align perfectly with schema
-interface DbSchema {
-  isNewInstall?: boolean;
-  users: any[];
-  transactions: any[];
-  subscription_keys: any[];
-  inbounds: any[];
-  custom_buttons: any[];
-  vpn_plans?: any[];
-  gift_codes?: any[];
-  promo_codes?: any[];
-  tickets?: any[];
-  colleague_packages?: any[];
-  colleague_accounts?: any[];
-  colleague_categories?: any[];
-  logs?: any[];
-  plan_categories?: any[];
-  settings: Record<string, string>;
-  link_tokens?: Record<string, string>;
-}
-
-// Function to read JSON Database, seeding with default templates if not found
-function readSqliteDb(): DbSchema {
+function readSqliteDb() {
   try {
-    const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
-    
+    const rows = sqliteDb.prepare("SELECT key, value FROM kv").all();
     if (rows.length === 0) {
-      // Auto-migrate from JSON if it exists
-      const jsonDbPath = path.join(process.cwd(), "Daltoon_Bot.json");
-      if (fs.existsSync(jsonDbPath)) {
-        try {
-          console.log(`[Database] Empty SQLite found, but Daltoon_Bot.json exists. Auto-migrating data to SQLite...`);
-          const jsonData = JSON.parse(fs.readFileSync(jsonDbPath, "utf8"));
-          const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
-          const transaction = sqliteDb.transaction((obj: any) => {
-            for (const key of Object.keys(obj)) {
-              insert.run(key, JSON.stringify(obj[key]));
-            }
-          });
-          transaction(jsonData);
-          console.log(`[Database] Auto-migration from JSON completed successfully.`);
-          
-          // Re-fetch rows now that we've migrated
-          const migratedRows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
-          const db: any = {};
-          for (const row of migratedRows) {
-            try {
-              db[row.key] = JSON.parse(row.value);
-            } catch (err) {
-              console.error(`[Database Parse Error] for key ${row.key}:`, err);
-            }
-          }
-          db.isNewInstall = false;
-          return db;
-        } catch(migrateErr) {
-          console.error(`[Database] Error auto-migrating from JSON:`, migrateErr);
-        }
-      }
-
       console.warn(
-        `[Database] SQLite database is empty. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`,
+        `[Database] SQLite database is empty. Returning default structure but NOT writing to disk yet to avoid accidental wipes.`
       );
-      const defaultDb: DbSchema = {
+      const defaultDb = {
         users: [],
         transactions: [],
         subscription_keys: [],
@@ -209,15 +155,14 @@ function readSqliteDb(): DbSchema {
             cardHolder: process.env.CARD_HOLDER || "",
             dashboardUsername: process.env.DASHBOARD_USERNAME || "Daltoon",
             dashboardPassword: process.env.DASHBOARD_PASSWORD || "Daltoon10",
-            serverPort: 3000,
-          }),
+            serverPort: 3e3
+          })
         },
-        isNewInstall: true,
+        isNewInstall: true
       };
       return defaultDb;
     }
-
-    const db: any = {};
+    const db = {};
     for (const row of rows) {
       try {
         db[row.key] = JSON.parse(row.value);
@@ -225,11 +170,8 @@ function readSqliteDb(): DbSchema {
         console.error(`[Database Parse Error] for key ${row.key}:`, err);
       }
     }
-
     db.isNewInstall = false;
-
     let modified = false;
-    // Backport empty arrays on existing database structures to guarantee safety
     const arraysToEnsure = [
       "users",
       "transactions",
@@ -242,7 +184,7 @@ function readSqliteDb(): DbSchema {
       "colleague_accounts",
       "promo_codes",
       "tickets",
-      "logs",
+      "logs"
     ];
     for (const key of arraysToEnsure) {
       if (!db[key] || !Array.isArray(db[key])) {
@@ -250,17 +192,14 @@ function readSqliteDb(): DbSchema {
         modified = true;
       }
     }
-
     if (modified) {
-      // Use writeSqliteDb instead of direct write to respect safeguards
       writeSqliteDb(db);
     }
-
-    return db as DbSchema;
+    return db;
   } catch (err) {
     console.error(
       "[Database] Read error, preventing data wipe! Returning in-memory empty dataset but skipping writes:",
-      err,
+      err
     );
     return {
       users: [],
@@ -275,77 +214,66 @@ function readSqliteDb(): DbSchema {
       tickets: [],
       colleague_packages: [],
       colleague_accounts: [],
-      _isReadError: true, // Flag to prevent writeSqliteDb from overwriting
-    } as unknown as DbSchema;
+      _isReadError: true
+      // Flag to prevent writeSqliteDb from overwriting
+    };
   }
 }
-
-// Function to write back data
-function writeSqliteDb(data: DbSchema): boolean {
+function writeSqliteDb(data) {
   if (!data) return false;
-  if ((data as any)._isReadError) {
+  if (data._isReadError) {
     console.error(
-      "[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data.",
+      "[Database] Write aborted: Database is currently in an errored/unreadable state. Writing now would wipe data."
     );
     return false;
   }
-
-  // Safeguard: refuse to overwrite if existing database is large but new data is empty
   try {
-    const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
+    const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get();
     if (rowCountRow.count > 0) {
       const hasUsers = Array.isArray(data.users) && data.users.length > 0;
       const hasTransactions = Array.isArray(data.transactions) && data.transactions.length > 0;
-      
       let hasToken = false;
       try {
-        let cfg = data.settings?.panel_config;
-        if (typeof cfg === "string") {
-            cfg = JSON.parse(cfg);
-        }
-        hasToken = !!(cfg?.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
-      } catch(err) {}
-
+        const cfg = JSON.parse(data.settings?.panel_config || "{}");
+        hasToken = !!(cfg.botToken && cfg.botToken.trim() !== "" && cfg.botToken !== "DUMMY_TOKEN");
+      } catch (err) {
+      }
       if (!hasUsers && !hasTransactions && !hasToken) {
         console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
         return false;
       }
     }
-  } catch (err) {}
-
+  } catch (err) {
+  }
   try {
     const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
-    const transaction = sqliteDb.transaction((obj: any) => {
+    const transaction = sqliteDb.transaction((obj) => {
       for (const key of Object.keys(obj)) {
         insert.run(key, JSON.stringify(obj[key]));
       }
     });
     transaction(data);
     return true;
-  } catch (err: any) {
+  } catch (err) {
     console.error("[Database SQLite Write Error]", err.message);
     return false;
   }
 }
-
-function getSystemSettings(db?: any) {
+function getSystemSettings(db) {
   const data = db || readSqliteDb();
   let parsedSettings = {};
   if (data.settings) {
     parsedSettings = { ...data.settings };
-    delete (parsedSettings as any).panel_config; // Clean up string
+    delete parsedSettings.panel_config;
     if (data.settings.panel_config) {
       try {
-        const pc =
-          typeof data.settings.panel_config === "string"
-            ? JSON.parse(data.settings.panel_config)
-            : data.settings.panel_config;
+        const pc = typeof data.settings.panel_config === "string" ? JSON.parse(data.settings.panel_config) : data.settings.panel_config;
         parsedSettings = { ...parsedSettings, ...pc };
-      } catch (e) {}
+      } catch (e) {
+      }
     }
   }
-
-  const settings: any = {
+  const settings = {
     botToken: process.env.BOT_TOKEN || "",
     baseUrl: process.env.XUI_URL || "",
     panelUrl: "",
@@ -382,108 +310,86 @@ function getSystemSettings(db?: any) {
     mandatoryJoinActive: false,
     autoBackupEnabled: true,
     autoBackupInterval: "hourly",
-    btnTextWallet: "شارژ کیف پول 💳",
-    walletChargeAmounts: [200000, 300000, 400000, 500000, 1000000],
-    currency: "تومان",
-    dashboardUsername:
-      process.env.DASHBOARD_USERNAME || process.env.PANEL_USER || "Daltoon",
-    dashboardPassword:
-      process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS || "Daltoon10",
-    serverPort: 3000,
+    btnTextWallet: "\u0634\u0627\u0631\u0698 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u{1F4B3}",
+    walletChargeAmounts: [2e5, 3e5, 4e5, 5e5, 1e6],
+    dashboardUsername: process.env.DASHBOARD_USERNAME || process.env.PANEL_USER || "Daltoon",
+    dashboardPassword: process.env.DASHBOARD_PASSWORD || process.env.PANEL_PASS || "Daltoon10",
+    serverPort: 3e3,
     admins: [],
     panelConnectionActive: false,
-    ...parsedSettings,
+    ...parsedSettings
   };
-
-
   return settings;
 }
-
-let botProcess: ChildProcess | null = null;
-let pythonDepsInstalled = false;
-
+var botProcess = null;
+var pythonDepsInstalled = false;
 function startPythonBot() {
-  const isPM2 =
-    process.env.PM2_HOME !== undefined ||
-    process.env.pm_id !== undefined ||
-    process.env.name === "daltoon-store";
-
+  const isPM2 = process.env.PM2_HOME !== void 0 || process.env.pm_id !== void 0 || process.env.name === "daltoon-store";
   if (isPM2) {
     console.log(
-      "[Bot Manager] Running in PM2 environment. Delegating bot restart to PM2 daemon to avoid duplicate polling conflicts...",
+      "[Bot Manager] Running in PM2 environment. Delegating bot restart to PM2 daemon to avoid duplicate polling conflicts..."
     );
-    exec("pm2 restart daltoon-bot", (err, stdout, stderr) => {
+    (0, import_child_process.exec)("pm2 restart daltoon-bot", (err, stdout, stderr) => {
       if (err) {
         console.error(
           "[Bot Manager] Failed to restart daltoon-bot via PM2:",
-          err.message,
+          err.message
         );
       } else {
         console.log(
-          "[Bot Manager] daltoon-bot process restarted successfully via PM2.",
+          "[Bot Manager] daltoon-bot process restarted successfully via PM2."
         );
       }
     });
     return;
   }
-
   if (botProcess) {
     console.log("[Bot Manager] Stopping old Python bot process...");
     botProcess.kill("SIGKILL");
     botProcess = null;
   }
-
-  // Load latest settings to check if BOT_TOKEN is empty
   const db = readSqliteDb();
   const settings = getSystemSettings(db);
   const token = settings.botToken;
-
   if (!token || token === "DUMMY_TOKEN" || token.trim() === "") {
     console.log(
-      "[Bot Manager] Bot token is empty or dummy. Python bot will not start.",
+      "[Bot Manager] Bot token is empty or dummy. Python bot will not start."
     );
     return;
   }
-
   const runBot = () => {
     console.log(
-      `[Bot Manager] Starting Python Telegram Bot with token ${token.substring(0, 6)}...`,
+      `[Bot Manager] Starting Python Telegram Bot with token ${token.substring(0, 6)}...`
     );
     try {
       const pythonCmd = "python3";
-      const botScriptPath = path.resolve(process.cwd(), "bot.py");
-
-      botProcess = spawn(pythonCmd, ["-u", botScriptPath], {
+      const botScriptPath = import_path.default.resolve(process.cwd(), "bot.py");
+      botProcess = (0, import_child_process.spawn)(pythonCmd, ["-u", botScriptPath], {
         cwd: process.cwd(),
         env: {
           ...process.env,
           PYTHONUNBUFFERED: "1",
-          PYTHONPATH: (process.env.PYTHONPATH ? process.env.PYTHONPATH + ":" : "") + path.join(process.env.HOME || "/root", ".local/lib/python3.10/site-packages"),
+          PYTHONPATH: (process.env.PYTHONPATH ? process.env.PYTHONPATH + ":" : "") + import_path.default.join(process.env.HOME || "/root", ".local/lib/python3.10/site-packages")
         },
-        stdio: "pipe",
+        stdio: "pipe"
       });
-
-      const logStream = fs.createWriteStream("bot_dev.log", { flags: "a" });
-
+      const logStream = import_fs.default.createWriteStream("bot_dev.log", { flags: "a" });
       botProcess.stdout?.on("data", (data) => {
         const msg = data.toString();
         console.log(`[Bot Output]: ${msg.trim()}`);
         logStream.write(`[STDOUT] ${msg}`);
       });
-
       botProcess.stderr?.on("data", (data) => {
         const msg = data.toString();
         console.error(`[Bot Error]: ${msg.trim()}`);
         logStream.write(`[STDERR] ${msg}`);
       });
-
       botProcess.on("close", (code) => {
         console.log(
-          `[Bot Manager] Python bot process closed with code ${code}`,
+          `[Bot Manager] Python bot process closed with code ${code}`
         );
         botProcess = null;
       });
-
       botProcess.on("error", (err) => {
         console.error("[Bot Manager] Failed to start Python bot process:", err);
       });
@@ -491,20 +397,19 @@ function startPythonBot() {
       console.error("[Bot Manager] Exception when spawning python:", err);
     }
   };
-
   if (!pythonDepsInstalled) {
     console.log(
-      "[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed...",
+      "[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed..."
     );
-    exec(
+    (0, import_child_process.exec)(
       "curl -sSL https://bootstrap.pypa.io/get-pip.py -o get-pip_fresh.py && python3 get-pip_fresh.py --user || true",
       () => {
-        exec(
+        (0, import_child_process.exec)(
           "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests --user || pip install pyTelegramBotAPI python-dotenv requests --user || true",
           () => {
             pythonDepsInstalled = true;
             runBot();
-          },
+          }
         );
       }
     );
@@ -512,76 +417,73 @@ function startPythonBot() {
     runBot();
   }
 }
-
-// Ensure database file gets seeded on startup
 readSqliteDb();
 console.log(`[Database] Using active database at: ${dbSqlitePath}`);
 startPythonBot();
-
-// --- API Endpoints ---
-
-// Full Wipe Database API
 app.post("/api/database/wipe-all", async (req, res) => {
   try {
-    const targetDbFile = path.resolve(process.cwd(), "Daltoon_Bot.db");
-    if (fs.existsSync(targetDbFile)) {
+    const targetDbFile = import_path.default.resolve(process.cwd(), "Daltoon_Bot.db");
+    if (import_fs.default.existsSync(targetDbFile)) {
       try {
         sqliteDb.close();
-      } catch (e) {}
-      try { fs.unlinkSync(targetDbFile); } catch (e) {}
-      try { fs.unlinkSync(targetDbFile + "-wal"); } catch (e) {}
-      try { fs.unlinkSync(targetDbFile + "-shm"); } catch (e) {}
+      } catch (e) {
+      }
+      try {
+        import_fs.default.unlinkSync(targetDbFile);
+      } catch (e) {
+      }
+      try {
+        import_fs.default.unlinkSync(targetDbFile + "-wal");
+      } catch (e) {
+      }
+      try {
+        import_fs.default.unlinkSync(targetDbFile + "-shm");
+      } catch (e) {
+      }
     }
-    // Also clear process-level cache if any (though here it's just variables)
     res.json({
       success: true,
-      message: "System wiped and will re-initialize on next load.",
+      message: "System wiped and will re-initialize on next load."
     });
-
-    // Optional: delay exit to allow response to be sent
     setTimeout(() => {
       process.exit(0);
-    }, 1000);
-  } catch (err: any) {
+    }, 1e3);
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// Reset Database API
 app.post("/api/database/reset", async (req, res) => {
   try {
-    if (fs.existsSync(dbSqlitePath)) {
-      fs.unlinkSync(dbSqlitePath);
+    if (import_fs.default.existsSync(dbSqlitePath)) {
+      import_fs.default.unlinkSync(dbSqlitePath);
     }
     try {
       sqliteDb.exec("DELETE FROM kv;");
-    } catch (e) {}
+    } catch (e) {
+    }
     const freshDb = readSqliteDb();
     res.json({
       success: true,
-      message: "Database reset to empty template successfully.",
+      message: "Database reset to empty template successfully."
     });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// AESTHETIC TELEGRAM WEB APP SUBSCRIPTION COPY CONTAINER
 app.get("/copy", (req, res) => {
   try {
-    // Dynamic host domain auto-detection & registration for Python Bot synchrony
     const host = req.headers.host;
     if (host) {
-      const protocol =
-        req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+      const protocol = req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
       const dynamicUrl = `${protocol}://${host}`;
       const db = readSqliteDb();
       if (db.settings) {
-        let pcObj: any = {};
+        let pcObj = {};
         if (db.settings.panel_config) {
           try {
             pcObj = JSON.parse(db.settings.panel_config);
-          } catch (err) {}
+          } catch (err) {
+          }
         }
         if (pcObj.botWebUrl !== dynamicUrl) {
           pcObj.botWebUrl = dynamicUrl;
@@ -593,16 +495,14 @@ app.get("/copy", (req, res) => {
   } catch (err) {
     console.error("[Dynamic Host Save Failed]", err);
   }
-
-  const link = (req.query.link as string) || "";
-
+  const link = req.query.link || "";
   res.send(`
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دریافت لینک اتصال دالتون</title>
+    <title>\u062F\u0631\u06CC\u0627\u0641\u062A \u0644\u06CC\u0646\u06A9 \u0627\u062A\u0635\u0627\u0644 \u062F\u0627\u0644\u062A\u0648\u0646</title>
     <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Telegram Web App SDK -->
@@ -640,7 +540,7 @@ app.get("/copy", (req, res) => {
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
         </div>
-        <h1 class="text-xl font-extrabold text-white tracking-wide">روتر اختصاصی دالتون</h1>
+        <h1 class="text-xl font-extrabold text-white tracking-wide">\u0631\u0648\u062A\u0631 \u0627\u062E\u062A\u0635\u0627\u0635\u06CC \u062F\u0627\u0644\u062A\u0648\u0646</h1>
         <p class="text-[10px] text-indigo-400 mt-1 font-semibold tracking-widest uppercase">Daltoon Subscription Gateway</p>
     </div>
 
@@ -650,12 +550,12 @@ app.get("/copy", (req, res) => {
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
           </svg>
-          <span dir="rtl">لینک با موفقیت کپی شد! ✅</span>
+          <span dir="rtl">\u0644\u06CC\u0646\u06A9 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u06A9\u067E\u06CC \u0634\u062F! \u2705</span>
         </div>
 
         <div class="space-y-2">
             <label class="text-xs font-bold text-slate-400 flex items-center gap-1.5 mr-1 justify-between">
-              <span>🔗 لینک اشتراک سابسکریپشن:</span>
+              <span>\u{1F517} \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646:</span>
               <span class="text-[10px] text-pink-400/80 font-mono">VLESS / X-UI Link</span>
             </label>
             <!-- Link Display Area -->
@@ -673,11 +573,11 @@ app.get("/copy", (req, res) => {
           <svg xmlns="http://www.w3.org/2000/svg" id="checkIcon" class="w-5 h-5 text-emerald-300 hidden animate-bounce" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
           </svg>
-          <span id="btnText">کپی کردن لینک اشتراک</span>
+          <span id="btnText">\u06A9\u067E\u06CC \u06A9\u0631\u062F\u0646 \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9</span>
         </button>
 
         <p class="text-[10px] text-center text-slate-400 font-medium leading-relaxed px-1">
-          💡 این لینک را کپی کرده و در برنامه کلاینت (مانند v2rayNG ،V2box ،Happ یا Streisand) اضافه نمایید تا تمام کانفیگ‌های فعال به طور خودکار بارگذاری شوند.
+          \u{1F4A1} \u0627\u06CC\u0646 \u0644\u06CC\u0646\u06A9 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 \u06A9\u0644\u0627\u06CC\u0646\u062A (\u0645\u0627\u0646\u0646\u062F v2rayNG \u060CV2box \u060CHapp \u06CC\u0627 Streisand) \u0627\u0636\u0627\u0641\u0647 \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u062A\u0645\u0627\u0645 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627\u06CC \u0641\u0639\u0627\u0644 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u0628\u0627\u0631\u06AF\u0630\u0627\u0631\u06CC \u0634\u0648\u0646\u062F.
         </p>
     </div>
 
@@ -687,7 +587,7 @@ app.get("/copy", (req, res) => {
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
-          <span>بستن پنجره</span>
+          <span>\u0628\u0633\u062A\u0646 \u067E\u0646\u062C\u0631\u0647</span>
         </button>
     </div>
 
@@ -741,7 +641,7 @@ app.get("/copy", (req, res) => {
 
             copyIcon.classList.add('hidden');
             checkIcon.classList.remove('hidden');
-            btnText.textContent = 'لینک با موفقیت کپی شد! ✅';
+            btnText.textContent = '\u0644\u06CC\u0646\u06A9 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u06A9\u067E\u06CC \u0634\u062F! \u2705';
             copyBtn.classList.remove('from-purple-600', 'to-indigo-600');
             copyBtn.classList.add('from-emerald-600', 'to-green-600', 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.3)]');
 
@@ -751,7 +651,7 @@ app.get("/copy", (req, res) => {
             setTimeout(() => {
                 copyIcon.classList.remove('hidden');
                 checkIcon.classList.add('hidden');
-                btnText.textContent = 'کپی کردن لینک اشتراک';
+                btnText.textContent = '\u06A9\u067E\u06CC \u06A9\u0631\u062F\u0646 \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9';
                 copyBtn.classList.add('from-purple-600', 'to-indigo-600');
                 copyBtn.classList.remove('from-emerald-600', 'to-green-600', 'shadow-[0_10px_25px_-5px_rgba(16,185,129,0.3)]');
                 
@@ -773,37 +673,26 @@ app.get("/copy", (req, res) => {
 </html>
   `);
 });
-
-// 1. Get complete aggregated database snapshot
 app.get("/api/data", async (req, res) => {
-  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  res.setHeader("Pragma", "no-cache");
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-
-    // Ensure admins list is properly formatted
     if (!settings.admins || !Array.isArray(settings.admins)) {
       settings.admins = [];
     }
-
     console.log(
       "[DEBUG] /api/data returned settings.botToken:",
-      settings.botToken,
+      settings.botToken
     );
-
-    // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
     const activeServers = getActiveServers(settings);
     if (activeServers.length > 0) {
       try {
-        let allInbounds: any[] = [];
+        let allInbounds = [];
         for (const server of activeServers) {
           const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-          
           if (server.panelType === "pasarguard") {
             try {
               const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
-
               if (access_token) {
                 const groupsRes = await xuiFetch(
                   `${cleanedUrl}/api/groups/simple`,
@@ -814,17 +703,17 @@ app.get("/api/data", async (req, res) => {
                       Accept: "application/json"
                     }
                   },
-                  5000
+                  5e3
                 );
-                
                 if (groupsRes.ok) {
                   const groupsData = await groupsRes.json();
-                  const pasarguardGroups = (groupsData.groups || []).map((g: any) => ({
+                  const pasarguardGroups = (groupsData.groups || []).map((g) => ({
                     id: g.id,
                     remark: g.name,
                     port: 0,
                     protocol: "pasarguard-group",
-                    clientsCount: 0 // Could fetch detailed list to get total_users if needed
+                    clientsCount: 0
+                    // Could fetch detailed list to get total_users if needed
                   }));
                   allInbounds = allInbounds.concat(pasarguardGroups);
                 }
@@ -835,7 +724,6 @@ app.get("/api/data", async (req, res) => {
           } else if (server.panelType === "rebecca") {
             try {
               const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
-
               if (access_token) {
                 const servicesRes = await xuiFetch(
                   `${cleanedUrl}/api/v2/services`,
@@ -846,12 +734,11 @@ app.get("/api/data", async (req, res) => {
                       Accept: "application/json"
                     }
                   },
-                  5000
+                  5e3
                 );
-                
                 if (servicesRes.ok) {
                   const servicesData = await servicesRes.json();
-                  const rebeccaInbounds = (servicesData.services || []).map((s: any) => ({
+                  const rebeccaInbounds = (servicesData.services || []).map((s) => ({
                     id: s.id,
                     remark: s.name,
                     port: 0,
@@ -868,11 +755,10 @@ app.get("/api/data", async (req, res) => {
             const loginResult = await loginXuiPanel(
               cleanedUrl,
               server.panelUsername,
-              server.panelPassword,
+              server.panelPassword
             );
-
             if (loginResult.success && loginResult.cookie) {
-              const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+              const listHeaders = { Cookie: loginResult.cookie };
               if (loginResult.csrfToken) {
                 listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
               }
@@ -880,60 +766,47 @@ app.get("/api/data", async (req, res) => {
                 `${cleanedUrl}/panel/api/inbounds/list`,
                 {
                   method: "GET",
-                  headers: listHeaders,
+                  headers: listHeaders
                 },
-                5000,
+                5e3
               );
-
               if (listRes.ok) {
                 const listJson = await listRes.json();
                 if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-                  const freshInbounds = listJson.obj.map((item: any) => {
+                  const freshInbounds = listJson.obj.map((item) => {
                     let totalClientsCount = 0;
                     try {
-                      const settingsObj =
-                        typeof item.settings === "string"
-                          ? JSON.parse(item.settings)
-                          : item.settings;
+                      const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
                       if (settingsObj && Array.isArray(settingsObj.clients)) {
-                      totalClientsCount = settingsObj.clients.length;
+                        totalClientsCount = settingsObj.clients.length;
+                      }
+                    } catch (e) {
                     }
-                  } catch (e) {}
-
-                  const usedGb = (
-                    (Number(item.up || 0) + Number(item.down || 0)) /
-                    (1024 * 1024 * 1024)
-                  ).toFixed(1);
-                  const limitGb = item.total
-                    ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
-                    : "unlimited";
-
-                  return {
-                    id: item.id,
-                    remark:
-                      `[${server.name}] ` +
-                      (item.remark || `Inbound #${item.id}`),
-                    protocol: item.protocol || "vless",
-                    port: item.port || 1234,
-                    totalClients: totalClientsCount,
-                    trafficUsed: usedGb,
-                    trafficLimit: limitGb,
-                    status: item.enable ? "active" : "inactive",
-                  };
-                });
-                allInbounds = allInbounds.concat(freshInbounds);
+                    const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
+                    const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
+                    return {
+                      id: item.id,
+                      remark: `[${server.name}] ` + (item.remark || `Inbound #${item.id}`),
+                      protocol: item.protocol || "vless",
+                      port: item.port || 1234,
+                      totalClients: totalClientsCount,
+                      trafficUsed: usedGb,
+                      trafficLimit: limitGb,
+                      status: item.enable ? "active" : "inactive"
+                    };
+                  });
+                  allInbounds = allInbounds.concat(freshInbounds);
+                }
               }
             }
-          }
           }
         }
         db.inbounds = allInbounds;
         writeSqliteDb(db);
-      } catch (e: any) {
+      } catch (e) {
         console.warn("[Background 3x-ui Sync Warning]:", e.message);
       }
     }
-
     res.json({
       success: true,
       users: db.users,
@@ -951,33 +824,22 @@ app.get("/api/data", async (req, res) => {
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings,
-      isNewInstall:
-        db.isNewInstall ||
-        !settings.botToken ||
-        settings.botToken.trim() === "" ||
-        settings.botToken === "DUMMY_TOKEN" ||
-        !settings.ownerId ||
-        Number(settings.ownerId) === 0,
+      isNewInstall: db.isNewInstall || !settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN" || !settings.ownerId || Number(settings.ownerId) === 0
     });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 2. Save panel configuration
-// --- GIFT CODES API ---
 app.get("/api/gift-codes", (req, res) => {
   const db = readSqliteDb();
   res.json(db.gift_codes || []);
 });
-
 app.post("/api/gift-codes", (req, res) => {
   const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
   const { code, amount, maxUsage, durationDays } = req.body;
-  if (!code || !amount || maxUsage === undefined)
+  if (!code || !amount || maxUsage === void 0)
     return res.status(400).json({ error: "Missing fields" });
-
   const newCode = {
     id: crypto.randomUUID(),
     code,
@@ -985,14 +847,13 @@ app.post("/api/gift-codes", (req, res) => {
     maxUsage: parseInt(maxUsage, 10),
     totalUsage: 0,
     usedBy: [],
-    createdAt: new Date().toISOString(),
-    durationDays: durationDays ? parseInt(durationDays, 10) : undefined,
+    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+    durationDays: durationDays ? parseInt(durationDays, 10) : void 0
   };
   db.gift_codes.push(newCode);
   writeSqliteDb(db);
   res.json({ success: true, item: newCode });
 });
-
 app.post("/api/gift-codes/delete", (req, res) => {
   const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
@@ -1000,16 +861,13 @@ app.post("/api/gift-codes/delete", (req, res) => {
   writeSqliteDb(db);
   res.json({ success: true });
 });
-
-// --- Colleague Endpoints ---
 app.post("/api/colleague-packages/save", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_packages) db.colleague_packages = [];
   const { id, title, price, trafficGb, category, description, minCreateGb } = req.body;
-  if (!id || !title || price === undefined || trafficGb === undefined) {
+  if (!id || !title || price === void 0 || trafficGb === void 0) {
     return res.status(400).json({ error: "Missing fields" });
   }
-
   const existingIdx = db.colleague_packages.findIndex((p) => p.id === id);
   if (existingIdx !== -1) {
     db.colleague_packages[existingIdx] = {
@@ -1019,7 +877,7 @@ app.post("/api/colleague-packages/save", (req, res) => {
       trafficGb: Number(trafficGb),
       category,
       description,
-      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
+      minCreateGb: minCreateGb ? Number(minCreateGb) : 1
     };
   } else {
     db.colleague_packages.push({
@@ -1029,23 +887,21 @@ app.post("/api/colleague-packages/save", (req, res) => {
       trafficGb: Number(trafficGb),
       category,
       description,
-      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
+      minCreateGb: minCreateGb ? Number(minCreateGb) : 1
     });
   }
   writeSqliteDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
 });
-
 app.post("/api/colleague-packages/delete", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_packages) db.colleague_packages = [];
   db.colleague_packages = db.colleague_packages.filter(
-    (p) => p.id !== req.body.id,
+    (p) => p.id !== req.body.id
   );
   writeSqliteDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
 });
-
 app.post("/api/colleague-packages/reorder", (req, res) => {
   try {
     const { orderedIds } = req.body;
@@ -1054,10 +910,9 @@ app.post("/api/colleague-packages/reorder", (req, res) => {
     }
     const db = readSqliteDb();
     if (!db.colleague_packages) db.colleague_packages = [];
-
-    const pkgsMap = new Map(db.colleague_packages.map((p: any) => [p.id, p]));
-    const sortedPkgs: any[] = [];
-    orderedIds.forEach((id: string) => {
+    const pkgsMap = new Map(db.colleague_packages.map((p) => [p.id, p]));
+    const sortedPkgs = [];
+    orderedIds.forEach((id) => {
       const pkg = pkgsMap.get(id);
       if (pkg) {
         sortedPkgs.push(pkg);
@@ -1067,47 +922,40 @@ app.post("/api/colleague-packages/reorder", (req, res) => {
     pkgsMap.forEach((pkg) => {
       sortedPkgs.push(pkg);
     });
-
     db.colleague_packages = sortedPkgs;
     writeSqliteDb(db);
     res.json({ success: true, colleaguePackages: db.colleague_packages });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// --- Colleague Category Endpoints ---
 app.get("/api/colleague-categories", (req, res) => {
   const db = readSqliteDb();
   res.json(db.colleague_categories || []);
 });
-
 app.post("/api/colleague-categories/save", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_categories) db.colleague_categories = [];
   const { id, name, emoji } = req.body;
   if (!name) return res.status(400).json({ error: "Missing name" });
-
   const existingIdx = db.colleague_categories.findIndex((c) => c.id === id);
   if (existingIdx !== -1) {
-    db.colleague_categories[existingIdx] = { id, name, emoji: emoji || "📁" };
+    db.colleague_categories[existingIdx] = { id, name, emoji: emoji || "\u{1F4C1}" };
   } else {
-    db.colleague_categories.push({ id, name, emoji: emoji || "📁" });
+    db.colleague_categories.push({ id, name, emoji: emoji || "\u{1F4C1}" });
   }
   writeSqliteDb(db);
   res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
-
 app.post("/api/colleague-categories/delete", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_categories) db.colleague_categories = [];
   db.colleague_categories = db.colleague_categories.filter(
-    (c) => c.id !== req.body.id,
+    (c) => c.id !== req.body.id
   );
   writeSqliteDb(db);
   res.json({ success: true, colleagueCategories: db.colleague_categories });
 });
-
 app.post("/api/colleague-categories/reorder", (req, res) => {
   try {
     const { orderedIds } = req.body;
@@ -1116,10 +964,9 @@ app.post("/api/colleague-categories/reorder", (req, res) => {
     }
     const db = readSqliteDb();
     if (!db.colleague_categories) db.colleague_categories = [];
-
-    const catsMap = new Map(db.colleague_categories.map((c: any) => [c.id, c]));
-    const sortedCats: any[] = [];
-    orderedIds.forEach((id: string) => {
+    const catsMap = new Map(db.colleague_categories.map((c) => [c.id, c]));
+    const sortedCats = [];
+    orderedIds.forEach((id) => {
       const cat = catsMap.get(id);
       if (cat) {
         sortedCats.push(cat);
@@ -1129,50 +976,40 @@ app.post("/api/colleague-categories/reorder", (req, res) => {
     catsMap.forEach((cat) => {
       sortedCats.push(cat);
     });
-
     db.colleague_categories = sortedCats;
     writeSqliteDb(db);
     res.json({ success: true, colleagueCategories: db.colleague_categories });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/colleague-accounts/delete", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
   db.colleague_accounts = db.colleague_accounts.filter(
-    (a) => a.id !== req.body.id,
+    (a) => a.id !== req.body.id
   );
   writeSqliteDb(db);
   res.json({ success: true, colleagueAccounts: db.colleague_accounts });
 });
-
 app.post("/api/colleague-accounts/reset", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
-
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
   if (accIndex !== -1) {
-    db.colleague_accounts[accIndex].username = Math.random()
-      .toString(36)
-      .substring(2, 10);
-    db.colleague_accounts[accIndex].password = Math.random()
-      .toString(36)
-      .substring(2, 10);
+    db.colleague_accounts[accIndex].username = Math.random().toString(36).substring(2, 10);
+    db.colleague_accounts[accIndex].password = Math.random().toString(36).substring(2, 10);
     writeSqliteDb(db);
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
   } else {
     res.json({ success: false, error: "Account not found" });
   }
 });
-
 app.post("/api/colleague-accounts/edit", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
-
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
-  if (accIndex !== -1 && req.body.trafficGb !== undefined) {
+  if (accIndex !== -1 && req.body.trafficGb !== void 0) {
     db.colleague_accounts[accIndex].trafficGb = req.body.trafficGb;
     writeSqliteDb(db);
     res.json({ success: true, colleagueAccounts: db.colleague_accounts });
@@ -1180,11 +1017,9 @@ app.post("/api/colleague-accounts/edit", (req, res) => {
     res.json({ success: false, error: "Account not found or missing fields" });
   }
 });
-
 app.post("/api/colleague-accounts/reset-usage", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_accounts) db.colleague_accounts = [];
-
   const accIndex = db.colleague_accounts.findIndex((a) => a.id === req.body.id);
   if (accIndex !== -1) {
     db.colleague_accounts[accIndex].usedTrafficGb = 0;
@@ -1195,449 +1030,295 @@ app.post("/api/colleague-accounts/reset-usage", (req, res) => {
     res.json({ success: false, error: "Account not found" });
   }
 });
-
-// --- PROMO CODES ENDPOINTS ---
 app.post("/api/promo-codes", (req, res) => {
   try {
     const db = readSqliteDb();
     if (!db.promo_codes) db.promo_codes = [];
     const nextCode = req.body;
-
     const idx = db.promo_codes.findIndex(
-      (p: any) => p.id === nextCode.id || p.code === nextCode.code,
+      (p) => p.id === nextCode.id || p.code === nextCode.code
     );
     if (idx >= 0) {
       db.promo_codes[idx] = nextCode;
     } else {
       db.promo_codes.push(nextCode);
     }
-
     writeSqliteDb(db);
     res.json({ success: true, item: nextCode });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/promo-codes/delete", (req, res) => {
   try {
     const db = readSqliteDb();
     if (!db.promo_codes) db.promo_codes = [];
-    db.promo_codes = db.promo_codes.filter((p: any) => p.id !== req.body.id);
+    db.promo_codes = db.promo_codes.filter((p) => p.id !== req.body.id);
     writeSqliteDb(db);
     res.json({ success: true });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// --- TICKETS ENDPOINTS ---
 app.post("/api/tickets/create", (req, res) => {
   try {
     const { userId, username, subject, message } = req.body;
     const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
-
-    const ticketId = "TKB-" + Math.floor(Math.random() * 9000 + 1000);
+    const ticketId = "TKB-" + Math.floor(Math.random() * 9e3 + 1e3);
     const newTicket = {
       id: ticketId,
       userId: Number(userId),
       username: username || "user_" + userId,
-      subject: subject,
+      subject,
       status: "open",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
       messages: [
         {
           sender: "user",
-          message: message,
-          date: new Date().toISOString(),
-        },
-      ],
+          message,
+          date: (/* @__PURE__ */ new Date()).toISOString()
+        }
+      ]
     };
-
     db.tickets.push(newTicket);
     writeSqliteDb(db);
-
     res.json({
       success: true,
       ticketId,
       tickets: db.tickets,
-      ticket: newTicket,
+      ticket: newTicket
     });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/tickets/delete", (req, res) => {
   try {
     const { ticketId } = req.body;
     const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
-
-    db.tickets = db.tickets.filter((t: any) => t.id !== ticketId);
+    db.tickets = db.tickets.filter((t) => t.id !== ticketId);
     writeSqliteDb(db);
-
     res.json({ success: true, tickets: db.tickets });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/tickets/reply", (req, res) => {
   try {
     const { ticketId, reply } = req.body;
     const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
-
-    const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
+    const ticketIdx = db.tickets.findIndex((t) => t.id === ticketId);
     if (ticketIdx >= 0) {
       const ticket = db.tickets[ticketIdx];
       ticket.messages.push({
         sender: "admin",
         message: reply,
-        date: new Date().toISOString(),
+        date: (/* @__PURE__ */ new Date()).toISOString()
       });
       ticket.status = "answered";
-      ticket.updatedAt = new Date().toISOString();
-
+      ticket.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSqliteDb(db);
-
-      // Notify the user on Telegram of the admin reply
       const settings = getSystemSettings(db);
       if (settings.botToken && ticket.userId) {
-        const notifyMsg =
-          `📨 <b>پاسخ پشتیبانی به تیکت شما!</b>\n\n` +
-          `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n` +
-          `💬 <b>متن پاسخ:</b>\n` +
-          `<blockquote>${reply}</blockquote>\n\n` +
-          `🍀 <i>از اعتماد و شکیبایی شما سپاسگزاریم.</i>`;
+        const notifyMsg = `\u{1F4E8} <b>\u067E\u0627\u0633\u062E \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0628\u0647 \u062A\u06CC\u06A9\u062A \u0634\u0645\u0627!</b>
 
+\u{1F194} <b>\u0634\u0646\u0627\u0633\u0647 \u062A\u06CC\u06A9\u062A:</b> <code>${ticket.id}</code>
+\u{1F4AC} <b>\u0645\u062A\u0646 \u067E\u0627\u0633\u062E:</b>
+<blockquote>${reply}</blockquote>
+
+\u{1F340} <i>\u0627\u0632 \u0627\u0639\u062A\u0645\u0627\u062F \u0648 \u0634\u06A9\u06CC\u0628\u0627\u06CC\u06CC \u0634\u0645\u0627 \u0633\u067E\u0627\u0633\u06AF\u0632\u0627\u0631\u06CC\u0645.</i>`;
         const replyMarkup = {
           inline_keyboard: [
             [
               {
-                text: "✍️ پاسخ به این تیکت",
-                callback_data: `tkt_reply_${ticket.id}`,
-              },
-            ],
-          ],
+                text: "\u270D\uFE0F \u067E\u0627\u0633\u062E \u0628\u0647 \u0627\u06CC\u0646 \u062A\u06CC\u06A9\u062A",
+                callback_data: `tkt_reply_${ticket.id}`
+              }
+            ]
+          ]
         };
-
         sendTelegramMessage(
           settings.botToken,
           ticket.userId,
           notifyMsg,
-          replyMarkup,
+          replyMarkup
         ).catch((err) => {
           console.error("[Telegram Ticket Reply Auto-Notify Error]", err);
         });
       }
-
       res.json({ success: true, ticket });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/tickets/close", (req, res) => {
   try {
     const { ticketId } = req.body;
     const db = readSqliteDb();
     if (!db.tickets) db.tickets = [];
-
-    const ticketIdx = db.tickets.findIndex((t: any) => t.id === ticketId);
+    const ticketIdx = db.tickets.findIndex((t) => t.id === ticketId);
     if (ticketIdx >= 0) {
       const ticket = db.tickets[ticketIdx];
       ticket.status = "closed";
-      ticket.updatedAt = new Date().toISOString();
+      ticket.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSqliteDb(db);
-
-      // Notify the user on Telegram of ticket closure
       const settings = getSystemSettings(db);
       if (settings.botToken && ticket.userId) {
-        const nickname = settings.botNickname || "دالتون بات";
-        const notifyMsg =
-          `🔒 <b>تیکت شما بسته شد!</b>\n\n` +
-          `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n\n` +
-          `💬 تیکت شما توسط پشتیبانی فنی ${nickname} بررسی و بسته شد.\n` +
-          `اگر همچنان نیاز به راهنمایی بیشتری دارید، می‌توانید تیکت جدیدی در ربات ثبت فرمایید.`;
+        const nickname = settings.botNickname || "\u062F\u0627\u0644\u062A\u0648\u0646 \u0628\u0627\u062A";
+        const notifyMsg = `\u{1F512} <b>\u062A\u06CC\u06A9\u062A \u0634\u0645\u0627 \u0628\u0633\u062A\u0647 \u0634\u062F!</b>
+
+\u{1F194} <b>\u0634\u0646\u0627\u0633\u0647 \u062A\u06CC\u06A9\u062A:</b> <code>${ticket.id}</code>
+
+\u{1F4AC} \u062A\u06CC\u06A9\u062A \u0634\u0645\u0627 \u062A\u0648\u0633\u0637 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0641\u0646\u06CC ${nickname} \u0628\u0631\u0631\u0633\u06CC \u0648 \u0628\u0633\u062A\u0647 \u0634\u062F.
+\u0627\u06AF\u0631 \u0647\u0645\u0686\u0646\u0627\u0646 \u0646\u06CC\u0627\u0632 \u0628\u0647 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC\u06CC \u0628\u06CC\u0634\u062A\u0631\u06CC \u062F\u0627\u0631\u06CC\u062F\u060C \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u06CC\u062F \u062A\u06CC\u06A9\u062A \u062C\u062F\u06CC\u062F\u06CC \u062F\u0631 \u0631\u0628\u0627\u062A \u062B\u0628\u062A \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`;
         sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(
           (err) => {
             console.error("[Telegram Ticket Close Auto-Notify Error]", err);
-          },
+          }
         );
       }
-
       res.json({ success: true, ticket });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// --- REGEN UUID & TRANSFER KEY CONNECTIONS ---
 app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
-    const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
+    const subIdx = db.subscription_keys.findIndex((k) => k.id === id);
     if (subIdx >= 0) {
       const key = db.subscription_keys[subIdx];
       const clientName = key.clientName || key.clientEmail;
-
       let resetResult;
       if (!clientName) {
-        // Fallback: This is a custom/manual key, regenerate locally in DB immediately
-        const crypto = await import("crypto");
-        const newUuid = crypto.randomUUID();
-        const newSubId = crypto.randomBytes(8).toString("hex");
+        const crypto2 = await import("crypto");
+        const newUuid = crypto2.randomUUID();
+        const newSubId = crypto2.randomBytes(8).toString("hex");
         const settings = getSystemSettings(db);
         const activeServers = getActiveServers(settings);
         let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
         if (key.serverId) {
-          const found = activeServers.find((s: any) => s.id === key.serverId);
+          const found = activeServers.find((s) => s.id === key.serverId);
           if (found) {
             chosenServer = found;
           }
         }
-        const subBase =
-          chosenServer &&
-          chosenServer.subUrl &&
-          chosenServer.subUrl.trim() !== ""
-            ? normalizeXuiUrl(chosenServer.subUrl)
-            : chosenServer
-              ? normalizeXuiUrl(chosenServer.panelUrl)
-              : "https://tr.sub-daltoon.ir:2096";
+        const subBase = chosenServer && chosenServer.subUrl && chosenServer.subUrl.trim() !== "" ? normalizeXuiUrl(chosenServer.subUrl) : chosenServer ? normalizeXuiUrl(chosenServer.panelUrl) : "https://tr.sub-daltoon.ir:2096";
         const subLink = `${subBase}/sub/${newSubId}`;
         resetResult = { success: true, clientUuid: newUuid, subLink };
         console.log(
-          `[regenerate-uuid API] Regenerated manual client locally: ${key.id}`,
+          `[regenerate-uuid API] Regenerated manual client locally: ${key.id}`
         );
       } else {
         resetResult = await resetVpnClientUuidApi(clientName, key.serverId);
       }
-
       if (resetResult.success) {
         key.clientUuid = resetResult.clientUuid;
         key.subLink = resetResult.subLink;
-
         db.subscription_keys[subIdx] = key;
         writeSqliteDb(db);
         res.json({ success: true, key });
       } else {
         res.status(500).json({
           success: false,
-          error: resetResult.error || "Failed to reset UUID",
+          error: resetResult.error || "Failed to reset UUID"
         });
       }
     } else {
-      res
-        .status(404)
-        .json({ success: false, error: "Subscription entry not found." });
+      res.status(404).json({ success: false, error: "Subscription entry not found." });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/subscription-keys/transfer-ownership", async (req, res) => {
   try {
     const { id, targetUserIdOrUsername } = req.body;
     const db = readSqliteDb();
-
     const cleanTarget = String(targetUserIdOrUsername).replace("@", "").trim();
     const targetUser = db.users.find(
-      (u: any) =>
-        String(u.userId) === cleanTarget ||
-        String(u.username).toLowerCase() === cleanTarget.toLowerCase(),
+      (u) => String(u.userId) === cleanTarget || String(u.username).toLowerCase() === cleanTarget.toLowerCase()
     );
-
     if (!targetUser) {
       return res.status(400).json({
         success: false,
-        error:
-          "کاربر مقصد در سیستم یافت نشد. دوست شما باید حداقل یکبار دکمه /start را در ربات زده باشد.",
+        error: "\u06A9\u0627\u0631\u0628\u0631 \u0645\u0642\u0635\u062F \u062F\u0631 \u0633\u06CC\u0633\u062A\u0645 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F. \u062F\u0648\u0633\u062A \u0634\u0645\u0627 \u0628\u0627\u06CC\u062F \u062D\u062F\u0627\u0642\u0644 \u06CC\u06A9\u0628\u0627\u0631 \u062F\u06A9\u0645\u0647 /start \u0631\u0627 \u062F\u0631 \u0631\u0628\u0627\u062A \u0632\u062F\u0647 \u0628\u0627\u0634\u062F."
       });
     }
-
-    const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
+    const subIdx = db.subscription_keys.findIndex((k) => k.id === id);
     if (subIdx >= 0) {
       const key = db.subscription_keys[subIdx];
       const oldUserId = key.userId;
-
-      // Transfer
       key.userId = targetUser.userId;
       db.subscription_keys[subIdx] = key;
-
-      // Recalculate
-      const oldUser = db.users.find((u: any) => u.userId === oldUserId);
+      const oldUser = db.users.find((u) => u.userId === oldUserId);
       if (oldUser) {
         oldUser.activePlansCount = db.subscription_keys.filter(
-          (k: any) => k.userId === oldUserId && k.status === "active",
+          (k) => k.userId === oldUserId && k.status === "active"
         ).length;
       }
       targetUser.activePlansCount = db.subscription_keys.filter(
-        (k: any) => k.userId === targetUser.userId && k.status === "active",
+        (k) => k.userId === targetUser.userId && k.status === "active"
       ).length;
-
       writeSqliteDb(db);
       res.json({
         success: true,
         key,
-        targetUsername: targetUser.username || String(targetUser.userId),
+        targetUsername: targetUser.username || String(targetUser.userId)
       });
     } else {
-      res
-        .status(404)
-        .json({ success: false, error: "کانفیگ مورد نظر یافت نشد." });
+      res.status(404).json({ success: false, error: "\u06A9\u0627\u0646\u0641\u06CC\u06AF \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/transactions/instant-pay", async (req, res) => {
   try {
     const { userId, amount, description } = req.body;
     const db = readSqliteDb();
-
-    const user = db.users.find((u: any) => u.userId === Number(userId));
+    const user = db.users.find((u) => u.userId === Number(userId));
     if (!user) {
       return res.status(404).json({ success: false, error: "User not found" });
     }
-
     const amountNum = Number(amount);
     user.walletBalance = Number(user.walletBalance) + amountNum;
-
     const newTx = {
-      id: "TX-AUTO-" + Math.floor(Math.random() * 90000 + 10000),
+      id: "TX-AUTO-" + Math.floor(Math.random() * 9e4 + 1e4),
       userId: Number(userId),
       username: user.username,
       amount: amountNum,
       receiptImage: "bg-gradient-to-br from-emerald-500 to-teal-700",
       status: "approved",
-      date: new Date().toISOString(),
-      description: description || "پرداخت خودکار آنلاین",
+      date: (/* @__PURE__ */ new Date()).toISOString(),
+      description: description || "\u067E\u0631\u062F\u0627\u062E\u062A \u062E\u0648\u062F\u06A9\u0627\u0631 \u0622\u0646\u0644\u0627\u06CC\u0646"
     };
-
     db.transactions.unshift(newTx);
     writeSqliteDb(db);
     res.json({
       success: true,
       userWalletBalance: user.walletBalance,
-      tx: newTx,
+      tx: newTx
     });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// --- AI Chatbot Feature ---
-let aiClient: GoogleGenAI | null = null;
-
-function getAiClient(): GoogleGenAI {
-  if (!aiClient) {
-    let key: string | undefined = undefined;
-
-    // 1. Try to load from database settings first (User Preferred)
-    try {
-      const db = readSqliteDb();
-      // Ensure we check both stringified panel_config and direct settings for robustness
-      let settingsObj = db.settings || {};
-      if (db.settings && db.settings.panel_config) {
-        try {
-          const cfg = JSON.parse(db.settings.panel_config);
-          settingsObj = { ...settingsObj, ...cfg };
-        } catch (e) {}
-      }
-
-      if (settingsObj.geminiApiKey && settingsObj.geminiApiKey.trim() !== "") {
-        key = settingsObj.geminiApiKey.trim();
-        console.log(
-          "[System] Successfully loaded GEMINI_API_KEY from database settings.",
-        );
-      }
-    } catch (e: any) {
-      console.warn(
-        "[System] Could not load API key from database:",
-        e.message,
-      );
-    }
-
-    // 2. Fallback to process.env if not found in DB
-    if (!key) {
-      key = process.env.GEMINI_API_KEY;
-      if (key)
-        console.log(
-          "[System] Using GEMINI_API_KEY from environment variables.",
-        );
-    }
-
-    // 3. Last fallback: Direct .env file parsing (for local dev environments)
-    if (!key) {
-      try {
-        const envPaths = [
-          path.resolve(process.cwd(), ".env"),
-          path.resolve(_dirname, ".env"),
-          path.resolve(_dirname, "..", ".env"),
-          "/.env",
-        ];
-        for (const envPath of envPaths) {
-          if (fs.existsSync(envPath)) {
-            const content = fs.readFileSync(envPath, "utf8");
-            const match = content.match(
-              /GEMINI_API_KEY\s*=\s*["']?([^"'\r\n]+)["']?/,
-            );
-            if (match && match[1]) {
-              key = match[1].trim();
-              console.log(
-                `[System] Loaded GEMINI_API_KEY from .env file: ${envPath}`,
-              );
-              break;
-            }
-          }
-        }
-      } catch (e: any) {}
-    }
-
-    if (key) {
-      key = key.trim();
-      // Remove accidental quotes if they exist in file/env
-      if (
-        (key.startsWith('"') && key.endsWith('"')) ||
-        (key.startsWith("'") && key.endsWith("'"))
-      ) {
-        key = key.substring(1, key.length - 1);
-      }
-      key = key.trim();
-    }
-
-    if (!key || key === "") {
-      throw new Error(
-        "دستیار هوشمند فعال نیست. لطفا کلید (GEMINI_API_KEY) را در تنظیمات داشبورد ست کنید.",
-      );
-    }
-
-    aiClient = new GoogleGenAI({
-      apiKey: key,
-    });
-  }
-  return aiClient;
-}
-
-// Helper to perform web search using Google Custom Search API or Brave Search API
-async function performWebSearch(query: string, googleKey?: string, cx?: string, braveKey?: string): Promise<string> {
+var aiClient = null;
+async function performWebSearch(query, googleKey, cx, braveKey) {
   if (!query) return "";
   let resultsText = "";
-
-  // 1. Try Google Custom Search API
   if (googleKey && googleKey.trim() !== "") {
     const searchCx = cx && cx.trim() !== "" ? cx.trim() : "";
     try {
@@ -1645,12 +1326,17 @@ async function performWebSearch(query: string, googleKey?: string, cx?: string, 
       const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(googleKey.trim())}&cx=${encodeURIComponent(searchCx)}&q=${encodeURIComponent(query)}`;
       const res = await fetch(url);
       if (res.ok) {
-        const data: any = await res.json();
+        const data = await res.json();
         const items = data.items || [];
         if (items.length > 0) {
-          resultsText += `نتایج جستجوی گوگل برای "${query}":\n`;
-          items.slice(0, 5).forEach((item: any, idx: number) => {
-            resultsText += `[${idx + 1}] عنوان: ${item.title}\nتوضیحات: ${item.snippet}\nلینک: ${item.link}\n\n`;
+          resultsText += `\u0646\u062A\u0627\u06CC\u062C \u062C\u0633\u062A\u062C\u0648\u06CC \u06AF\u0648\u06AF\u0644 \u0628\u0631\u0627\u06CC "${query}":
+`;
+          items.slice(0, 5).forEach((item, idx) => {
+            resultsText += `[${idx + 1}] \u0639\u0646\u0648\u0627\u0646: ${item.title}
+\u062A\u0648\u0636\u06CC\u062D\u0627\u062A: ${item.snippet}
+\u0644\u06CC\u0646\u06A9: ${item.link}
+
+`;
           });
         }
       } else {
@@ -1661,8 +1347,6 @@ async function performWebSearch(query: string, googleKey?: string, cx?: string, 
       console.error(`[Web Search] Failed Google Search:`, err);
     }
   }
-
-  // 2. Try Brave Search API if Google didn't return results
   if (resultsText === "" && braveKey && braveKey.trim() !== "") {
     try {
       console.log(`[Web Search] Querying Brave Search API for: "${query}"`);
@@ -1675,12 +1359,17 @@ async function performWebSearch(query: string, googleKey?: string, cx?: string, 
         }
       });
       if (res.ok) {
-        const data: any = await res.json();
+        const data = await res.json();
         const items = data.web?.results || [];
         if (items.length > 0) {
-          resultsText += `نتایج جستجوی وب (Brave) برای "${query}":\n`;
-          items.slice(0, 5).forEach((item: any, idx: number) => {
-            resultsText += `[${idx + 1}] عنوان: ${item.title}\nتوضیحات: ${item.description}\nلینک: ${item.url}\n\n`;
+          resultsText += `\u0646\u062A\u0627\u06CC\u062C \u062C\u0633\u062A\u062C\u0648\u06CC \u0648\u0628 (Brave) \u0628\u0631\u0627\u06CC "${query}":
+`;
+          items.slice(0, 5).forEach((item, idx) => {
+            resultsText += `[${idx + 1}] \u0639\u0646\u0648\u0627\u0646: ${item.title}
+\u062A\u0648\u0636\u06CC\u062D\u0627\u062A: ${item.description}
+\u0644\u06CC\u0646\u06A9: ${item.url}
+
+`;
           });
         }
       } else {
@@ -1691,153 +1380,120 @@ async function performWebSearch(query: string, googleKey?: string, cx?: string, 
       console.error(`[Web Search] Failed Brave Search:`, err);
     }
   }
-
   return resultsText;
 }
-
 app.post("/api/ai/chat", async (req, res) => {
   try {
     const { message, userId, type } = req.body;
     const isSupport = type === "support" || !type;
-
     if (!message) {
       return res.status(400).json({ error: "Message is required." });
     }
-
     const dbData = readSqliteDb();
     const systemSettings = getSystemSettings(dbData);
-
     const activeUsersCount = (dbData.users || []).filter(
-      (u: any) => u.status === "active",
+      (u) => u.status === "active"
     ).length;
-
     const aiSearchEnabled = systemSettings.aiSearchEnabled !== false;
-
-    // Custom Web Search Context (Google / Brave Search fallback for custom models)
     let injectedSearchContext = "";
     if (aiSearchEnabled) {
       const googleKey = systemSettings.googleSearchApiKey || process.env.GOOGLE_SEARCH_API_KEY || "";
       const googleCx = systemSettings.googleSearchCx || process.env.GOOGLE_SEARCH_CX || "";
       const braveKey = systemSettings.braveSearchApiKey || process.env.BRAVE_SEARCH_API_KEY || "";
-      
-      if ((googleKey && googleKey.trim() !== "") || (braveKey && braveKey.trim() !== "")) {
+      if (googleKey && googleKey.trim() !== "" || braveKey && braveKey.trim() !== "") {
         const searchResults = await performWebSearch(message, googleKey, googleCx, braveKey);
         if (searchResults && searchResults.trim() !== "") {
-          injectedSearchContext = `\n\n[اطلاعات زنده جستجوی وب]\nاطلاعات زیر آخرین نتایج جستجوی اینترنت درباره سوال کاربر است. از این اطلاعات برای پاسخ به سوالات مربوط به رویدادهای روز استفاده کنید:\n${searchResults}`;
+          injectedSearchContext = `
+
+[\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0632\u0646\u062F\u0647 \u062C\u0633\u062A\u062C\u0648\u06CC \u0648\u0628]
+\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0632\u06CC\u0631 \u0622\u062E\u0631\u06CC\u0646 \u0646\u062A\u0627\u06CC\u062C \u062C\u0633\u062A\u062C\u0648\u06CC \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u062F\u0631\u0628\u0627\u0631\u0647 \u0633\u0648\u0627\u0644 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0633\u062A. \u0627\u0632 \u0627\u06CC\u0646 \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0628\u0631\u0627\u06CC \u067E\u0627\u0633\u062E \u0628\u0647 \u0633\u0648\u0627\u0644\u0627\u062A \u0645\u0631\u0628\u0648\u0637 \u0628\u0647 \u0631\u0648\u06CC\u062F\u0627\u062F\u0647\u0627\u06CC \u0631\u0648\u0632 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F:
+${searchResults}`;
         }
       }
     }
-
     let geminiApiKey = systemSettings.geminiApiKey || "";
-
-    // Fallback to process.env if not set in DB
     if (!geminiApiKey || geminiApiKey.trim() === "") {
       geminiApiKey = process.env.GEMINI_API_KEY || "";
     }
-
     let customAiApiKey = systemSettings.customAiApiKey || "";
     let aiBaseUrl = systemSettings.aiBaseUrl || "";
     let aiModelName = systemSettings.aiModelName || "";
-
-    // Determine target key and parameters
     let apiKeyToUse = "";
     let finalBaseUrl = "";
     let finalModelName = "";
-
     if (isSupport) {
-      // Support assistant strictly uses geminiApiKey
       apiKeyToUse = geminiApiKey.trim();
       if (!apiKeyToUse || apiKeyToUse.trim() === "") {
         return res.status(400).json({
-          error:
-            "کلید API جیمینای ثبت نشده است. لطفاً ابتدا در تنظیمات داشبورد کلید معتبر را وارد کنید.",
+          error: "\u06A9\u0644\u06CC\u062F API \u062C\u06CC\u0645\u06CC\u0646\u0627\u06CC \u062B\u0628\u062A \u0646\u0634\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0627\u0628\u062A\u062F\u0627 \u062F\u0631 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u062F\u0627\u0634\u0628\u0648\u0631\u062F \u06A9\u0644\u06CC\u062F \u0645\u0639\u062A\u0628\u0631 \u0631\u0627 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F."
         });
       }
     } else {
-      // General AI strictly uses customAiApiKey
       apiKeyToUse = customAiApiKey.trim();
       finalBaseUrl = aiBaseUrl ? aiBaseUrl.trim() : "";
       finalModelName = aiModelName ? aiModelName.trim() : "";
-
       if (!apiKeyToUse || apiKeyToUse.trim() === "") {
         return res.status(400).json({
-          error:
-            "کلید API هوش مصنوعی عمومی تنظیم نشده است. لطفاً تنظیمات را بررسی کنید.",
+          error: "\u06A9\u0644\u06CC\u062F API \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0639\u0645\u0648\u0645\u06CC \u062A\u0646\u0638\u06CC\u0645 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F."
         });
       }
     }
-
-    // Support Assistant uses Gemini, General AI uses the custom API key (or auto-detects if Custom API key happens to be Gemini)
-    const isDirectGemini = isSupport
-      ? true
-      : apiKeyToUse.startsWith("AIzaSy") &&
-        (!finalBaseUrl || finalBaseUrl === "");
-
-    // Prepare system instruction prompt based on bot identity or general purpose
+    const isDirectGemini = isSupport ? true : apiKeyToUse.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
     let systemPrompt = "";
     if (isSupport) {
       const pricingBoxes = systemSettings.customPricingBoxes || [];
-      const serversList = (systemSettings.servers || []).map((s: any) => ({ id: s.id, name: s.name }));
-      
-      systemPrompt = `شما یک دستیار هوش مصنوعی مودب و پاسخگو متعلق به ربات تلگرام به نام "${systemSettings.botNickname || "دالتون بات"}" (Daltoon Bot) هستید. 
-شما باید به سوالات مرتبط با خدمات و خرید از ربات پاسخ دهید.
+      const serversList = (systemSettings.servers || []).map((s) => ({ id: s.id, name: s.name }));
+      systemPrompt = `\u0634\u0645\u0627 \u06CC\u06A9 \u062F\u0633\u062A\u06CC\u0627\u0631 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0645\u0648\u062F\u0628 \u0648 \u067E\u0627\u0633\u062E\u06AF\u0648 \u0645\u062A\u0639\u0644\u0642 \u0628\u0647 \u0631\u0628\u0627\u062A \u062A\u0644\u06AF\u0631\u0627\u0645 \u0628\u0647 \u0646\u0627\u0645 "${systemSettings.botNickname || "\u062F\u0627\u0644\u062A\u0648\u0646 \u0628\u0627\u062A"}" (Daltoon Bot) \u0647\u0633\u062A\u06CC\u062F. 
+\u0634\u0645\u0627 \u0628\u0627\u06CC\u062F \u0628\u0647 \u0633\u0648\u0627\u0644\u0627\u062A \u0645\u0631\u062A\u0628\u0637 \u0628\u0627 \u062E\u062F\u0645\u0627\u062A \u0648 \u062E\u0631\u06CC\u062F \u0627\u0632 \u0631\u0628\u0627\u062A \u067E\u0627\u0633\u062E \u062F\u0647\u06CC\u062F.
 
-مهم‌ترین نکته: در صورتی که کاربر نیاز به پشتیبانی انسانی، شارژ ولت، رفع مشکل درگاه، قطعی یا خرید دارد، او را راهنمایی کنید که از منوی اصلی ربات از دکمه «🎫 ثبت تیکت پشتیبانی» استفاده کند.
+\u0645\u0647\u0645\u200C\u062A\u0631\u06CC\u0646 \u0646\u06A9\u062A\u0647: \u062F\u0631 \u0635\u0648\u0631\u062A\u06CC \u06A9\u0647 \u06A9\u0627\u0631\u0628\u0631 \u0646\u06CC\u0627\u0632 \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0627\u0646\u0633\u0627\u0646\u06CC\u060C \u0634\u0627\u0631\u0698 \u0648\u0644\u062A\u060C \u0631\u0641\u0639 \u0645\u0634\u06A9\u0644 \u062F\u0631\u06AF\u0627\u0647\u060C \u0642\u0637\u0639\u06CC \u06CC\u0627 \u062E\u0631\u06CC\u062F \u062F\u0627\u0631\u062F\u060C \u0627\u0648 \u0631\u0627 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC\u06CC \u06A9\u0646\u06CC\u062F \u06A9\u0647 \u0627\u0632 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u0631\u0628\u0627\u062A \u0627\u0632 \u062F\u06A9\u0645\u0647 \xAB\u{1F3AB} \u062B\u0628\u062A \u062A\u06CC\u06A9\u062A \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC\xBB \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u062F.
 
-اطلاعات فعلی سیستم:
-- تعرفه های ثابت: ${JSON.stringify(dbData.vpn_plans || [])}
-- ویژگی ساخت کانفیگ با حجم دلخواه (سفارشی): 
-  کاربران می‌توانند علاوه بر خرید تعرفه‌های ثابت بالا، کانفیگ با حجم ترافیک (گیگابایت) و روزهای اعتبار کاملاً سفارشی و دلخواه خود بسازند.
-  روش استفاده در ربات: کاربر باید به منوی اصلی برود، دکمه «🛍️ خرید سرویس» (یا خرید سرویس جدید) را انتخاب کند، سرور موردنظر خود را انتخاب کند، و سپس روی دکمه «✨ ساخت کانفیگ با حجم دلخواه» کلیک کند. ربات از او می‌خواهد که میزان حجم (گیگابایت) و مدت زمان (روزها) و یک نام کاربری دلخواه وارد کند.
-  فرمول محاسبه قیمت: هزینه نهایی = (حجم به گیگابایت * قیمت هر گیگابایت) + (تعداد روزها * قیمت هر روز)
-  به طور پیش‌فرض قیمت هر گیگابایت ترافیک 3,000 تومان و قیمت هر روز اعتبار 2,000 تومان است (مگر اینکه برای آن سرور خاص قیمت متفاوتی تنظیم شده باشد).
-- اطلاعات جعبه‌های قیمت‌گذاری دلخواه سرورها: ${JSON.stringify(pricingBoxes)}
-- لیست سرورهای فعال: ${JSON.stringify(serversList)}
-- تعداد کاربران: ${activeUsersCount}
-- راهنما: ${systemSettings.supportText || ""}${injectedSearchContext}`;
+\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u0639\u0644\u06CC \u0633\u06CC\u0633\u062A\u0645:
+- \u062A\u0639\u0631\u0641\u0647 \u0647\u0627\u06CC \u062B\u0627\u0628\u062A: ${JSON.stringify(dbData.vpn_plans || [])}
+- \u0648\u06CC\u0698\u06AF\u06CC \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0628\u0627 \u062D\u062C\u0645 \u062F\u0644\u062E\u0648\u0627\u0647 (\u0633\u0641\u0627\u0631\u0634\u06CC): 
+  \u06A9\u0627\u0631\u0628\u0631\u0627\u0646 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u0646\u062F \u0639\u0644\u0627\u0648\u0647 \u0628\u0631 \u062E\u0631\u06CC\u062F \u062A\u0639\u0631\u0641\u0647\u200C\u0647\u0627\u06CC \u062B\u0627\u0628\u062A \u0628\u0627\u0644\u0627\u060C \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0628\u0627 \u062D\u062C\u0645 \u062A\u0631\u0627\u0641\u06CC\u06A9 (\u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A) \u0648 \u0631\u0648\u0632\u0647\u0627\u06CC \u0627\u0639\u062A\u0628\u0627\u0631 \u06A9\u0627\u0645\u0644\u0627\u064B \u0633\u0641\u0627\u0631\u0634\u06CC \u0648 \u062F\u0644\u062E\u0648\u0627\u0647 \u062E\u0648\u062F \u0628\u0633\u0627\u0632\u0646\u062F.
+  \u0631\u0648\u0634 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u062F\u0631 \u0631\u0628\u0627\u062A: \u06A9\u0627\u0631\u0628\u0631 \u0628\u0627\u06CC\u062F \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC \u0628\u0631\u0648\u062F\u060C \u062F\u06A9\u0645\u0647 \xAB\u{1F6CD}\uFE0F \u062E\u0631\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633\xBB (\u06CC\u0627 \u062E\u0631\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633 \u062C\u062F\u06CC\u062F) \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u062F\u060C \u0633\u0631\u0648\u0631 \u0645\u0648\u0631\u062F\u0646\u0638\u0631 \u062E\u0648\u062F \u0631\u0627 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u062F\u060C \u0648 \u0633\u067E\u0633 \u0631\u0648\u06CC \u062F\u06A9\u0645\u0647 \xAB\u2728 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0628\u0627 \u062D\u062C\u0645 \u062F\u0644\u062E\u0648\u0627\u0647\xBB \u06A9\u0644\u06CC\u06A9 \u06A9\u0646\u062F. \u0631\u0628\u0627\u062A \u0627\u0632 \u0627\u0648 \u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u062F \u06A9\u0647 \u0645\u06CC\u0632\u0627\u0646 \u062D\u062C\u0645 (\u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A) \u0648 \u0645\u062F\u062A \u0632\u0645\u0627\u0646 (\u0631\u0648\u0632\u0647\u0627) \u0648 \u06CC\u06A9 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u062F\u0644\u062E\u0648\u0627\u0647 \u0648\u0627\u0631\u062F \u06A9\u0646\u062F.
+  \u0641\u0631\u0645\u0648\u0644 \u0645\u062D\u0627\u0633\u0628\u0647 \u0642\u06CC\u0645\u062A: \u0647\u0632\u06CC\u0646\u0647 \u0646\u0647\u0627\u06CC\u06CC = (\u062D\u062C\u0645 \u0628\u0647 \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A * \u0642\u06CC\u0645\u062A \u0647\u0631 \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A) + (\u062A\u0639\u062F\u0627\u062F \u0631\u0648\u0632\u0647\u0627 * \u0642\u06CC\u0645\u062A \u0647\u0631 \u0631\u0648\u0632)
+  \u0628\u0647 \u0637\u0648\u0631 \u067E\u06CC\u0634\u200C\u0641\u0631\u0636 \u0642\u06CC\u0645\u062A \u0647\u0631 \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A \u062A\u0631\u0627\u0641\u06CC\u06A9 3,000 \u062A\u0648\u0645\u0627\u0646 \u0648 \u0642\u06CC\u0645\u062A \u0647\u0631 \u0631\u0648\u0632 \u0627\u0639\u062A\u0628\u0627\u0631 2,000 \u062A\u0648\u0645\u0627\u0646 \u0627\u0633\u062A (\u0645\u06AF\u0631 \u0627\u06CC\u0646\u06A9\u0647 \u0628\u0631\u0627\u06CC \u0622\u0646 \u0633\u0631\u0648\u0631 \u062E\u0627\u0635 \u0642\u06CC\u0645\u062A \u0645\u062A\u0641\u0627\u0648\u062A\u06CC \u062A\u0646\u0638\u06CC\u0645 \u0634\u062F\u0647 \u0628\u0627\u0634\u062F).
+- \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u062C\u0639\u0628\u0647\u200C\u0647\u0627\u06CC \u0642\u06CC\u0645\u062A\u200C\u06AF\u0630\u0627\u0631\u06CC \u062F\u0644\u062E\u0648\u0627\u0647 \u0633\u0631\u0648\u0631\u0647\u0627: ${JSON.stringify(pricingBoxes)}
+- \u0644\u06CC\u0633\u062A \u0633\u0631\u0648\u0631\u0647\u0627\u06CC \u0641\u0639\u0627\u0644: ${JSON.stringify(serversList)}
+- \u062A\u0639\u062F\u0627\u062F \u06A9\u0627\u0631\u0628\u0631\u0627\u0646: ${activeUsersCount}
+- \u0631\u0627\u0647\u0646\u0645\u0627: ${systemSettings.supportText || ""}${injectedSearchContext}`;
     } else {
-      systemPrompt = `شما یک هوش مصنوعی عمومی هستید که به کاربر در گفتگوهای عمومی کمک می‌کنید. پاسخ‌ها را به زبان فارسی روان و مودبانه ارائه دهید.${injectedSearchContext}`;
+      systemPrompt = `\u0634\u0645\u0627 \u06CC\u06A9 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0639\u0645\u0648\u0645\u06CC \u0647\u0633\u062A\u06CC\u062F \u06A9\u0647 \u0628\u0647 \u06A9\u0627\u0631\u0628\u0631 \u062F\u0631 \u06AF\u0641\u062A\u06AF\u0648\u0647\u0627\u06CC \u0639\u0645\u0648\u0645\u06CC \u06A9\u0645\u06A9 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F. \u067E\u0627\u0633\u062E\u200C\u0647\u0627 \u0631\u0627 \u0628\u0647 \u0632\u0628\u0627\u0646 \u0641\u0627\u0631\u0633\u06CC \u0631\u0648\u0627\u0646 \u0648 \u0645\u0648\u062F\u0628\u0627\u0646\u0647 \u0627\u0631\u0627\u0626\u0647 \u062F\u0647\u06CC\u062F.${injectedSearchContext}`;
     }
-
     if (isDirectGemini) {
-      // Direct Google Gemini API call
       console.log(
-        `[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`,
+        `[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`
       );
-      const ai = new GoogleGenAI({
-        apiKey: apiKeyToUse,
+      const ai = new import_genai.GoogleGenAI({
+        apiKey: apiKeyToUse
       });
-
       const modelName = finalModelName || "gemini-2.5-flash";
-      
-      const configObj: any = {
+      const configObj = {
         systemInstruction: systemPrompt,
-        temperature: 0.7,
+        temperature: 0.7
       };
-
       if (aiSearchEnabled) {
         configObj.tools = [{ googleSearch: {} }];
       }
-
       const response = await ai.models.generateContent({
         model: modelName,
         contents: message,
-        config: configObj,
+        config: configObj
       });
-
       if (response && response.text) {
         let replyText = response.text;
-        
-        // Extract references if available
         const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
         if (chunks && chunks.length > 0) {
-          let refs = "\n\n🌐 **منابع جستجو:**\n";
+          let refs = "\n\n\u{1F310} **\u0645\u0646\u0627\u0628\u0639 \u062C\u0633\u062A\u062C\u0648:**\n";
           let hasRefs = false;
-          const seenUris = new Set<string>();
-          chunks.forEach((chunk: any) => {
+          const seenUris = /* @__PURE__ */ new Set();
+          chunks.forEach((chunk) => {
             if (chunk.web && chunk.web.uri && !seenUris.has(chunk.web.uri)) {
               seenUris.add(chunk.web.uri);
-              refs += `- [${chunk.web.title || "منبع"}](${chunk.web.uri})\n`;
+              refs += `- [${chunk.web.title || "\u0645\u0646\u0628\u0639"}](${chunk.web.uri})
+`;
               hasRefs = true;
             }
           });
@@ -1845,241 +1501,178 @@ app.post("/api/ai/chat", async (req, res) => {
             replyText += refs;
           }
         }
-
         return res.json({ response: replyText });
       } else {
-        throw new Error("پاسخی از سرور جیمینای دریافت نشد.");
+        throw new Error("\u067E\u0627\u0633\u062E\u06CC \u0627\u0632 \u0633\u0631\u0648\u0631 \u062C\u06CC\u0645\u06CC\u0646\u0627\u06CC \u062F\u0631\u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
       }
     } else {
-      // OpenAI-compatible / Custom endpoint routing (e.g. AwanLLM, DeepSeek, etc.)
       if (!finalBaseUrl) {
-        // Auto-detect/default to AwanLLM base URL for non-Gemini keys
         finalBaseUrl = "https://api.awanllm.com/v1";
         if (!finalModelName) {
           finalModelName = "Meta-Llama-3-8B-Instruct";
         }
       }
-
       const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
       const completionUrl = `${trimmedUrl}/chat/completions`;
-      const modelToUse =
-        finalModelName && finalModelName.trim() !== ""
-          ? finalModelName.trim()
-          : "gpt-4o-mini";
-
+      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
       console.log(
-        `[AI Chat Custom] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse} (isSupport: ${isSupport})`,
+        `[AI Chat Custom] Routing to OpenAI Compatible URL: ${completionUrl} with model: ${modelToUse} (isSupport: ${isSupport})`
       );
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
-
+      const timeoutId = setTimeout(() => controller.abort(), 45e3);
       const response = await fetch(completionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKeyToUse}`,
+          Authorization: `Bearer ${apiKeyToUse}`
         },
         body: JSON.stringify({
           model: modelToUse,
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: message },
+            { role: "user", content: message }
           ],
-          temperature: 0.7,
+          temperature: 0.7
         }),
-        signal: controller.signal,
+        signal: controller.signal
       });
-
       clearTimeout(timeoutId);
-
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(
-          `خطای سرویس‌دهنده هوش مصنوعی (کد ${response.status}): ${errText}`,
+          `\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u06CC\u0633\u200C\u062F\u0647\u0646\u062F\u0647 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC (\u06A9\u062F ${response.status}): ${errText}`
         );
       }
-
-      const resData: any = await response.json();
+      const resData = await response.json();
       const responseText = resData.choices?.[0]?.message?.content || "";
       if (responseText) {
         return res.json({ response: responseText });
       } else {
-        throw new Error("پاسخ دریافتی از سرور هوش مصنوعی خالی بود.");
+        throw new Error("\u067E\u0627\u0633\u062E \u062F\u0631\u06CC\u0627\u0641\u062A\u06CC \u0627\u0632 \u0633\u0631\u0648\u0631 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u062E\u0627\u0644\u06CC \u0628\u0648\u062F.");
       }
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error("[AI Chat API Error]:", error);
     let errMsg = error.message || "Failed to generate AI response.";
-
     if (errMsg.startsWith("{")) {
       try {
         const parsed = JSON.parse(errMsg);
         if (parsed.error && parsed.error.message) {
           errMsg = parsed.error.message;
         }
-      } catch (e) {}
+      } catch (e) {
+      }
     }
-
     if (errMsg.includes("API key not valid")) {
-      errMsg = "کلید API ثبت شده نامعتبر است. لطفاً به مدیریت اطلاع دهید.";
-    } else if (
-      errMsg.toLowerCase().includes("quota") ||
-      errMsg.toLowerCase().includes("rate limit") ||
-      errMsg.includes("429")
-    ) {
-      errMsg =
-        "محدودیت استفاده از کلید API هوش مصنوعی به پایان رسیده است (Quota Exceeded). لطفاً به مدیریت اطلاع دهید.";
+      errMsg = "\u06A9\u0644\u06CC\u062F API \u062B\u0628\u062A \u0634\u062F\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0628\u0647 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0627\u0637\u0644\u0627\u0639 \u062F\u0647\u06CC\u062F.";
+    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
+      errMsg = "\u0645\u062D\u062F\u0648\u062F\u06CC\u062A \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0627\u0632 \u06A9\u0644\u06CC\u062F API \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A (Quota Exceeded). \u0644\u0637\u0641\u0627\u064B \u0628\u0647 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0627\u0637\u0644\u0627\u0639 \u062F\u0647\u06CC\u062F.";
     }
-
     res.status(500).json({ error: errMsg });
   }
 });
-
 app.post("/api/ai/test-key", async (req, res) => {
   try {
     let { apiKey, baseUrl, modelName, type } = req.body;
     if (!apiKey || apiKey.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "لطفاً ابتدا کلید API را وارد کنید." });
+      return res.status(400).json({ error: "\u0644\u0637\u0641\u0627\u064B \u0627\u0628\u062A\u062F\u0627 \u06A9\u0644\u06CC\u062F API \u0631\u0627 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F." });
     }
-
     const trimmedKey = apiKey.trim();
     let finalBaseUrl = baseUrl ? baseUrl.trim() : "";
     let finalModelName = modelName ? modelName.trim() : "";
-
-    // If type is explicitly 'gemini', test as Google Gemini.
-    // Otherwise, auto-detect (useful if type is custom but they put a gemini key without base url)
-    const isDirectGemini =
-      type === "gemini"
-        ? true
-        : trimmedKey.startsWith("AIzaSy") &&
-          (!finalBaseUrl || finalBaseUrl === "");
-
+    const isDirectGemini = type === "gemini" ? true : trimmedKey.startsWith("AIzaSy") && (!finalBaseUrl || finalBaseUrl === "");
     if (isDirectGemini) {
-      // Test direct Gemini Key
       console.log(`[AI Key Test] Testing direct Gemini API key`);
-      const ai = new GoogleGenAI({
-        apiKey: trimmedKey,
+      const ai = new import_genai.GoogleGenAI({
+        apiKey: trimmedKey
       });
-
       const model = finalModelName || "gemini-2.5-flash";
       const response = await ai.models.generateContent({
-        model: model,
-        contents: "سلام",
+        model,
+        contents: "\u0633\u0644\u0627\u0645",
         config: {
-          maxOutputTokens: 5,
-        },
+          maxOutputTokens: 5
+        }
       });
-
       if (response && response.text) {
         return res.json({
           success: true,
-          message: "اتصال با موفقیت برقرار شد! کلید API جیمینای معتبر است.",
+          message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F! \u06A9\u0644\u06CC\u062F API \u062C\u06CC\u0645\u06CC\u0646\u0627\u06CC \u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A."
         });
       } else {
-        throw new Error("پاسخ دریافتی از جیمینای خالی بود.");
+        throw new Error("\u067E\u0627\u0633\u062E \u062F\u0631\u06CC\u0627\u0641\u062A\u06CC \u0627\u0632 \u062C\u06CC\u0645\u06CC\u0646\u0627\u06CC \u062E\u0627\u0644\u06CC \u0628\u0648\u062F.");
       }
     } else {
-      // Test OpenAI-compatible / Custom API key (e.g. AwanLLM, DeepSeek, etc.)
       if (!finalBaseUrl) {
-        // Auto-detect/default to AwanLLM base URL for custom/OpenAI-compatible keys
         finalBaseUrl = "https://api.awanllm.com/v1";
         if (!finalModelName) {
           finalModelName = "Meta-Llama-3-8B-Instruct";
         }
       }
-
       const trimmedUrl = finalBaseUrl.replace(/\/$/, "");
       const completionUrl = `${trimmedUrl}/chat/completions`;
-      const modelToUse =
-        finalModelName && finalModelName.trim() !== ""
-          ? finalModelName.trim()
-          : "gpt-4o-mini";
-
+      const modelToUse = finalModelName && finalModelName.trim() !== "" ? finalModelName.trim() : "gpt-4o-mini";
       console.log(
-        `[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`,
+        `[AI Key Test] Testing OpenAI compatible API key for model: ${modelToUse} at ${completionUrl}`
       );
-
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
-
+      const timeoutId = setTimeout(() => controller.abort(), 45e3);
       const response = await fetch(completionUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${trimmedKey}`,
+          Authorization: `Bearer ${trimmedKey}`
         },
         body: JSON.stringify({
           model: modelToUse,
-          messages: [{ role: "user", content: "سلام" }],
-          max_tokens: 5,
+          messages: [{ role: "user", content: "\u0633\u0644\u0627\u0645" }],
+          max_tokens: 5
         }),
-        signal: controller.signal,
+        signal: controller.signal
       });
-
       clearTimeout(timeoutId);
-
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(
-          `خطای سرور سرویس‌دهنده (کد ${response.status}): ${errText}`,
+          `\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u0633\u0631\u0648\u06CC\u0633\u200C\u062F\u0647\u0646\u062F\u0647 (\u06A9\u062F ${response.status}): ${errText}`
         );
       }
-
       return res.json({
         success: true,
-        message: "اتصال با موفقیت برقرار شد! کلید API معتبر است.",
+        message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F! \u06A9\u0644\u06CC\u062F API \u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A."
       });
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error("[AI Key Test Error]:", err);
-    let errMsg = err.message || "بررسی کلید API با خطا مواجه شد.";
-
-    // Parse GoogleGenAI JSON error messages to be user-friendly
+    let errMsg = err.message || "\u0628\u0631\u0631\u0633\u06CC \u06A9\u0644\u06CC\u062F API \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F.";
     if (errMsg.startsWith("{")) {
       try {
         const parsed = JSON.parse(errMsg);
         if (parsed.error && parsed.error.message) {
           errMsg = parsed.error.message;
         }
-      } catch (e) {}
+      } catch (e) {
+      }
     }
-
-    if (
-      err.name === "AbortError" ||
-      errMsg.includes("aborted") ||
-      errMsg.includes("timeout")
-    ) {
-      errMsg =
-        "زمان اتصال به سرور هوش مصنوعی به پایان رسید (Timeout). این مشکل معمولاً ناشی از کندی موقت سرور هوش مصنوعی یا عدم پاسخگویی مناسب فیلترشکن/اینترنت سرور است. لطفاً چند لحظه دیگر دوباره تلاش کنید.";
+    if (err.name === "AbortError" || errMsg.includes("aborted") || errMsg.includes("timeout")) {
+      errMsg = "\u0632\u0645\u0627\u0646 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0633\u0631\u0648\u0631 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F (Timeout). \u0627\u06CC\u0646 \u0645\u0634\u06A9\u0644 \u0645\u0639\u0645\u0648\u0644\u0627\u064B \u0646\u0627\u0634\u06CC \u0627\u0632 \u06A9\u0646\u062F\u06CC \u0645\u0648\u0642\u062A \u0633\u0631\u0648\u0631 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u06CC\u0627 \u0639\u062F\u0645 \u067E\u0627\u0633\u062E\u06AF\u0648\u06CC\u06CC \u0645\u0646\u0627\u0633\u0628 \u0641\u06CC\u0644\u062A\u0631\u0634\u06A9\u0646/\u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u0633\u0631\u0648\u0631 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0686\u0646\u062F \u0644\u062D\u0638\u0647 \u062F\u06CC\u06AF\u0631 \u062F\u0648\u0628\u0627\u0631\u0647 \u062A\u0644\u0627\u0634 \u06A9\u0646\u06CC\u062F.";
     } else if (errMsg.includes("API key not valid")) {
-      errMsg = "کلید API وارد شده نامعتبر است. لطفاً کلید صحیح را وارد کنید.";
+      errMsg = "\u06A9\u0644\u06CC\u062F API \u0648\u0627\u0631\u062F \u0634\u062F\u0647 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u06A9\u0644\u06CC\u062F \u0635\u062D\u06CC\u062D \u0631\u0627 \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F.";
     } else if (errMsg.includes("fetch failed")) {
-      errMsg = "خطا در برقراری ارتباط با سرور هوش مصنوعی (Network Error).";
-    } else if (
-      errMsg.toLowerCase().includes("quota") ||
-      errMsg.toLowerCase().includes("rate limit") ||
-      errMsg.includes("429")
-    ) {
-      errMsg =
-        "محدودیت استفاده از این کلید به پایان رسیده است (Quota Exceeded). لطفاً کلید دیگری وارد کنید.";
+      errMsg = "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0633\u0631\u0648\u0631 \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC (Network Error).";
+    } else if (errMsg.toLowerCase().includes("quota") || errMsg.toLowerCase().includes("rate limit") || errMsg.includes("429")) {
+      errMsg = "\u0645\u062D\u062F\u0648\u062F\u06CC\u062A \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0627\u0632 \u0627\u06CC\u0646 \u06A9\u0644\u06CC\u062F \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F\u0647 \u0627\u0633\u062A (Quota Exceeded). \u0644\u0637\u0641\u0627\u064B \u06A9\u0644\u06CC\u062F \u062F\u06CC\u06AF\u0631\u06CC \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F.";
     }
-
     res.status(500).json({ error: errMsg });
   }
 });
-
-// ---------------------------
-
 app.post("/api/gift-codes/edit", (req, res) => {
   const db = readSqliteDb();
   if (!db.gift_codes) db.gift_codes = [];
   const { id, code, amount, maxUsage, durationDays } = req.body;
-  if (!id || !code || amount === undefined || maxUsage === undefined) {
+  if (!id || !code || amount === void 0 || maxUsage === void 0) {
     return res.status(400).json({ error: "Missing fields" });
   }
-
   let updatedCode = null;
   db.gift_codes = db.gift_codes.map((c) => {
     if (c.id === id) {
@@ -2088,13 +1681,12 @@ app.post("/api/gift-codes/edit", (req, res) => {
         code,
         amount: parseInt(amount, 10),
         maxUsage: parseInt(maxUsage, 10),
-        durationDays: durationDays ? parseInt(durationDays, 10) : undefined,
+        durationDays: durationDays ? parseInt(durationDays, 10) : void 0
       };
       return updatedCode;
     }
     return c;
   });
-
   if (updatedCode) {
     writeSqliteDb(db);
     res.json({ success: true, item: updatedCode });
@@ -2102,205 +1694,168 @@ app.post("/api/gift-codes/edit", (req, res) => {
     res.status(404).json({ error: "Code not found" });
   }
 });
-
 app.post("/api/bot/validate-token", async (req, res) => {
   try {
     const { token } = req.body;
     if (!token || typeof token !== "string" || !token.includes(":")) {
       return res.json({
         success: false,
-        error: "توکن نامعتبر است (فرمت نامعتبر)",
+        error: "\u062A\u0648\u06A9\u0646 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A (\u0641\u0631\u0645\u062A \u0646\u0627\u0645\u0639\u062A\u0628\u0631)"
       });
     }
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-
+    const timeout = setTimeout(() => controller.abort(), 8e3);
     try {
       const response = await fetch(
         `https://api.telegram.org/bot${token}/getMe`,
         {
-          signal: controller.signal,
-        },
+          signal: controller.signal
+        }
       );
       clearTimeout(timeout);
-
-      const data: any = await response.json();
+      const data = await response.json();
       if (data && data.ok) {
         return res.json({ success: true, bot: data.result });
       } else {
-        const errorDesc =
-          data && data.description ? data.description : "Unauthorized (401)";
+        const errorDesc = data && data.description ? data.description : "Unauthorized (401)";
         return res.json({ success: false, error: errorDesc });
       }
-    } catch (fetchErr: any) {
+    } catch (fetchErr) {
       clearTimeout(timeout);
       console.warn(
         "[Token Validation Error] Telegram request timed out or was filtered:",
-        fetchErr.message,
+        fetchErr.message
       );
-      // Because telegram is filtered in Iran, we allow proceeding if a network error occurs
       return res.json({
         success: true,
         warning: true,
-        message:
-          "به دلیل فیلترینگ تلگرام روی سرور، بررسی خودکار انجام نشد اما تنظیمات ثبت خواهد شد.",
+        message: "\u0628\u0647 \u062F\u0644\u06CC\u0644 \u0641\u06CC\u0644\u062A\u0631\u06CC\u0646\u06AF \u062A\u0644\u06AF\u0631\u0627\u0645 \u0631\u0648\u06CC \u0633\u0631\u0648\u0631\u060C \u0628\u0631\u0631\u0633\u06CC \u062E\u0648\u062F\u06A9\u0627\u0631 \u0627\u0646\u062C\u0627\u0645 \u0646\u0634\u062F \u0627\u0645\u0627 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u062B\u0628\u062A \u062E\u0648\u0627\u0647\u062F \u0634\u062F."
       });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.post("/api/settings", async (req, res) => {
   try {
     const payload = { ...req.body };
     if (payload.ownerId) {
       payload.ownerId = Number(payload.ownerId);
     }
-
     const db = readSqliteDb();
-
-    // Compare admins list to find newly added ones
     const prevSettings = getSystemSettings(db);
-    
-    // Preserve existing critical fields if not provided in the payload
     const finalPayload = {
       ...prevSettings,
       ...payload
     };
-    
     const configValue = JSON.stringify(finalPayload);
-
     const prevAdmins = prevSettings.admins || [];
     const newAdmins = payload.admins || [];
-
     const addedAdmins = newAdmins.filter(
-      (newAdm: any) =>
-        newAdm.userId &&
-        !prevAdmins.some(
-          (prevAdm: any) => Number(prevAdm.userId) === Number(newAdm.userId),
-        ),
+      (newAdm) => newAdm.userId && !prevAdmins.some(
+        (prevAdm) => Number(prevAdm.userId) === Number(newAdm.userId)
+      )
     );
-
-    if (!db.settings) db.settings = {}; db.settings.panel_config = configValue;
+    if (!db.settings) db.settings = {};
+    db.settings.panel_config = configValue;
     const saveSuccess = writeSqliteDb(db);
-
     if (!saveSuccess) {
-      return res.status(500).json({ 
-        success: false, 
-        error: "خطا در ذخیره دیتابیس. فایل ممکن است قفل باشد یا فضای دیسک پر شده باشد." 
+      return res.status(500).json({
+        success: false,
+        error: "\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u062F\u06CC\u062A\u0627\u0628\u06CC\u0633. \u0641\u0627\u06CC\u0644 \u0645\u0645\u06A9\u0646 \u0627\u0633\u062A \u0642\u0641\u0644 \u0628\u0627\u0634\u062F \u06CC\u0627 \u0641\u0636\u0627\u06CC \u062F\u06CC\u0633\u06A9 \u067E\u0631 \u0634\u062F\u0647 \u0628\u0627\u0634\u062F."
       });
     }
-
-    // Reset cached AI client so newly saved GEMINI_API_KEY settings will take effect immediately
     aiClient = null;
-
-    // Notify newly appointed admins via Telegram Bot
     const botToken = payload.botToken || prevSettings.botToken;
-    const botNickname =
-      payload.botNickname || prevSettings.botNickname || "دالتون بات";
+    const botNickname = payload.botNickname || prevSettings.botNickname || "\u062F\u0627\u0644\u062A\u0648\u0646 \u0628\u0627\u062A";
     if (botToken && addedAdmins.length > 0) {
       for (const adm of addedAdmins) {
         try {
-          const roleText =
-            adm.role === "super_admin"
-              ? "سوپر ادمین (مدیر ارشد)"
-              : "ادمین معمولی (مدیریت پشتیبانی)";
-          const htmlMsg =
-            `👑 <b>انتصاب شایسته شما به عنوان مدیریت سیستم</b>\n\n` +
-            `کاربر گرامی <b>@${adm.username || "کاربر"}</b> (شناسه: <code>${adm.userId}</code>)؛\n` +
-            `با سلام و احترام،\n\n` +
-            `بدین‌وسیله به اطلاع می‌رساند دسترسی مدیریتی شما به عنوان <b>${roleText}</b> در ربات ${botNickname} با موفقیت فعال گردید.\n\n` +
-            `🛡️ <b>برخی از مزایا و وظایف سطح دسترسی ادمین:</b>\n` +
-            `🔹 <b>بررسی و تایید واریزی‌ها:</b> دسترسی به لیست فیش‌های ارسالی کاربران در بخش «تایید تراکنش‌ها» جهت شارژ خودکار کیف پول.\n` +
-            `🔹 <b>مدیریت اعضا:</b> امکان ویرایش، افزایش و یا کاهش موجودی کاربران، مسدودسازی و رفع مسدودیت اعضا.\n` +
-            `🔹 <b>پلان‌های ادمین:</b> استفاده رایگان از پلان‌ها بدون کسر موجودی جهت بررسی و کنترل کیفی سرورها.\n` +
-            `🔹 <b>اعلان‌های هوشمند:</b> رصد و دریافت فوری اطلاعات فیش‌های ارسالی اعضا به محض بارگذاری در ربات.\n\n` +
-            `<i>مفتخریم که در تیم توسعه و مدیریت ${botNickname} حضور دارید. با آرزوی موفقیت و همکاری مستمر.</i>\n\n` +
-            `✨ <b>تیم پشتیبانی و فنی ${botNickname}</b>`;
+          const roleText = adm.role === "super_admin" ? "\u0633\u0648\u067E\u0631 \u0627\u062F\u0645\u06CC\u0646 (\u0645\u062F\u06CC\u0631 \u0627\u0631\u0634\u062F)" : "\u0627\u062F\u0645\u06CC\u0646 \u0645\u0639\u0645\u0648\u0644\u06CC (\u0645\u062F\u06CC\u0631\u06CC\u062A \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC)";
+          const htmlMsg = `\u{1F451} <b>\u0627\u0646\u062A\u0635\u0627\u0628 \u0634\u0627\u06CC\u0633\u062A\u0647 \u0634\u0645\u0627 \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0633\u06CC\u0633\u062A\u0645</b>
 
+\u06A9\u0627\u0631\u0628\u0631 \u06AF\u0631\u0627\u0645\u06CC <b>@${adm.username || "\u06A9\u0627\u0631\u0628\u0631"}</b> (\u0634\u0646\u0627\u0633\u0647: <code>${adm.userId}</code>)\u061B
+\u0628\u0627 \u0633\u0644\u0627\u0645 \u0648 \u0627\u062D\u062A\u0631\u0627\u0645\u060C
+
+\u0628\u062F\u06CC\u0646\u200C\u0648\u0633\u06CC\u0644\u0647 \u0628\u0647 \u0627\u0637\u0644\u0627\u0639 \u0645\u06CC\u200C\u0631\u0633\u0627\u0646\u062F \u062F\u0633\u062A\u0631\u0633\u06CC \u0645\u062F\u06CC\u0631\u06CC\u062A\u06CC \u0634\u0645\u0627 \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>${roleText}</b> \u062F\u0631 \u0631\u0628\u0627\u062A ${botNickname} \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0641\u0639\u0627\u0644 \u06AF\u0631\u062F\u06CC\u062F.
+
+\u{1F6E1}\uFE0F <b>\u0628\u0631\u062E\u06CC \u0627\u0632 \u0645\u0632\u0627\u06CC\u0627 \u0648 \u0648\u0638\u0627\u06CC\u0641 \u0633\u0637\u062D \u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u062F\u0645\u06CC\u0646:</b>
+\u{1F539} <b>\u0628\u0631\u0631\u0633\u06CC \u0648 \u062A\u0627\u06CC\u06CC\u062F \u0648\u0627\u0631\u06CC\u0632\u06CC\u200C\u0647\u0627:</b> \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0644\u06CC\u0633\u062A \u0641\u06CC\u0634\u200C\u0647\u0627\u06CC \u0627\u0631\u0633\u0627\u0644\u06CC \u06A9\u0627\u0631\u0628\u0631\u0627\u0646 \u062F\u0631 \u0628\u062E\u0634 \xAB\u062A\u0627\u06CC\u06CC\u062F \u062A\u0631\u0627\u06A9\u0646\u0634\u200C\u0647\u0627\xBB \u062C\u0647\u062A \u0634\u0627\u0631\u0698 \u062E\u0648\u062F\u06A9\u0627\u0631 \u06A9\u06CC\u0641 \u067E\u0648\u0644.
+\u{1F539} <b>\u0645\u062F\u06CC\u0631\u06CC\u062A \u0627\u0639\u0636\u0627:</b> \u0627\u0645\u06A9\u0627\u0646 \u0648\u06CC\u0631\u0627\u06CC\u0634\u060C \u0627\u0641\u0632\u0627\u06CC\u0634 \u0648 \u06CC\u0627 \u06A9\u0627\u0647\u0634 \u0645\u0648\u062C\u0648\u062F\u06CC \u06A9\u0627\u0631\u0628\u0631\u0627\u0646\u060C \u0645\u0633\u062F\u0648\u062F\u0633\u0627\u0632\u06CC \u0648 \u0631\u0641\u0639 \u0645\u0633\u062F\u0648\u062F\u06CC\u062A \u0627\u0639\u0636\u0627.
+\u{1F539} <b>\u067E\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u0627\u062F\u0645\u06CC\u0646:</b> \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0631\u0627\u06CC\u06AF\u0627\u0646 \u0627\u0632 \u067E\u0644\u0627\u0646\u200C\u0647\u0627 \u0628\u062F\u0648\u0646 \u06A9\u0633\u0631 \u0645\u0648\u062C\u0648\u062F\u06CC \u062C\u0647\u062A \u0628\u0631\u0631\u0633\u06CC \u0648 \u06A9\u0646\u062A\u0631\u0644 \u06A9\u06CC\u0641\u06CC \u0633\u0631\u0648\u0631\u0647\u0627.
+\u{1F539} <b>\u0627\u0639\u0644\u0627\u0646\u200C\u0647\u0627\u06CC \u0647\u0648\u0634\u0645\u0646\u062F:</b> \u0631\u0635\u062F \u0648 \u062F\u0631\u06CC\u0627\u0641\u062A \u0641\u0648\u0631\u06CC \u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u06CC\u0634\u200C\u0647\u0627\u06CC \u0627\u0631\u0633\u0627\u0644\u06CC \u0627\u0639\u0636\u0627 \u0628\u0647 \u0645\u062D\u0636 \u0628\u0627\u0631\u06AF\u0630\u0627\u0631\u06CC \u062F\u0631 \u0631\u0628\u0627\u062A.
+
+<i>\u0645\u0641\u062A\u062E\u0631\u06CC\u0645 \u06A9\u0647 \u062F\u0631 \u062A\u06CC\u0645 \u062A\u0648\u0633\u0639\u0647 \u0648 \u0645\u062F\u06CC\u0631\u06CC\u062A ${botNickname} \u062D\u0636\u0648\u0631 \u062F\u0627\u0631\u06CC\u062F. \u0628\u0627 \u0622\u0631\u0632\u0648\u06CC \u0645\u0648\u0641\u0642\u06CC\u062A \u0648 \u0647\u0645\u06A9\u0627\u0631\u06CC \u0645\u0633\u062A\u0645\u0631.</i>
+
+\u2728 <b>\u062A\u06CC\u0645 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0648 \u0641\u0646\u06CC ${botNickname}</b>`;
           await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               chat_id: adm.userId,
               text: htmlMsg,
-              parse_mode: "HTML",
-            }),
+              parse_mode: "HTML"
+            })
           });
           console.log(
-            `[Admin Welcomed] Successfully welcomed new admin ID: ${adm.userId}`,
+            `[Admin Welcomed] Successfully welcomed new admin ID: ${adm.userId}`
           );
         } catch (err) {
           console.error(
             `[Admin Welcome Error] Failed to welcome admin ${adm.userId}:`,
-            err,
+            err
           );
         }
       }
     }
-
-    // Dynamic restart of the Python bot to reload newly added parameters/token
     startPythonBot();
-
     res.json({
       success: true,
-      message: "Settings saved successfully to JSON store.",
+      message: "Settings saved successfully to JSON store."
     });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// Cache to store detected API prefix per panel base URL
-const apiPrefixCache = new Map<string, string>();
-
-async function getApiPrefix(cleanedUrl: string, cookie: string = ""): Promise<string> {
+var apiPrefixCache = /* @__PURE__ */ new Map();
+async function getApiPrefix(cleanedUrl, cookie = "") {
   if (!cleanedUrl) return "/panel/api";
   const normalized = cleanedUrl.replace(/\/+$/, "");
   if (apiPrefixCache.has(normalized)) {
-    return apiPrefixCache.get(normalized)!;
+    return apiPrefixCache.get(normalized);
   }
-
   const candidates = ["/panel/api", "/xui/API", "/xui/api"];
   for (const prefix of candidates) {
     const url = `${normalized}${prefix}/inbounds/list`;
     try {
-      const headers: Record<string, string> = {
+      const headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "application/json",
+        Accept: "application/json"
       };
       if (cookie) {
         headers["Cookie"] = cookie;
       }
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 4000);
+      const timer = setTimeout(() => controller.abort(), 4e3);
       const res = await fetch(url, {
         method: "GET",
         headers,
-        signal: controller.signal,
+        signal: controller.signal
       }).catch(() => null);
       clearTimeout(timer);
-
       if (res && res.status !== 404) {
         console.log(`[API Path Auto-Detect] Found working API path prefix: '${prefix}' for URL: ${cleanedUrl}`);
         apiPrefixCache.set(normalized, prefix);
         return prefix;
       }
     } catch (e) {
-      // Ignore errors and try next
     }
   }
-
   console.log(`[API Path Auto-Detect] All candidates returned 404 or timed out for: ${cleanedUrl}. Defaulting to '/panel/api'`);
   apiPrefixCache.set(normalized, "/panel/api");
   return "/panel/api";
 }
-
-// Robust fetch helper with timeout and standardized browser headers to bypass WAF / strict server security rules
-async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
-  // Automatically adjust path prefix if we detect '/panel/api/' in the URL
+async function xuiFetch(url, options = {}, timeoutMs = 8e3) {
   if (url.includes("/panel/api/")) {
     const idx = url.indexOf("/panel/api/");
     const baseUrl = url.substring(0, idx);
@@ -2309,23 +1864,19 @@ async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
     const prefix = await getApiPrefix(baseUrl, cookie);
     url = `${baseUrl}${prefix}/${suffix}`;
   }
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   const headers = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     Accept: "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9,fa;q=0.8",
-    ...options.headers,
+    ...options.headers
   };
-
   try {
     const response = await fetch(url, {
       ...options,
       headers,
-      signal: controller.signal,
+      signal: controller.signal
     });
     clearTimeout(timer);
     return response;
@@ -2334,81 +1885,55 @@ async function xuiFetch(url: string, options: any = {}, timeoutMs = 8000) {
     throw err;
   }
 }
-
-function getActiveServers(settings: any) {
-  if (
-    settings.servers &&
-    Array.isArray(settings.servers) &&
-    settings.servers.length > 0
-  ) {
-    return settings.servers.filter((s: any) => s.status !== "inactive");
+function getActiveServers(settings) {
+  if (settings.servers && Array.isArray(settings.servers) && settings.servers.length > 0) {
+    return settings.servers.filter((s) => s.status !== "inactive");
   }
-  // Fallback to legacy single server configuration if active
-  if (
-    settings.panelConnectionActive &&
-    settings.baseUrl &&
-    settings.panelUsername &&
-    settings.panelPassword
-  ) {
+  if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
     return [
       {
         id: "legacy_server",
-        name: "پنل اصلی",
+        name: "\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC",
         panelUrl: settings.baseUrl,
         subUrl: settings.subUrl,
         panelUsername: settings.panelUsername,
         panelPassword: settings.panelPassword,
         activeInboundIds: settings.activeInboundIds || [],
-        status: "active",
-      },
+        status: "active"
+      }
     ];
   }
   return [];
 }
-
-function normalizeXuiUrl(url: string): string {
+function normalizeXuiUrl(url) {
   let cleaned = `${url}`.trim();
-  // Strip any leading non-alphanumeric/non-protocol-accidental characters (like dots or extra slashes)
   cleaned = cleaned.replace(/^[\s./]+/, "");
-  
-  // Remove any trailing slashes
   cleaned = cleaned.replace(/\/+$/, "");
-  
-  // Remove trailing /dashboard or /panel or /admin as we only need the base host:port
   cleaned = cleaned.replace(/\/(dashboard|panel|admin)$/i, "");
-  // Remove trailing slashes again just in case
   cleaned = cleaned.replace(/\/+$/, "");
-
-  // If there's an invalid or incomplete protocol (like ps://, ttps://, s://, tp://, etc.)
   if (cleaned.includes("://")) {
     const parts = cleaned.split("://");
     const protocolGroup = parts[0].toLowerCase();
-    // If it's not http or https, normalize it to https or http
     if (protocolGroup !== "http" && protocolGroup !== "https") {
-      if (
-        protocolGroup.includes("http") ||
-        protocolGroup.endsWith("s") ||
-        protocolGroup.endsWith("ps")
-      ) {
+      if (protocolGroup.includes("http") || protocolGroup.endsWith("s") || protocolGroup.endsWith("ps")) {
         cleaned = "https://" + parts.slice(1).join("://");
       } else {
         cleaned = "http://" + parts.slice(1).join("://");
       }
     }
   } else {
-    // No protocol, default to http:// (since most 3x-ui panels are HTTP-based and are set up on IP:port)
     cleaned = "http://" + cleaned;
   }
   return cleaned;
 }
-
-// Highly robust helper to log into Reebeka/Pasarguard panels trying multiple candidates
-async function loginReebekaPasarguard(baseUrl: string, username: string, password: string): Promise<string | null> {
+async function loginReebekaPasarguard(baseUrl, username, password) {
   const cleanedUrl = normalizeXuiUrl(baseUrl);
-  
   const candidates = [
     // 1. Standard admin token urlencoded
-    { url: `${cleanedUrl}/api/admin/token`, asJson: false, body: () => {
+    {
+      url: `${cleanedUrl}/api/admin/token`,
+      asJson: false,
+      body: () => {
         const p = new URLSearchParams();
         p.append("grant_type", "password");
         p.append("username", username);
@@ -2417,7 +1942,10 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
       }
     },
     // 2. Standard admin token trailing slash urlencoded
-    { url: `${cleanedUrl}/api/admin/token/`, asJson: false, body: () => {
+    {
+      url: `${cleanedUrl}/api/admin/token/`,
+      asJson: false,
+      body: () => {
         const p = new URLSearchParams();
         p.append("grant_type", "password");
         p.append("username", username);
@@ -2426,7 +1954,10 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
       }
     },
     // 3. Alternative token urlencoded
-    { url: `${cleanedUrl}/api/token`, asJson: false, body: () => {
+    {
+      url: `${cleanedUrl}/api/token`,
+      asJson: false,
+      body: () => {
         const p = new URLSearchParams();
         p.append("grant_type", "password");
         p.append("username", username);
@@ -2435,7 +1966,10 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
       }
     },
     // 4. Alternative token trailing slash urlencoded
-    { url: `${cleanedUrl}/api/token/`, asJson: false, body: () => {
+    {
+      url: `${cleanedUrl}/api/token/`,
+      asJson: false,
+      body: () => {
         const p = new URLSearchParams();
         p.append("grant_type", "password");
         p.append("username", username);
@@ -2450,13 +1984,12 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
     // 7. Alternative token JSON
     { url: `${cleanedUrl}/api/token`, asJson: true, body: () => JSON.stringify({ username, password }) },
     // 8. Alternative token trailing slash JSON
-    { url: `${cleanedUrl}/api/token/`, asJson: true, body: () => JSON.stringify({ username, password }) },
+    { url: `${cleanedUrl}/api/token/`, asJson: true, body: () => JSON.stringify({ username, password }) }
   ];
-
   for (const cand of candidates) {
     try {
       console.log(`[Reebeka/Pasarguard Login] Trying candidate: ${cand.url} (JSON: ${cand.asJson})`);
-      const headers: Record<string, string> = {
+      const headers = {
         "Accept": "application/json"
       };
       if (cand.asJson) {
@@ -2464,7 +1997,6 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
       } else {
         headers["Content-Type"] = "application/x-www-form-urlencoded";
       }
-
       const res = await xuiFetch(
         cand.url,
         {
@@ -2472,9 +2004,8 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
           headers,
           body: cand.body()
         },
-        5000
+        5e3
       );
-
       if (res.ok) {
         const data = await res.json();
         const token = data?.access_token;
@@ -2483,22 +2014,18 @@ async function loginReebekaPasarguard(baseUrl: string, username: string, passwor
           return token;
         }
       }
-    } catch (e: any) {
+    } catch (e) {
       console.log(`[Reebeka/Pasarguard Login] Candidate ${cand.url} failed: ${e.message}`);
     }
   }
-
   return null;
 }
-
-// Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
-// Helper class to manage cookies
-class CookieJar {
-  private cookies = new Map<string, string>();
-
-  public parseAndAdd(cookieHeader: string | null) {
+var CookieJar = class {
+  constructor() {
+    this.cookies = /* @__PURE__ */ new Map();
+  }
+  parseAndAdd(cookieHeader) {
     if (!cookieHeader) return;
-    // Split by commas that are likely separating multiple Set-Cookie headers
     const parts = cookieHeader.split(/,(?=[^;]*=)/);
     for (const part of parts) {
       const cookiePart = part.split(";")[0].trim();
@@ -2512,62 +2039,42 @@ class CookieJar {
       }
     }
   }
-
-  public getCookieHeaderString(): string {
-    const list: string[] = [];
+  getCookieHeaderString() {
+    const list = [];
     for (const [name, value] of this.cookies.entries()) {
       list.push(`${name}=${value}`);
     }
     return list.join("; ");
   }
-
-  public isEmpty(): boolean {
+  isEmpty() {
     return this.cookies.size === 0;
   }
-}
-
-// Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
-async function loginXuiPanel(
-  cleanedUrl: string,
-  username: string,
-  password: string,
-): Promise<{
-  success: boolean;
-  cookie: string | null;
-  csrfToken?: string | null;
-  error?: string;
-}> {
+};
+async function loginXuiPanel(cleanedUrl, username, password) {
   try {
     const jar = new CookieJar();
     let csrfToken = "";
-
     console.log(
-      `[Diagnostic] Executing initial GET handshake to base URL: ${cleanedUrl}`,
+      `[Diagnostic] Executing initial GET handshake to base URL: ${cleanedUrl}`
     );
-
-    // 1. Try GET on the base URL first (this matches Python bot's successful approach)
-    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 6000).catch(
-      () => null,
+    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 6e3).catch(
+      () => null
     );
-
-    // If base URL GET failed or returned bad status, fall back to /login URL
     if (!getRes || !getRes.ok) {
-      const loginUrl = `${cleanedUrl}/login`;
+      const loginUrl2 = `${cleanedUrl}/login`;
       console.log(
-        `[Diagnostic] GET handshake to base URL failed or returned bad status. Trying direct login page: ${loginUrl}`,
+        `[Diagnostic] GET handshake to base URL failed or returned bad status. Trying direct login page: ${loginUrl2}`
       );
-      getRes = await xuiFetch(loginUrl, { method: "GET" }, 6000).catch(
-        () => null,
+      getRes = await xuiFetch(loginUrl2, { method: "GET" }, 6e3).catch(
+        () => null
       );
     }
-
     if (getRes) {
       const setCookieHeader = getRes.headers.get("set-cookie");
       if (setCookieHeader) {
         jar.parseAndAdd(setCookieHeader);
         console.log(`[Cookies] Handshake response cookies parsed: ${jar.getCookieHeaderString()}`);
       }
-
       const text = await getRes.text().catch(() => "");
       const match = text.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/i);
       if (match && match[1]) {
@@ -2575,19 +2082,15 @@ async function loginXuiPanel(
         console.log(`[CSRF] CSRF token successfully extracted from handshake: ${csrfToken}`);
       }
     }
-
-    // 2. Perform the POST login request
     const loginUrl = `${cleanedUrl}/login`;
     const params = new URLSearchParams();
     params.append("username", username);
     params.append("password", password);
-
-    const headers: Record<string, string> = {
+    const headers = {
       "Content-Type": "application/x-www-form-urlencoded",
       "Referer": `${cleanedUrl}/`,
-      "Origin": cleanedUrl,
+      "Origin": cleanedUrl
     };
-
     const cookieHeader = jar.getCookieHeaderString();
     if (cookieHeader) {
       headers["Cookie"] = cookieHeader;
@@ -2595,37 +2098,30 @@ async function loginXuiPanel(
     if (csrfToken) {
       headers["X-Csrf-Token"] = csrfToken;
     }
-
     console.log(`[Diagnostic] Executing POST login to: ${loginUrl}`);
     const loginRes = await xuiFetch(
       loginUrl,
       {
         method: "POST",
         headers,
-        body: params.toString(),
+        body: params.toString()
       },
-      8000,
+      8e3
     );
-
     const bodyText = await loginRes.text();
-    let bodyJson: any = {};
+    let bodyJson = {};
     try {
       bodyJson = JSON.parse(bodyText);
     } catch (e) {
-      // Ignore
     }
-
     console.log(
-      `[Diagnostic] XUI response status: ${loginRes.status}, body: ${bodyText.substring(0, 150)}`,
+      `[Diagnostic] XUI response status: ${loginRes.status}, body: ${bodyText.substring(0, 150)}`
     );
-
     if (loginRes.ok && bodyJson && bodyJson.success) {
       const loginCookieHeader = loginRes.headers.get("set-cookie");
       if (loginCookieHeader) {
         jar.parseAndAdd(loginCookieHeader);
       }
-
-      // Check if a new CSRF token was issued in headers or body
       let postCsrfToken = loginRes.headers.get("X-Csrf-Token") || csrfToken;
       if (!postCsrfToken) {
         const match = bodyText.match(/<meta\s+name="csrf-token"\s+content="([^"]+)"/i);
@@ -2633,121 +2129,75 @@ async function loginXuiPanel(
           postCsrfToken = match[1];
         }
       }
-
       return {
         success: true,
         cookie: jar.getCookieHeaderString(),
-        csrfToken: postCsrfToken || null,
+        csrfToken: postCsrfToken || null
       };
     } else {
-      const errMsg =
-        bodyJson?.msg ||
-        `کد خطا: ${loginRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
+      const errMsg = bodyJson?.msg || `\u06A9\u062F \u062E\u0637\u0627: ${loginRes.status}. \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u067E\u0646\u0644 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A.`;
       return { success: false, cookie: null, csrfToken: null, error: errMsg };
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error(`[Diagnostic] XUI login encountered error:`, err);
     return {
       success: false,
       cookie: null,
       csrfToken: null,
-      error: err.message,
+      error: err.message
     };
   }
 }
-
-// Node.js implementation of Python bot's add_vpn_client_api helper
-async function addVpnClientApi(
-  clientEmail: string,
-  trafficGb: number,
-  durationDays: number,
-  settings: any,
-  clientUuid?: string,
-  serverId?: string,
-  bypassDuplicateCheck: boolean = false,
-): Promise<{
-  success: boolean;
-  clientUuid?: string;
-  subLink?: string;
-  error?: string;
-}> {
+async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings, clientUuid, serverId, bypassDuplicateCheck = false) {
   try {
-    // Check locally first
     if (!bypassDuplicateCheck) {
       const db = readSqliteDb();
       const subs = db.subscription_keys || [];
       const _lMail = clientEmail.toLowerCase();
       for (let s of subs) {
-        if (
-          (s.clientName || "").toLowerCase() === _lMail ||
-          (s.planId || "").toLowerCase() === _lMail
-        ) {
+        if ((s.clientName || "").toLowerCase() === _lMail || (s.planId || "").toLowerCase() === _lMail) {
           return {
             success: false,
-            error:
-              "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید.",
+            error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u0632 \u0642\u0628\u0644 \u062F\u0631 \u0644\u06CC\u0633\u062A \u06A9\u0627\u0631\u0628\u0631\u0627\u0646 \u0633\u0631\u0648\u0631 \u0645\u0648\u062C\u0648\u062F \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0646\u0627\u0645 \u062F\u06CC\u06AF\u0631\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F."
           };
         }
       }
     }
-
     const activeServers = getActiveServers(settings);
     if (activeServers.length === 0) {
       return {
         success: false,
-        error: "تنظیمات اتصال به پنل کامل نیست یا سرور فعالی وجود ندارد.",
+        error: "\u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06A9\u0627\u0645\u0644 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0633\u0631\u0648\u0631 \u0641\u0639\u0627\u0644\u06CC \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
       };
     }
-
-    // Pick a random server for load balancing, or use specific serverId if provided
-    let server =
-      activeServers[Math.floor(Math.random() * activeServers.length)];
+    let server = activeServers[Math.floor(Math.random() * activeServers.length)];
     if (serverId) {
-      const matchingServer = activeServers.find((s: any) => s.id === serverId);
+      const matchingServer = activeServers.find((s) => s.id === serverId);
       if (matchingServer) {
         server = matchingServer;
       }
     }
-
     const cleanedUrl = normalizeXuiUrl(server.panelUrl);
     const loginResult = await loginXuiPanel(
       cleanedUrl,
       server.panelUsername,
-      server.panelPassword,
+      server.panelPassword
     );
     if (!loginResult.success || !loginResult.cookie) {
       return {
         success: false,
-        error:
-          "ورود به پنل با خطا مواجه شد: " +
-          (loginResult.error || "خطای نامشخص"),
+        error: "\u0648\u0631\u0648\u062F \u0628\u0647 \u067E\u0646\u0644 \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F: " + (loginResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635")
       };
     }
-
-    const uuid =
-      clientUuid ||
-      Math.random().toString(36).substring(2, 10) +
-        "-" +
-        Math.random().toString(36).substring(2, 6);
-    const totalBytes = trafficGb < 1.0
-      ? Math.floor(trafficGb * 1000 * 1024 * 1024)
-      : Math.floor(trafficGb * 1024 * 1024 * 1024);
-    const expiryTimeMs = Date.now() + durationDays * 24 * 60 * 60 * 1000;
-
-    // Determine inbound_ids
-    let inboundIds: number[] = [];
-    if (
-      Array.isArray(server.activeInboundIds) &&
-      server.activeInboundIds.length > 0
-    ) {
-      inboundIds = server.activeInboundIds
-        .map((id: any) => Number(id))
-        .filter((id: number) => !isNaN(id));
+    const uuid = clientUuid || Math.random().toString(36).substring(2, 10) + "-" + Math.random().toString(36).substring(2, 6);
+    const totalBytes = trafficGb < 1 ? Math.floor(trafficGb * 1e3 * 1024 * 1024) : Math.floor(trafficGb * 1024 * 1024 * 1024);
+    const expiryTimeMs = Date.now() + durationDays * 24 * 60 * 60 * 1e3;
+    let inboundIds = [];
+    if (Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
+      inboundIds = server.activeInboundIds.map((id) => Number(id)).filter((id) => !isNaN(id));
     }
-
-    // Fallback: fetch dynamically if none specified
     if (inboundIds.length === 0) {
-      const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+      const listHeaders = { Cookie: loginResult.cookie };
       if (loginResult.csrfToken) {
         listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
       }
@@ -2755,25 +2205,21 @@ async function addVpnClientApi(
         `${cleanedUrl}/panel/api/inbounds/list`,
         {
           method: "GET",
-          headers: listHeaders,
+          headers: listHeaders
         },
-        5000,
+        5e3
       );
       if (listRes.ok) {
         const listText = await listRes.text();
         const listJson = JSON.parse(listText);
         if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-          inboundIds = listJson.obj
-            .map((item: any) => Number(item.id))
-            .filter((id: number) => !isNaN(id));
+          inboundIds = listJson.obj.map((item) => Number(item.id)).filter((id) => !isNaN(id));
           console.log(
-            `[Sanaei API] Dynamically retrieved ${inboundIds.length} inbound IDs for user ${clientEmail}`,
+            `[Sanaei API] Dynamically retrieved ${inboundIds.length} inbound IDs for user ${clientEmail}`
           );
         }
       }
     }
-
-    // Check if client already exists on panel
     try {
       const checkRes = await xuiFetch(
         `${cleanedUrl}/panel/api/inbounds/getClientTraffics/${clientEmail}`,
@@ -2781,31 +2227,27 @@ async function addVpnClientApi(
           method: "GET",
           headers: {
             Cookie: loginResult.cookie,
-            Accept: "application/json",
-          },
+            Accept: "application/json"
+          }
         },
-        5000,
+        5e3
       );
       if (checkRes.ok) {
         const checkJson = await checkRes.json();
-        // If obj exists and corresponds to our email, it is taken
         if (checkJson && checkJson.success && checkJson.obj) {
           return {
             success: false,
-            error:
-              "این نام کاربری از قبل در لیست کاربران سرور موجود است. لطفاً نام دیگری انتخاب کنید.",
+            error: "\u0627\u06CC\u0646 \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0627\u0632 \u0642\u0628\u0644 \u062F\u0631 \u0644\u06CC\u0633\u062A \u06A9\u0627\u0631\u0628\u0631\u0627\u0646 \u0633\u0631\u0648\u0631 \u0645\u0648\u062C\u0648\u062F \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0646\u0627\u0645 \u062F\u06CC\u06AF\u0631\u06CC \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F."
           };
         }
       }
     } catch (err) {
       console.warn("[Sanaei API Sync] Could not check client existence:", err);
     }
-
-    // Fetch all inbounds from panel to ensure valid IDs
     try {
-      const listHeaders: Record<string, string> = {
+      const listHeaders = {
         Cookie: loginResult.cookie,
-        Accept: "application/json",
+        Accept: "application/json"
       };
       if (loginResult.csrfToken) {
         listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
@@ -2814,14 +2256,14 @@ async function addVpnClientApi(
         `${cleanedUrl}/panel/api/inbounds/list`,
         {
           method: "GET",
-          headers: listHeaders,
+          headers: listHeaders
         },
-        5000,
+        5e3
       );
       if (listRes.ok) {
         const listJson = await listRes.json();
         if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-          const validIds = listJson.obj.map((inb: any) => inb.id);
+          const validIds = listJson.obj.map((inb) => inb.id);
           if (inboundIds.length > 0) {
             inboundIds = inboundIds.filter((id) => validIds.includes(id));
           }
@@ -2833,26 +2275,16 @@ async function addVpnClientApi(
     } catch (err) {
       console.warn("[Sanaei API Sync] Could not fetch valid inbounds:", err);
     }
-
     if (inboundIds.length === 0) {
       inboundIds = [1];
     }
-
     clientUuid = clientUuid || crypto.randomUUID();
-    let safeEmail = clientEmail
-      .replace(/ /g, "_")
-      .replace(/\n/g, "")
-      .replace(/\//g, "");
+    let safeEmail = clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "");
     safeEmail = safeEmail.replace(/[^A-Za-z0-9_-]/g, "");
     if (!safeEmail) {
       safeEmail = "col_client_fallback";
     }
-
-    // Generate a random 16-character subscription ID
-    const xuiSubId =
-      Math.random().toString(36).substring(2, 10) +
-      Math.random().toString(36).substring(2, 10);
-
+    const xuiSubId = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
     const addUrl = `${cleanedUrl}/panel/api/clients/add`;
     const payload = {
       client: {
@@ -2863,72 +2295,63 @@ async function addVpnClientApi(
         expiryTime: expiryTimeMs,
         enable: true,
         tgId: 0,
-        subId: xuiSubId,
+        subId: xuiSubId
       },
-      inboundIds: inboundIds,
+      inboundIds
     };
-
-    const headers: Record<string, string> = {
+    const headers = {
       Cookie: loginResult.cookie,
       "Content-Type": "application/json",
-      Accept: "application/json",
+      Accept: "application/json"
     };
-
     if (loginResult.csrfToken) {
       headers["X-Csrf-Token"] = loginResult.csrfToken;
     }
-
     let lastError = "";
     try {
       const addRes = await xuiFetch(
         addUrl,
         {
           method: "POST",
-          headers: headers,
-          body: JSON.stringify(payload),
+          headers,
+          body: JSON.stringify(payload)
         },
-        8000,
+        8e3
       );
-
       if (addRes.ok) {
         const addText = await addRes.text();
         try {
           const addJson = JSON.parse(addText);
           if (addJson && addJson.success) {
             console.log(
-              `[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(", ")} successfully.`,
+              `[Sanaei API Sync] Created user '${clientEmail}' globally on inbounds ${inboundIds.join(", ")} successfully.`
             );
-            const subBase =
-              server.subUrl && server.subUrl.trim() !== ""
-                ? normalizeXuiUrl(server.subUrl)
-                : cleanedUrl;
+            const subBase = server.subUrl && server.subUrl.trim() !== "" ? normalizeXuiUrl(server.subUrl) : cleanedUrl;
             const subLink = `${subBase}/sub/${xuiSubId}`;
             return { success: true, clientUuid, subLink };
           } else {
             console.warn(
-              `[Sanaei API Response] Global creation error/unsupported: ${addText}`,
+              `[Sanaei API Response] Global creation error/unsupported: ${addText}`
             );
             lastError = addJson?.msg || addText;
           }
         } catch (e) {
           console.warn(
-            `[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`,
+            `[Sanaei API Response] Global creation returned non-json: ${addText.substring(0, 50)}`
           );
           lastError = "Non-JSON response";
         }
       } else {
         lastError = `HTTP ${addRes.status}: ${await addRes.text().catch(() => "Unknown error")}`;
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error(
-        `[Sanaei API Error] Failed to create global client: ${err.message}`,
+        `[Sanaei API Error] Failed to create global client: ${err.message}`
       );
       lastError = err.message;
     }
-
-    // Force older Sanaei per-inbound addition if global failed
     console.log(
-      `[Sanaei API Fallback] Attempting per-inbound addition for user '${clientEmail}'...`,
+      `[Sanaei API Fallback] Attempting per-inbound addition for user '${clientEmail}'...`
     );
     let fallbackSuccess = false;
     for (const inbId of inboundIds) {
@@ -2936,16 +2359,16 @@ async function addVpnClientApi(
         const classicUrl = `${cleanedUrl}/panel/api/inbounds/addClient`;
         const classicPayload = {
           id: inbId,
-          settings: JSON.stringify({ clients: [payload.client] }),
+          settings: JSON.stringify({ clients: [payload.client] })
         };
         const cRes = await xuiFetch(
           classicUrl,
           {
             method: "POST",
-            headers: headers,
-            body: JSON.stringify(classicPayload),
+            headers,
+            body: JSON.stringify(classicPayload)
           },
-          8000,
+          8e3
         );
         if (cRes.ok) {
           const cText = await cRes.text();
@@ -2953,78 +2376,64 @@ async function addVpnClientApi(
             const cJson = JSON.parse(cText);
             if (cJson && cJson.success) {
               console.log(
-                `[Sanaei API Fallback Sync] Added user '${clientEmail}' to inbound ${inbId}`,
+                `[Sanaei API Fallback Sync] Added user '${clientEmail}' to inbound ${inbId}`
               );
               fallbackSuccess = true;
             } else {
               console.warn(
-                `[Sanaei API Fallback error inbound ${inbId}]: ${cText}`,
+                `[Sanaei API Fallback error inbound ${inbId}]: ${cText}`
               );
             }
-          } catch (e) {}
+          } catch (e) {
+          }
         }
       } catch (ce) {
         console.error(`[Sanaei API Fallback Exception inbound ${inbId}]:`, ce);
       }
     }
-
     if (fallbackSuccess) {
-      const subBase =
-        server.subUrl && server.subUrl.trim() !== ""
-          ? normalizeXuiUrl(server.subUrl)
-          : cleanedUrl;
+      const subBase = server.subUrl && server.subUrl.trim() !== "" ? normalizeXuiUrl(server.subUrl) : cleanedUrl;
       const subLink = `${subBase}/sub/${xuiSubId}`;
       return { success: true, clientUuid, subLink };
     }
-
     return {
       success: false,
-      error: "تعریف کلاینت موفق نبود. خطا: " + lastError,
+      error: "\u062A\u0639\u0631\u06CC\u0641 \u06A9\u0644\u0627\u06CC\u0646\u062A \u0645\u0648\u0641\u0642 \u0646\u0628\u0648\u062F. \u062E\u0637\u0627: " + lastError
     };
-  } catch (e: any) {
+  } catch (e) {
     console.error("[addVpnClientApi] helper crash:", e);
     return { success: false, error: e.message };
   }
 }
-
-// 2.3 Delete a VPN client from XUI Panel globally
-async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
+async function deleteVpnClientApi(clientEmail, serverId) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
-
-    const targetServers = serverId
-      ? activeServers.filter((s: any) => s.id === serverId)
-      : activeServers;
-
+    const targetServers = serverId ? activeServers.filter((s) => s.id === serverId) : activeServers;
     if (targetServers.length === 0)
       return { success: false, error: "XUI disconnected" };
-
     let deletedAtLeastOnce = false;
-
     for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
-          server.panelPassword,
+          server.panelPassword
         );
         if (!loginResult.success || !loginResult.cookie) continue;
-
-        const headers: Record<string, string> = {
+        const headers = {
           Cookie: loginResult.cookie,
-          Accept: "application/json",
+          Accept: "application/json"
         };
         if (loginResult.csrfToken) {
           headers["X-Csrf-Token"] = loginResult.csrfToken;
         }
-
         const delUrl = `${cleanedUrl}/panel/api/clients/del/${encodeURIComponent(clientEmail)}`;
         let globalDelSuccess = false;
         try {
-          const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000);
+          const res = await xuiFetch(delUrl, { method: "POST", headers }, 5e3);
           if (res && res.ok) {
             const data = await res.json().catch(() => ({}));
             if (data && data.success) {
@@ -3032,124 +2441,106 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
               deletedAtLeastOnce = true;
             }
           }
-        } catch (e) {}
-
-        // Fallback: search across all inbounds
+        } catch (e) {
+        }
         try {
           const listUrl = `${cleanedUrl}/panel/api/inbounds/list`;
-          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000);
+          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5e3);
           if (listRes && listRes.ok) {
             const data = await listRes.json().catch(() => ({}));
             if (data && data.success && Array.isArray(data.obj)) {
               for (const inbound of data.obj) {
                 let clients = [];
                 try {
-                  const settings = JSON.parse(inbound.settings || "{}");
-                  clients = settings.clients || [];
-                } catch (e) {}
-                
-                const clientMatch = clients.find((c: any) => c.email === clientEmail);
+                  const settings2 = JSON.parse(inbound.settings || "{}");
+                  clients = settings2.clients || [];
+                } catch (e) {
+                }
+                const clientMatch = clients.find((c) => c.email === clientEmail);
                 if (clientMatch && clientMatch.id) {
-                   const fallbackDelUrl = `${cleanedUrl}/panel/api/inbounds/${inbound.id}/delClient/${clientMatch.id}`;
-                   const fRes = await xuiFetch(fallbackDelUrl, { method: "POST", headers }, 5000);
-                   if (fRes && fRes.ok) {
-                      const fData = await fRes.json().catch(() => ({}));
-                      if (fData && fData.success) {
-                         deletedAtLeastOnce = true;
-                      }
-                   }
+                  const fallbackDelUrl = `${cleanedUrl}/panel/api/inbounds/${inbound.id}/delClient/${clientMatch.id}`;
+                  const fRes = await xuiFetch(fallbackDelUrl, { method: "POST", headers }, 5e3);
+                  if (fRes && fRes.ok) {
+                    const fData = await fRes.json().catch(() => ({}));
+                    if (fData && fData.success) {
+                      deletedAtLeastOnce = true;
+                    }
+                  }
                 }
               }
             }
           }
-        } catch (e) {}
+        } catch (e) {
+        }
       } catch (e) {
-        // Ignore individual server errors and try others
       }
     }
-
     return {
       success: deletedAtLeastOnce,
-      error: deletedAtLeastOnce
-        ? undefined
-        : "Panel deletion failed on all servers",
+      error: deletedAtLeastOnce ? void 0 : "Panel deletion failed on all servers"
     };
   } catch (e) {
     return { success: false, error: "Exception during deletion" };
   }
 }
-
-// 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
-async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string) {
+async function toggleVpnClientApi(clientEmail, enabled, clientUuid) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
     if (activeServers.length === 0)
       return { success: false, error: "XUI disconnected" };
-
     let toggledAtLeastOnce = false;
-
     for (const server of activeServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
-          server.panelPassword,
+          server.panelPassword
         );
         if (!loginResult.success || !loginResult.cookie) continue;
-
-        const headers: Record<string, string> = {
+        const headers = {
           Cookie: loginResult.cookie,
           "Content-Type": "application/json",
-          Accept: "application/json",
+          Accept: "application/json"
         };
-        const formHeaders: Record<string, string> = {
+        const formHeaders = {
           Cookie: loginResult.cookie,
           "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
+          Accept: "application/json"
         };
         if (loginResult.csrfToken) {
           headers["X-Csrf-Token"] = loginResult.csrfToken;
           formHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
-
         const safeEmail = encodeURIComponent(clientEmail);
         let globalUpdateSuccess = false;
-
-        // Try getting the client globally
         try {
           const getUrl = `${cleanedUrl}/panel/api/clients/get/${safeEmail}`;
-          const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
+          const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4e3).catch(() => null);
           if (getRes && getRes.ok) {
             const getJson = await getRes.json().catch(() => ({}));
             if (getJson.success && getJson.obj) {
               const client = getJson.obj;
               client.enable = enabled;
-
               const updateUrl = `${cleanedUrl}/panel/api/clients/update/${safeEmail}`;
-              
-              // 1. Try form data payload
               const inboundId = client.inboundId || 0;
               const payloadStr = JSON.stringify({ clients: [client] });
               const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
-              
-              const formRes = await xuiFetch(updateUrl, { method: "POST", headers: formHeaders, body: formBody }, 5000).catch(() => null);
+              const formRes = await xuiFetch(updateUrl, { method: "POST", headers: formHeaders, body: formBody }, 5e3).catch(() => null);
               if (formRes && formRes.ok) {
-                const r = await formRes.json().catch(()=>({}));
-                if(r.success) {
+                const r = await formRes.json().catch(() => ({}));
+                if (r.success) {
                   globalUpdateSuccess = true;
                   toggledAtLeastOnce = true;
                 }
               }
-
-              // 2. Try json payload
               if (!globalUpdateSuccess) {
-                const jsonRes = await xuiFetch(updateUrl, { method: "POST", headers, body: JSON.stringify(client) }, 5000).catch(() => null);
+                const jsonRes = await xuiFetch(updateUrl, { method: "POST", headers, body: JSON.stringify(client) }, 5e3).catch(() => null);
                 if (jsonRes && jsonRes.ok) {
-                  const r = await jsonRes.json().catch(()=>({}));
-                  if(r.success) {
+                  const r = await jsonRes.json().catch(() => ({}));
+                  if (r.success) {
                     globalUpdateSuccess = true;
                     toggledAtLeastOnce = true;
                   }
@@ -3157,47 +2548,41 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
               }
             }
           }
-        } catch (e) {}
-
-        // Fallback: search across all inbounds
+        } catch (e) {
+        }
         try {
           const listUrl = `${cleanedUrl}/panel/api/inbounds/list`;
-          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000).catch(() => null);
+          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5e3).catch(() => null);
           if (listRes && listRes.ok) {
             const data = await listRes.json().catch(() => ({}));
             if (data && data.success && Array.isArray(data.obj)) {
               for (const inbound of data.obj) {
-                let clients: any[] = [];
+                let clients = [];
                 try {
-                  const settings = JSON.parse(inbound.settings || "{}");
-                  clients = settings.clients || [];
-                } catch (e) {}
-
-                const clientMatch = clients.find((c: any) => 
-                  (clientUuid && c.id === clientUuid) || c.email === clientEmail
+                  const settings2 = JSON.parse(inbound.settings || "{}");
+                  clients = settings2.clients || [];
+                } catch (e) {
+                }
+                const clientMatch = clients.find(
+                  (c) => clientUuid && c.id === clientUuid || c.email === clientEmail
                 );
-                
                 if (clientMatch && clientMatch.id) {
                   const mergedClient = { ...clientMatch, enable: enabled };
                   const inboundId = inbound.id;
                   const uid = clientMatch.id;
-                  
                   const payloadStr = JSON.stringify({ clients: [mergedClient] });
                   const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
-
-                  // Attempt different update combinations
                   const attempts = [
                     { url: `${cleanedUrl}/panel/api/clients/update/${uid}`, isForm: true, body: formBody },
                     { url: `${cleanedUrl}/panel/api/clients/update/${uid}`, isForm: false, body: JSON.stringify(mergedClient) },
                     { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBody },
                     { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inboundId, settings: payloadStr }) }
                   ];
-
                   for (const attempt of attempts) {
                     const reqHeaders = attempt.isForm ? formHeaders : headers;
-                    const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5000).catch(()=>null);
+                    const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5e3).catch(() => null);
                     if (aRes && aRes.ok) {
-                      const r = await aRes.json().catch(()=>({}));
+                      const r = await aRes.json().catch(() => ({}));
                       if (r.success) {
                         toggledAtLeastOnce = true;
                         break;
@@ -3208,115 +2593,84 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
               }
             }
           }
-        } catch (e) {}
-
+        } catch (e) {
+        }
       } catch (e) {
-        // Ignore individual server errors and try others
       }
     }
-
     return {
       success: toggledAtLeastOnce,
-      error: toggledAtLeastOnce ? undefined : "Toggle failed on all servers",
+      error: toggledAtLeastOnce ? void 0 : "Toggle failed on all servers"
     };
   } catch (e) {
     return { success: false, error: "Exception during toggle" };
   }
 }
-
-// 2.5 Change/Reset client UUID and Subscription ID on XUI Panel (Highly Resilient with delete/add fallback and local generation fallback)
-async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
+async function resetVpnClientUuidApi(clientEmail, serverId) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-    const crypto = await import("crypto");
-
-    // Pre-generate standard credentials locally as fallback
-    const newUuid = crypto.randomUUID();
-    const newSubId = crypto.randomBytes(8).toString("hex");
-
+    const crypto2 = await import("crypto");
+    const newUuid = crypto2.randomUUID();
+    const newSubId = crypto2.randomBytes(8).toString("hex");
     const activeServers = getActiveServers(settings);
-
     let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
     if (serverId) {
-      const found = activeServers.find((s: any) => s.id === serverId);
+      const found = activeServers.find((s) => s.id === serverId);
       if (found) {
         chosenServer = found;
       }
     }
-
-    const subBase =
-      chosenServer &&
-      chosenServer.subUrl &&
-      chosenServer.subUrl.trim() !== ""
-        ? normalizeXuiUrl(chosenServer.subUrl)
-        : chosenServer
-          ? normalizeXuiUrl(chosenServer.panelUrl)
-          : "https://tr.sub-daltoon.ir:2096";
+    const subBase = chosenServer && chosenServer.subUrl && chosenServer.subUrl.trim() !== "" ? normalizeXuiUrl(chosenServer.subUrl) : chosenServer ? normalizeXuiUrl(chosenServer.panelUrl) : "https://tr.sub-daltoon.ir:2096";
     const subLink = `${subBase}/sub/${newSubId}`;
-
-    const targetServers = serverId
-      ? activeServers.filter((s: any) => s.id === serverId)
-      : activeServers;
-
+    const targetServers = serverId ? activeServers.filter((s) => s.id === serverId) : activeServers;
     if (targetServers.length === 0) {
       console.warn(
-        `[resetVpnClientUuidApi] XUI disconnected/not configured. Performing local-only database reset fallback for ${clientEmail}`,
+        `[resetVpnClientUuidApi] XUI disconnected/not configured. Performing local-only database reset fallback for ${clientEmail}`
       );
       return {
         success: true,
         clientUuid: newUuid,
         subLink,
-        wasLocalFallback: true,
+        wasLocalFallback: true
       };
     }
-
     let panelUpdatedOnce = false;
-
     for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
-          server.panelPassword,
+          server.panelPassword
         );
         if (!loginResult.success || !loginResult.cookie) continue;
-
-        const headers: Record<string, string> = {
+        const headers = {
           Cookie: loginResult.cookie,
           "Content-Type": "application/json",
-          Accept: "application/json",
+          Accept: "application/json"
         };
         if (loginResult.csrfToken)
           headers["X-Csrf-Token"] = loginResult.csrfToken;
-
-        // Fetch the client's current settings from list
         const listRes = await xuiFetch(
           `${cleanedUrl}/panel/api/inbounds/list`,
           { method: "GET", headers },
-          8000,
+          8e3
         ).catch(() => null);
         if (!listRes || !listRes.ok) continue;
-
         const listJson = await listRes.json().catch(() => null);
         if (!listJson || !listJson.success || !Array.isArray(listJson.obj))
           continue;
-
-        let targetClient: any = null;
-        let oldUuid: string | null = null;
-        let parentInboundId: number | null = null;
-
+        let targetClient = null;
+        let oldUuid = null;
+        let parentInboundId = null;
         for (const inb of listJson.obj) {
           if (!inb.settings) continue;
           try {
-            const inbSettings =
-              typeof inb.settings === "string"
-                ? JSON.parse(inb.settings)
-                : inb.settings;
+            const inbSettings = typeof inb.settings === "string" ? JSON.parse(inb.settings) : inb.settings;
             if (Array.isArray(inbSettings.clients)) {
               const client = inbSettings.clients.find(
-                (c: any) => c.email === clientEmail,
+                (c) => c.email === clientEmail
               );
               if (client) {
                 targetClient = { ...client };
@@ -3325,33 +2679,24 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
                 break;
               }
             }
-          } catch (e) {}
+          } catch (e) {
+          }
         }
-
         if (!targetClient || !oldUuid) continue;
-
-        // Set new UUID and Sub ID inside the cloned client schema
         targetClient.id = newUuid;
         targetClient.subId = newSubId;
-        targetClient.tgId =
-          typeof targetClient.tgId === "number"
-            ? targetClient.tgId
-            : parseInt(targetClient.tgId) || 0;
-
-        const formHeaders: Record<string, string> = {
+        targetClient.tgId = typeof targetClient.tgId === "number" ? targetClient.tgId : parseInt(targetClient.tgId) || 0;
+        const formHeaders = {
           Cookie: loginResult.cookie,
           "Content-Type": "application/x-www-form-urlencoded",
-          Accept: "application/json",
+          Accept: "application/json"
         };
         if (loginResult.csrfToken) {
           formHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
-
         const safeEmail = encodeURIComponent(clientEmail);
         const payloadStr = JSON.stringify({ clients: [targetClient] });
         const formBody = `id=${parentInboundId}&settings=${encodeURIComponent(payloadStr)}`;
-
-        // Attempt different update combinations to retain traffic while changing UUID
         const attempts = [
           { url: `${cleanedUrl}/panel/api/clients/update/${safeEmail}`, isForm: true, body: formBody },
           { url: `${cleanedUrl}/panel/api/clients/update/${safeEmail}`, isForm: false, body: JSON.stringify(targetClient) },
@@ -3360,12 +2705,11 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
           { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`, isForm: true, body: formBody },
           { url: `${cleanedUrl}/panel/api/inbounds/updateClient/${oldUuid}`, isForm: false, body: JSON.stringify({ id: parentInboundId, settings: payloadStr }) }
         ];
-
         for (const attempt of attempts) {
           const reqHeaders = attempt.isForm ? formHeaders : headers;
-          const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5000).catch(()=>null);
+          const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5e3).catch(() => null);
           if (aRes && aRes.ok) {
-            const r = await aRes.json().catch(()=>({}));
+            const r = await aRes.json().catch(() => ({}));
             if (r.success) {
               panelUpdatedOnce = true;
               break;
@@ -3373,78 +2717,61 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
           }
         }
       } catch (err) {
-        // Continue to next server
       }
     }
-
     if (panelUpdatedOnce) {
       return { success: true, clientUuid: newUuid, subLink };
     }
-
     console.warn(
-      `[resetVpnClientUuidApi] Panel-facing recreation rejected, completing with database-level local update.`,
+      `[resetVpnClientUuidApi] Panel-facing recreation rejected, completing with database-level local update.`
     );
     return {
       success: true,
       clientUuid: newUuid,
       subLink,
-      wasLocalFallback: true,
+      wasLocalFallback: true
     };
-  } catch (e: any) {
+  } catch (e) {
     console.error("[resetVpnClientUuidApi] helper crash:", e);
-    // Safe final local database generation guarantee
     try {
-      const crypto = await import("crypto");
-      const newUuid = crypto.randomUUID();
-      const newSubId = crypto.randomBytes(8).toString("hex");
+      const crypto2 = await import("crypto");
+      const newUuid = crypto2.randomUUID();
+      const newSubId = crypto2.randomBytes(8).toString("hex");
       const db = readSqliteDb();
       const settings = getSystemSettings(db);
-
       const activeServers = getActiveServers(settings);
       let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
-      const subBase =
-        fallbackServer &&
-        fallbackServer.subUrl &&
-        fallbackServer.subUrl.trim() !== ""
-          ? normalizeXuiUrl(fallbackServer.subUrl)
-          : fallbackServer
-            ? normalizeXuiUrl(fallbackServer.panelUrl)
-            : "https://tr.sub-daltoon.ir:2096";
+      const subBase = fallbackServer && fallbackServer.subUrl && fallbackServer.subUrl.trim() !== "" ? normalizeXuiUrl(fallbackServer.subUrl) : fallbackServer ? normalizeXuiUrl(fallbackServer.panelUrl) : "https://tr.sub-daltoon.ir:2096";
       const subLink = `${subBase}/sub/${newSubId}`;
       return {
         success: true,
         clientUuid: newUuid,
         subLink,
-        wasLocalFallback: true,
+        wasLocalFallback: true
       };
     } catch (err) {
       return { success: false, error: "Exception during reset: " + e.message };
     }
   }
 }
-
-// 2.5 Test XUI Panel connection
 app.post("/api/xui/test-connection", async (req, res) => {
   try {
     const { baseUrl, panelUsername, panelPassword, panelType, panelToken } = req.body;
-    
     if (panelType === "rebecca") {
       if (!baseUrl || !panelUsername || !panelPassword) {
         return res.json({
           success: false,
-          error: "برای پنل ربکا، آدرس هاست، نام کاربری و رمز عبور الزامی است.",
+          error: "\u0628\u0631\u0627\u06CC \u067E\u0646\u0644 \u0631\u0628\u06A9\u0627\u060C \u0622\u062F\u0631\u0633 \u0647\u0627\u0633\u062A\u060C \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A."
         });
       }
-      const cleanedUrl = normalizeXuiUrl(baseUrl);
-      
+      const cleanedUrl2 = normalizeXuiUrl(baseUrl);
       try {
-        const access_token = await loginReebekaPasarguard(cleanedUrl, panelUsername, panelPassword);
-
+        const access_token = await loginReebekaPasarguard(cleanedUrl2, panelUsername, panelPassword);
         if (access_token) {
-          let services: any[] = [];
+          let services = [];
           try {
             const servicesRes = await xuiFetch(
-              `${cleanedUrl}/api/v2/services`,
+              `${cleanedUrl2}/api/v2/services`,
               {
                 method: "GET",
                 headers: {
@@ -3452,11 +2779,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
                   Accept: "application/json"
                 }
               },
-              5000
+              5e3
             );
             if (servicesRes.ok) {
               const servicesData = await servicesRes.json();
-              services = (servicesData.services || []).map((s: any) => ({
+              services = (servicesData.services || []).map((s) => ({
                 id: s.id,
                 remark: s.name,
                 port: 0,
@@ -3466,42 +2793,39 @@ app.post("/api/xui/test-connection", async (req, res) => {
           } catch (e) {
             console.error("Failed to fetch Reebeka services:", e);
           }
-          
           return res.json({
             success: true,
-            message: "اتصال به پنل ربکا با موفقیت انجام شد.",
+            message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u0631\u0628\u06A9\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F.",
             panelToken: access_token,
-            inbounds: services,
+            inbounds: services
           });
         } else {
           return res.json({
             success: false,
-            error: "نام کاربری یا رمز عبور نامعتبر است یا امکان برقراری ارتباط با متدهای مختلف وجود ندارد.",
+            error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A \u06CC\u0627 \u0627\u0645\u06A9\u0627\u0646 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0645\u062A\u062F\u0647\u0627\u06CC \u0645\u062E\u062A\u0644\u0641 \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
           });
         }
-      } catch (err: any) {
+      } catch (err) {
         return res.json({
           success: false,
-          error: "خطا در ارتباط با پنل ربکا: " + err.message,
+          error: "\u062E\u0637\u0627 \u062F\u0631 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u067E\u0646\u0644 \u0631\u0628\u06A9\u0627: " + err.message
         });
       }
     } else if (panelType === "pasarguard") {
       if (!baseUrl || !panelUsername || !panelPassword) {
         return res.json({
           success: false,
-          error: "برای پنل پاسارگارد، آدرس هاست، نام کاربری و رمز عبور الزامی است.",
+          error: "\u0628\u0631\u0627\u06CC \u067E\u0646\u0644 \u067E\u0627\u0633\u0627\u0631\u06AF\u0627\u0631\u062F\u060C \u0622\u062F\u0631\u0633 \u0647\u0627\u0633\u062A\u060C \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A."
         });
       }
-      const cleanedUrl = normalizeXuiUrl(baseUrl);
-      
+      const cleanedUrl2 = normalizeXuiUrl(baseUrl);
       try {
-        const access_token = await loginReebekaPasarguard(cleanedUrl, panelUsername, panelPassword);
-
+        const access_token = await loginReebekaPasarguard(cleanedUrl2, panelUsername, panelPassword);
         if (access_token) {
-          let groups: any[] = [];
+          let groups = [];
           try {
             const groupsRes = await xuiFetch(
-              `${cleanedUrl}/api/groups/simple`,
+              `${cleanedUrl2}/api/groups/simple`,
               {
                 method: "GET",
                 headers: {
@@ -3509,11 +2833,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
                   Accept: "application/json"
                 }
               },
-              5000
+              5e3
             );
             if (groupsRes.ok) {
               const groupsData = await groupsRes.json();
-              groups = (groupsData.groups || []).map((g: any) => ({
+              groups = (groupsData.groups || []).map((g) => ({
                 id: g.id,
                 remark: g.name,
                 port: 0,
@@ -3523,44 +2847,38 @@ app.post("/api/xui/test-connection", async (req, res) => {
           } catch (e) {
             console.error("Failed to fetch Pasarguard groups:", e);
           }
-          
           return res.json({
             success: true,
-            message: "اتصال به پنل پاسارگارد با موفقیت انجام شد.",
+            message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u067E\u0627\u0633\u0627\u0631\u06AF\u0627\u0631\u062F \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F.",
             panelToken: access_token,
-            inbounds: groups,
+            inbounds: groups
           });
         } else {
           return res.json({
             success: false,
-            error: "نام کاربری یا رمز عبور نامعتبر است یا امکان برقراری ارتباط با متدهای مختلف وجود ندارد.",
+            error: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A \u06CC\u0627 \u0627\u0645\u06A9\u0627\u0646 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0645\u062A\u062F\u0647\u0627\u06CC \u0645\u062E\u062A\u0644\u0641 \u0648\u062C\u0648\u062F \u0646\u062F\u0627\u0631\u062F."
           });
         }
-      } catch (err: any) {
-        return res.json({ success: false, error: "خطا در برقراری ارتباط: " + err.message });
+      } catch (err) {
+        return res.json({ success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637: " + err.message });
       }
     }
-
     if (!baseUrl || !panelUsername || !panelPassword) {
       return res.json({
         success: false,
-        error:
-          "تمامی فیلدهای احراز هویت شامل آدرس هاست، نام کاربری و رمز عبور پنل ۳x-ui باید پر شده باشند.",
+        error: "\u062A\u0645\u0627\u0645\u06CC \u0641\u06CC\u0644\u062F\u0647\u0627\u06CC \u0627\u062D\u0631\u0627\u0632 \u0647\u0648\u06CC\u062A \u0634\u0627\u0645\u0644 \u0622\u062F\u0631\u0633 \u0647\u0627\u0633\u062A\u060C \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u0648 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627\u06CC\u062F \u067E\u0631 \u0634\u062F\u0647 \u0628\u0627\u0634\u0646\u062F."
       });
     }
-
     const cleanedUrl = normalizeXuiUrl(baseUrl);
     const loginResult = await loginXuiPanel(
       cleanedUrl,
       panelUsername,
-      panelPassword,
+      panelPassword
     );
-
     if (loginResult.success && loginResult.cookie) {
-      // Confirm read access rights on the list api
       try {
-        const listHeaders: Record<string, string> = {
-          Cookie: loginResult.cookie,
+        const listHeaders = {
+          Cookie: loginResult.cookie
         };
         if (loginResult.csrfToken) {
           listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
@@ -3569,34 +2887,25 @@ app.post("/api/xui/test-connection", async (req, res) => {
           `${cleanedUrl}/panel/api/inbounds/list`,
           {
             method: "GET",
-            headers: listHeaders,
+            headers: listHeaders
           },
-          4000,
+          4e3
         );
         if (listRes.ok) {
           const listText = await listRes.text();
           const listJson = JSON.parse(listText);
           if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-            const freshInbounds = listJson.obj.map((item: any) => {
+            const freshInbounds = listJson.obj.map((item) => {
               let totalClientsCount = 0;
               try {
-                const settingsObj =
-                  typeof item.settings === "string"
-                    ? JSON.parse(item.settings)
-                    : item.settings;
+                const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
                 if (settingsObj && Array.isArray(settingsObj.clients)) {
                   totalClientsCount = settingsObj.clients.length;
                 }
-              } catch (e) {}
-
-              const usedGb = (
-                (Number(item.up || 0) + Number(item.down || 0)) /
-                (1024 * 1024 * 1024)
-              ).toFixed(1);
-              const limitGb = item.total
-                ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
-                : "unlimited";
-
+              } catch (e) {
+              }
+              const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
+              const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
               return {
                 id: item.id,
                 remark: item.remark || `Inbound #${item.id}`,
@@ -3605,131 +2914,99 @@ app.post("/api/xui/test-connection", async (req, res) => {
                 totalClients: totalClientsCount,
                 trafficUsed: usedGb,
                 trafficLimit: limitGb,
-                status: item.enable ? "active" : "inactive",
+                status: item.enable ? "active" : "inactive"
               };
             });
-
-            // Persist the synced inbounds to cache database
             const db = readSqliteDb();
             db.inbounds = freshInbounds;
             writeSqliteDb(db);
-
             return res.json({
               success: true,
-              message:
-                "اتصال به پنل ۳x-ui با موفقیت برقرار شد و لیست اینباندها دریافت گردید!",
-              inbounds: freshInbounds,
+              message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u062F\u0631\u06CC\u0627\u0641\u062A \u06AF\u0631\u062F\u06CC\u062F!",
+              inbounds: freshInbounds
             });
           }
           return res.json({
             success: true,
-            message:
-              "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!",
+            message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0627\u0631\u062A\u0628\u0627\u0637 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A!"
           });
         } else {
           return res.json({
             success: false,
-            error:
-              "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید.",
+            error: "\u0627\u062A\u0635\u0627\u0644 \u0627\u0648\u0644\u06CC\u0647 \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648\u0644\u06CC\u06A9\u0646 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u062F\u0645\u06CC\u0646 \u067E\u0646\u0644 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F."
           });
         }
-      } catch (err: any) {
+      } catch (err) {
         return res.json({
           success: true,
-          message:
-            "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید.",
+          message: "\u0627\u062A\u0635\u0627\u0644 \u0627\u0648\u0644\u06CC\u0647 \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648\u0644\u06CC\u06A9\u0646 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u062F\u0645\u06CC\u0646 \u067E\u0646\u0644 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F."
         });
       }
     } else {
       return res.json({
         success: false,
-        error:
-          loginResult.error ||
-          "خطا در احراز هویت. نام کاربری یا رمز عبور پنل نادرست است.",
+        error: loginResult.error || "\u062E\u0637\u0627 \u062F\u0631 \u0627\u062D\u0631\u0627\u0632 \u0647\u0648\u06CC\u062A. \u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u067E\u0646\u0644 \u0646\u0627\u062F\u0631\u0633\u062A \u0627\u0633\u062A."
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     return res.json({
       success: false,
-      error: `خطا در اتصال به هاست پنل: ${error.message}`,
+      error: `\u062E\u0637\u0627 \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0647\u0627\u0633\u062A \u067E\u0646\u0644: ${error.message}`
     });
   }
 });
-
-// BROADCAST ENDPOINT
 app.post("/api/broadcast", async (req, res) => {
   try {
     const { text, attachment, serverUrl, captionPosition } = req.body;
     if (!text && !attachment) {
       return res.status(400).json({
         success: false,
-        error: "متن پیام یا رسانه برای ارسال الزامی است.",
+        error: "\u0645\u062A\u0646 \u067E\u06CC\u0627\u0645 \u06CC\u0627 \u0631\u0633\u0627\u0646\u0647 \u0628\u0631\u0627\u06CC \u0627\u0631\u0633\u0627\u0644 \u0627\u0644\u0632\u0627\u0645\u06CC \u0627\u0633\u062A."
       });
     }
-
-    // Process attachment if provided
     let fileUrl = "";
-    let attachmentBuffer: Buffer | null = null;
+    let attachmentBuffer = null;
     if (attachment && attachment.fileData) {
       try {
-        const uploadsDir = path.join(process.cwd(), "uploads");
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
+        const uploadsDir = import_path.default.join(process.cwd(), "uploads");
+        if (!import_fs.default.existsSync(uploadsDir)) {
+          import_fs.default.mkdirSync(uploadsDir, { recursive: true });
         }
-
         let base64Data = attachment.fileData;
         if (base64Data.includes(";base64,")) {
           base64Data = base64Data.split(";base64,").pop() || "";
         }
-
         attachmentBuffer = Buffer.from(base64Data, "base64");
-        const ext =
-          path.extname(attachment.fileName) ||
-          (attachment.fileType === "image"
-            ? ".jpg"
-            : attachment.fileType === "video"
-              ? ".mp4"
-              : attachment.fileType === "voice"
-                ? ".ogg"
-                : ".bin");
+        const ext = import_path.default.extname(attachment.fileName) || (attachment.fileType === "image" ? ".jpg" : attachment.fileType === "video" ? ".mp4" : attachment.fileType === "voice" ? ".ogg" : ".bin");
         const uniqueFileName = `broadcast_${Date.now()}_${Math.random().toString(36).substring(2, 7)}${ext}`;
-        const filePath = path.join(uploadsDir, uniqueFileName);
-
-        fs.writeFileSync(filePath, attachmentBuffer);
-
-        const originUrl =
-          serverUrl ||
-          "https://ais-dev-cri25e3qykgpuufepdfpmw-413733104605.europe-west3.run.app";
+        const filePath = import_path.default.join(uploadsDir, uniqueFileName);
+        import_fs.default.writeFileSync(filePath, attachmentBuffer);
+        const originUrl = serverUrl || "https://ais-dev-cri25e3qykgpuufepdfpmw-413733104605.europe-west3.run.app";
         fileUrl = `${originUrl}/uploads/${uniqueFileName}`;
         console.log(
-          `[Broadcast] File written to: ${filePath}, public url: ${fileUrl}`,
+          `[Broadcast] File written to: ${filePath}, public url: ${fileUrl}`
         );
-      } catch (err: any) {
+      } catch (err) {
         console.error("[Broadcast] Failed storing attachment file:", err);
       }
     }
-
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-    let botToken =
-      settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
     if (botToken) botToken = botToken.trim();
     const users = db.users || [];
     let count = 0;
-
     if (botToken && botToken !== "DUMMY_TOKEN") {
       for (const u of users) {
         if (u.userId) {
           try {
-            // Determine API method and payload based on attachment presence and type
             let apiUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
             let useFormData = false;
-            let formData: any = null;
-            let payload: any = {
+            let formData = null;
+            let payload = {
               chat_id: u.userId,
-              parse_mode: "HTML",
+              parse_mode: "HTML"
             };
-
             if (attachmentBuffer && attachment) {
               useFormData = true;
               formData = new FormData();
@@ -3741,28 +3018,10 @@ app.post("/api/broadcast", async (req, res) => {
               if (captionPosition === "above") {
                 formData.append("show_caption_above_media", "true");
               }
-
               const fileType = attachment.fileType || "file";
-              const mimeType =
-                attachment.fileType === "image"
-                  ? "image/jpeg"
-                  : attachment.fileType === "video"
-                    ? "video/mp4"
-                    : attachment.fileType === "voice"
-                      ? "audio/ogg"
-                      : "application/octet-stream";
-
+              const mimeType = attachment.fileType === "image" ? "image/jpeg" : attachment.fileType === "video" ? "video/mp4" : attachment.fileType === "voice" ? "audio/ogg" : "application/octet-stream";
               const blob = new Blob([attachmentBuffer], { type: mimeType });
-              const filename =
-                attachment.fileName ||
-                (fileType === "image"
-                  ? "photo.jpg"
-                  : fileType === "video"
-                    ? "video.mp4"
-                    : fileType === "voice"
-                      ? "voice.ogg"
-                      : "file.bin");
-
+              const filename = attachment.fileName || (fileType === "image" ? "photo.jpg" : fileType === "video" ? "video.mp4" : fileType === "voice" ? "voice.ogg" : "file.bin");
               if (fileType === "image") {
                 apiUrl = `https://api.telegram.org/bot${botToken}/sendPhoto`;
                 formData.append("photo", blob, filename);
@@ -3779,51 +3038,45 @@ app.post("/api/broadcast", async (req, res) => {
             } else {
               payload.text = text;
             }
-
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout per user
-
+            const timeoutId = setTimeout(() => controller.abort(), 1e4);
             try {
               console.log(
-                `[Broadcast] Sending to user ${u.userId} via Telegram API...`,
+                `[Broadcast] Sending to user ${u.userId} via Telegram API...`
               );
               const response = await fetch(apiUrl, {
                 method: "POST",
-                headers: useFormData
-                  ? undefined
-                  : {
-                      "Content-Type": "application/json",
-                    },
+                headers: useFormData ? void 0 : {
+                  "Content-Type": "application/json"
+                },
                 body: useFormData ? formData : JSON.stringify(payload),
-                signal: controller.signal,
+                signal: controller.signal
               });
               clearTimeout(timeoutId);
-
-              const data = (await response.json()) as any;
+              const data = await response.json();
               if (data && data.ok) {
                 count++;
                 console.log(
-                  `[Broadcast] Successfully sent to user ${u.userId}`,
+                  `[Broadcast] Successfully sent to user ${u.userId}`
                 );
               } else {
                 console.error(
                   `[Broadcast] Telegram API error for user ${u.userId}:`,
-                  data,
+                  data
                 );
               }
-            } catch (err: any) {
+            } catch (err) {
               clearTimeout(timeoutId);
               console.error(
                 `[Broadcast] Network/Timeout error sending to user ${u.userId}:`,
-                err.message || err,
+                err.message || err
               );
             }
-            // Gentle sleep of 50ms to respect Telegram rate limits and socket recycling
             await new Promise((resolve) => setTimeout(resolve, 50));
-          } catch (e: any) {
+          } catch (e) {
             console.error(
               `[Broadcast] Failed to send message to user ${u.userId}:`,
-              e,
+              e
             );
           }
         }
@@ -3832,158 +3085,130 @@ app.post("/api/broadcast", async (req, res) => {
       console.warn("[Broadcast] No valid bot token found! Faking count.");
       count = users.length;
     }
-
     res.json({ success: true, count, message: "Broadcast dispatched." });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 3. User operations range
 app.post("/api/users", async (req, res) => {
   try {
     const { userId, username, walletBalance, joinDate, status } = req.body;
     const db = readSqliteDb();
-
     const idx = db.users.findIndex((u) => u.userId === Number(userId));
     const existing = idx >= 0 ? db.users[idx] : null;
-
     const nextUser = {
       userId: Number(userId),
       username,
       walletBalance: Number(walletBalance),
       activePlansCount: existing ? existing.activePlansCount : 0,
-      joinDate: joinDate || new Date().toISOString().split("T")[0],
-      status: status || "active",
+      joinDate: joinDate || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+      status: status || "active"
     };
-
     if (idx >= 0) {
       db.users[idx] = nextUser;
     } else {
       db.users.unshift(nextUser);
     }
-
     writeSqliteDb(db);
     res.json({ success: true, message: "User written/updated." });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/users/adjust", async (req, res) => {
   try {
     const { userId, amount } = req.body;
     const db = readSqliteDb();
-
     const user = db.users.find((u) => u.userId === Number(userId));
     if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found." });
+      return res.status(404).json({ success: false, message: "User not found." });
     }
-
     const nextBal = Math.max(0, Number(user.walletBalance) + Number(amount));
     const finalDiff = nextBal - Number(user.walletBalance);
     user.walletBalance = nextBal;
-
     if (!db.logs) db.logs = [];
     db.logs.push({
       id: Math.random().toString(36).substring(2, 9),
-      date: new Date().toISOString(),
+      date: (/* @__PURE__ */ new Date()).toISOString(),
       userId: Number(userId),
       username: user.username || `user_${userId}`,
-      action: "تغییر موجودی",
-      details: `موجودی کاربر توسط مدیر به میزان ${finalDiff >= 0 ? "+" : ""}${finalDiff.toLocaleString()} تومان تغییر یافت. موجودی نهایی: ${nextBal.toLocaleString()} تومان.`,
+      action: "\u062A\u063A\u06CC\u06CC\u0631 \u0645\u0648\u062C\u0648\u062F\u06CC",
+      details: `\u0645\u0648\u062C\u0648\u062F\u06CC \u06A9\u0627\u0631\u0628\u0631 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631 \u0628\u0647 \u0645\u06CC\u0632\u0627\u0646 ${finalDiff >= 0 ? "+" : ""}${finalDiff.toLocaleString()} \u062A\u0648\u0645\u0627\u0646 \u062A\u063A\u06CC\u06CC\u0631 \u06CC\u0627\u0641\u062A. \u0645\u0648\u062C\u0648\u062F\u06CC \u0646\u0647\u0627\u06CC\u06CC: ${nextBal.toLocaleString()} \u062A\u0648\u0645\u0627\u0646.`
     });
-    if (db.logs.length > 1000) {
-      db.logs = db.logs.slice(-1000);
+    if (db.logs.length > 1e3) {
+      db.logs = db.logs.slice(-1e3);
     }
-
     writeSqliteDb(db);
-
     res.json({ success: true, nextBal });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/users/ban", async (req, res) => {
   try {
     const { userId, status } = req.body;
     const db = readSqliteDb();
-
     const user = db.users.find((u) => u.userId === Number(userId));
     if (user) {
       user.status = status;
       writeSqliteDb(db);
     }
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/users/send-message", async (req, res) => {
   try {
     const { userId, message } = req.body;
     if (!userId || !message) {
-      return res.status(400).json({ success: false, error: "کاربر یا متن پیام ارسال نشده است." });
+      return res.status(400).json({ success: false, error: "\u06A9\u0627\u0631\u0628\u0631 \u06CC\u0627 \u0645\u062A\u0646 \u067E\u06CC\u0627\u0645 \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A." });
     }
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
     let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
     if (botToken) botToken = botToken.trim();
-
     if (!botToken || botToken === "DUMMY_TOKEN") {
-      return res.status(400).json({ success: false, error: "توکن ربات تلگرام تنظیم نشده است یا نامعتبر است." });
+      return res.status(400).json({ success: false, error: "\u062A\u0648\u06A9\u0646 \u0631\u0628\u0627\u062A \u062A\u0644\u06AF\u0631\u0627\u0645 \u062A\u0646\u0638\u06CC\u0645 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A \u06CC\u0627 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
     }
-
     const fetchRef = globalThis.fetch || fetch;
     const body = {
       chat_id: userId,
       text: message,
-      parse_mode: "HTML",
+      parse_mode: "HTML"
     };
-
     const telegramRes = await fetchRef(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     });
-
-    const data = await telegramRes.json() as any;
+    const data = await telegramRes.json();
     if (data && data.ok) {
-      res.json({ success: true, message: "پیام با موفقیت به پیوی کاربر ارسال شد." });
+      res.json({ success: true, message: "\u067E\u06CC\u0627\u0645 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0647 \u067E\u06CC\u0648\u06CC \u06A9\u0627\u0631\u0628\u0631 \u0627\u0631\u0633\u0627\u0644 \u0634\u062F." });
     } else {
       res.status(400).json({
         success: false,
-        error: data?.description || "خطا در ارسال پیام به تلگرام. ممکن است کاربر ربات را بلاک کرده باشد یا چت را شروع نکرده باشد."
+        error: data?.description || "\u062E\u0637\u0627 \u062F\u0631 \u0627\u0631\u0633\u0627\u0644 \u067E\u06CC\u0627\u0645 \u0628\u0647 \u062A\u0644\u06AF\u0631\u0627\u0645. \u0645\u0645\u06A9\u0646 \u0627\u0633\u062A \u06A9\u0627\u0631\u0628\u0631 \u0631\u0628\u0627\u062A \u0631\u0627 \u0628\u0644\u0627\u06A9 \u06A9\u0631\u062F\u0647 \u0628\u0627\u0634\u062F \u06CC\u0627 \u0686\u062A \u0631\u0627 \u0634\u0631\u0648\u0639 \u0646\u06A9\u0631\u062F\u0647 \u0628\u0627\u0634\u062F."
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/users/delete", async (req, res) => {
   try {
     const { userId } = req.body;
     const db = readSqliteDb();
-
     db.users = db.users.filter((u) => u.userId !== Number(userId));
     db.subscription_keys = db.subscription_keys.filter(
-      (k) => k.userId !== Number(userId),
+      (k) => k.userId !== Number(userId)
     );
     writeSqliteDb(db);
-
     res.json({ success: true, message: "User completely cleared." });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 4. Manual Transaction operations
 app.post("/api/transactions", async (req, res) => {
   try {
     const {
@@ -3994,10 +3219,9 @@ app.post("/api/transactions", async (req, res) => {
       receiptImage,
       status,
       date,
-      description,
+      description
     } = req.body;
     const db = readSqliteDb();
-
     const nextTx = {
       id,
       userId: Number(userId),
@@ -4005,369 +3229,358 @@ app.post("/api/transactions", async (req, res) => {
       amount: Number(amount),
       receiptImage: receiptImage || "",
       status: status || "pending",
-      date: date || new Date().toISOString(),
-      description: description || "",
+      date: date || (/* @__PURE__ */ new Date()).toISOString(),
+      description: description || ""
     };
-
     const idx = db.transactions.findIndex((t) => t.id === id);
     if (idx >= 0) {
       db.transactions[idx] = nextTx;
     } else {
       db.transactions.unshift(nextTx);
     }
-
     writeSqliteDb(db);
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/transactions/approve", async (req, res) => {
   try {
     const { id, amount } = req.body;
     const db = readSqliteDb();
-
     const tx = db.transactions.find((t) => t.id === id);
     if (tx) {
       tx.status = "approved";
-      if (amount !== undefined) {
+      if (amount !== void 0) {
         tx.amount = Number(amount);
       }
-
       const user = db.users.find((u) => u.userId === Number(tx.userId));
-
       let messageTextForNotif = "";
-
       if (tx.type === "PLAN_PURCHASE") {
-        if (
-          tx.planId &&
-          (tx.planId.startsWith("COL_BUY:") ||
-            tx.planId.startsWith("COL_RENEW:"))
-        ) {
-          // Colleague package fulfillment
+        if (tx.planId && (tx.planId.startsWith("COL_BUY:") || tx.planId.startsWith("COL_RENEW:"))) {
           const isBuy = tx.planId.startsWith("COL_BUY:");
           const packageId = tx.planId.split(":")[1];
-
-          const db_packages: any[] = db.colleague_packages || [];
+          const db_packages = db.colleague_packages || [];
           const pkg = db_packages.find((p) => p.id === packageId);
-
           if (pkg) {
             if (isBuy) {
               const parts = (tx.clientName || "").split("||");
               const prefix = parts[0] || "";
               const token = parts[1] || "";
-
-              const username =
-                "C" + Math.floor(Math.random() * 90000 + 10000).toString();
+              const username = "C" + Math.floor(Math.random() * 9e4 + 1e4).toString();
               const password = Math.random().toString(36).substring(2, 10);
-
               const newAcc = {
                 id: Math.random().toString(36).substring(2, 15),
                 userId: Number(tx.userId),
-                username: username,
-                password: password,
+                username,
+                password,
                 packageId: pkg.id,
                 packageTitle: pkg.title,
-                createdAt: new Date().toISOString().split("T")[0],
+                createdAt: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
                 trafficGb: pkg.trafficGb,
                 usedTrafficGb: 0,
-                prefix: prefix,
+                prefix,
                 recoveryToken: token,
-                status: "active",
+                status: "active"
               };
-
               if (!db.colleague_accounts) db.colleague_accounts = [];
               db.colleague_accounts.push(newAcc);
+              messageTextForNotif = `\u2705 <b>\u062E\u0631\u06CC\u062F \u0628\u0633\u062A\u0647 \u0647\u0645\u06A9\u0627\u0631 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F!</b> (\u062A\u0627\u06CC\u06CC\u062F \u0641\u06CC\u0634)
 
-              messageTextForNotif = `✅ <b>خرید بسته همکار با موفقیت انجام شد!</b> (تایید فیش)\n\nبسته خریداری شده: ${pkg.title}\nپسوند تنظیم شده: ${prefix}\n\nاطلاعات ورود شما:\n👤 <b>یوزرنیم:</b> <code>${username}</code>\n🔑 <b>رمز عبور:</b> <code>${password}</code>\n\nجهت ورود به پنل، حساب خود را از طریق منو انتخاب کنید.`;
+\u0628\u0633\u062A\u0647 \u062E\u0631\u06CC\u062F\u0627\u0631\u06CC \u0634\u062F\u0647: ${pkg.title}
+\u067E\u0633\u0648\u0646\u062F \u062A\u0646\u0638\u06CC\u0645 \u0634\u062F\u0647: ${prefix}
+
+\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0648\u0631\u0648\u062F \u0634\u0645\u0627:
+\u{1F464} <b>\u06CC\u0648\u0632\u0631\u0646\u06CC\u0645:</b> <code>${username}</code>
+\u{1F511} <b>\u0631\u0645\u0632 \u0639\u0628\u0648\u0631:</b> <code>${password}</code>
+
+\u062C\u0647\u062A \u0648\u0631\u0648\u062F \u0628\u0647 \u067E\u0646\u0644\u060C \u062D\u0633\u0627\u0628 \u062E\u0648\u062F \u0631\u0627 \u0627\u0632 \u0637\u0631\u06CC\u0642 \u0645\u0646\u0648 \u0627\u0646\u062A\u062E\u0627\u0628 \u06A9\u0646\u06CC\u062F.`;
             } else {
               const accId = tx.clientName;
               const accIndex = (db.colleague_accounts || []).findIndex(
-                (a: any) => a.id === accId,
+                (a) => a.id === accId
               );
               if (accIndex !== -1) {
                 const acc = db.colleague_accounts[accIndex];
                 acc.trafficGb = (acc.trafficGb || 0) + pkg.trafficGb;
                 acc.packageTitle = pkg.title;
+                messageTextForNotif = `\u2705 <b>\u062A\u0645\u062F\u06CC\u062F \u062D\u0633\u0627\u0628 \u0647\u0645\u06A9\u0627\u0631 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0627\u0646\u062C\u0627\u0645 \u0634\u062F!</b> (\u062A\u0627\u06CC\u06CC\u062F \u0641\u06CC\u0634)
 
-                messageTextForNotif = `✅ <b>تمدید حساب همکار با موفقیت انجام شد!</b> (تایید فیش)\n\nحجم اضافه شده: ${pkg.trafficGb} گیگابایت\nلیست بسته تمدیدی: ${pkg.title}`;
+\u062D\u062C\u0645 \u0627\u0636\u0627\u0641\u0647 \u0634\u062F\u0647: ${pkg.trafficGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A
+\u0644\u06CC\u0633\u062A \u0628\u0633\u062A\u0647 \u062A\u0645\u062F\u06CC\u062F\u06CC: ${pkg.title}`;
               } else {
-                messageTextForNotif = `❌ خطا: حساب همکار برای تمدید یافت نشد.`;
+                messageTextForNotif = `\u274C \u062E\u0637\u0627: \u062D\u0633\u0627\u0628 \u0647\u0645\u06A9\u0627\u0631 \u0628\u0631\u0627\u06CC \u062A\u0645\u062F\u06CC\u062F \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.`;
               }
             }
           } else {
-            messageTextForNotif = `❌ خطا: بسته همکار یافت نشد.`;
+            messageTextForNotif = `\u274C \u062E\u0637\u0627: \u0628\u0633\u062A\u0647 \u0647\u0645\u06A9\u0627\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.`;
           }
         } else {
-          const db_plans: any[] = db.vpn_plans || [];
-          // Hardcoded Fallback Plans (Must match bot.py)
+          const db_plans = db.vpn_plans || [];
           const fallback_plans = [
             {
               id: "std_30g",
               name: "Standard 30GB - 30 Days",
-              price: 45000,
+              price: 45e3,
               trafficGb: 30,
               durationDays: 30,
-              category: "Standard",
+              category: "Standard"
             },
             {
               id: "vip_70g",
               name: "VIP Premium 70GB - 60 Days",
-              price: 95000,
+              price: 95e3,
               trafficGb: 70,
               durationDays: 60,
-              category: "VIP",
+              category: "VIP"
             },
             {
               id: "ult_150g",
               name: "Unlimited VoIP 150GB - 90 Days",
-              price: 185000,
+              price: 185e3,
               trafficGb: 150,
               durationDays: 90,
-              category: "Unlimited VoIP",
-            },
+              category: "Unlimited VoIP"
+            }
           ];
-
           let plan = db_plans.find((p) => p.id === tx.planId);
           if (!plan) {
             plan = fallback_plans.find((p) => p.id === tx.planId);
           }
-
           if (plan) {
             const clientName = tx.clientName || `user_${tx.userId}`;
             const settings = getSystemSettings(db);
-
             try {
               const planTraffic = Number(plan.trafficGb) || 30;
               const planDuration = Number(plan.durationDays) || 30;
-
               const vpnResult = await addVpnClientApi(
                 clientName,
                 planTraffic,
                 planDuration,
                 settings,
-                undefined,
-                tx.serverId,
+                void 0,
+                tx.serverId
               );
               if (vpnResult.success && vpnResult.subLink) {
                 const subLink = vpnResult.subLink;
-
-                let vlessLinks: string[] = [];
+                let vlessLinks = [];
                 try {
                   const fetchRef = globalThis.fetch || fetch;
-                  const res = await fetchRef(subLink);
-                  if (res.ok) {
-                    const text = await res.text();
+                  const res2 = await fetchRef(subLink);
+                  if (res2.ok) {
+                    const text = await res2.text();
                     const decoded = Buffer.from(text, "base64").toString(
-                      "utf-8",
+                      "utf-8"
                     );
-                    vlessLinks = decoded
-                      .split("\n")
-                      .filter(
-                        (l) => l.trim().length > 0 && l.includes("://"),
-                      );
+                    vlessLinks = decoded.split("\n").filter(
+                      (l) => l.trim().length > 0 && l.includes("://")
+                    );
                   }
-                } catch (e) {}
-
+                } catch (e) {
+                }
                 let linksDisplay = "";
                 if (vlessLinks.length > 0) {
-                  const linksText = vlessLinks
-                    .map((l) => `<code>${l}</code>`)
-                    .join("\n\n");
-                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksText}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                  const linksText = vlessLinks.map((l) => `<code>${l}</code>`).join("\n\n");
+                  linksDisplay = `\u{1F680} <b>\u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u0627\u062A\u0635\u0627\u0644 \u0645\u0633\u062A\u0642\u06CC\u0645:</b>
+${linksText}
+
+\u26A0\uFE0F \u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u06A9\u0644\u0627\u06CC\u0646\u062A \u062E\u0648\u062F \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F.`;
                 } else {
-                  linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
+                  linksDisplay = `\u26A0\uFE0F <b>\u062A\u0648\u062C\u0647:</b> \u0627\u0645\u06A9\u0627\u0646 \u0627\u0633\u062A\u062E\u0631\u0627\u062C \u062A\u0641\u06A9\u06CC\u06A9\u06CC \u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0631 \u0627\u06CC\u0646 \u0644\u062D\u0638\u0647 \u0645\u06CC\u0633\u0631 \u0646\u0634\u062F.
+
+\u{1F447} <b>\u0644\u0637\u0641\u0627\u064B \u0627\u0632 \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646 \u0627\u062E\u062A\u0635\u0627\u0635\u06CC \u062E\u0648\u062F \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F (\u062C\u0647\u062A \u06A9\u067E\u06CC \u0644\u0645\u0633 \u06A9\u0646\u06CC\u062F):</b>
+
+<code>${subLink}</code>
+
+\u{1F4A1} \u0644\u06CC\u0646\u06A9 \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 v2rayNG \u06CC\u0627 V2box \u062E\u0648\u062F \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>Subscription (\u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646)</b> \u0648\u0627\u0631\u062F \u06A9\u0631\u062F\u0647 \u0648 \u0628\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (Update) \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u0647\u0645\u0647 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0648\u0646\u062F.`;
                 }
+                messageTextForNotif = `\u2705 <b>\u06A9\u0627\u0646\u0641\u06CC\u06AF \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u0634\u062F!</b>
 
-                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n${linksDisplay}`;
+\u{1F4E6} \u067E\u0644\u0627\u0646: <b>${plan.name}</b>
 
+${linksDisplay}`;
                 if (!db.subscription_keys) db.subscription_keys = [];
-                const randomId =
-                  "SUB-" + Math.floor(Math.random() * 9000 + 1000);
-                const expireTimestamp =
-                  Date.now() + planDuration * 24 * 60 * 60 * 1000;
-                const expireDate = isNaN(expireTimestamp)
-                  ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-                      .toISOString()
-                      .split("T")[0]
-                  : new Date(expireTimestamp).toISOString().split("T")[0];
-
+                const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
+                const expireTimestamp = Date.now() + planDuration * 24 * 60 * 60 * 1e3;
+                const expireDate = isNaN(expireTimestamp) ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0] : new Date(expireTimestamp).toISOString().split("T")[0];
                 db.subscription_keys.push({
                   id: randomId,
                   userId: Number(tx.userId),
                   planId: plan.id,
                   planName: plan.name,
-                  clientName: clientName,
+                  clientName,
                   clientUuid: vpnResult.clientUuid || "",
-                  subLink: subLink,
-                  expireDate: expireDate,
+                  subLink,
+                  expireDate,
                   trafficLimitGb: planTraffic,
                   trafficUsedGb: 0,
                   createdAtMs: Date.now(),
                   status: "active",
-                  serverId: tx.serverId,
+                  serverId: tx.serverId
                 });
-
                 tx._generatedSubId = randomId;
                 tx._generatedSubLink = subLink;
-
                 if (!db.logs) db.logs = [];
                 db.logs.push({
                   id: Math.random().toString(36).substring(2, 9),
-                  date: new Date().toISOString(),
+                  date: (/* @__PURE__ */ new Date()).toISOString(),
                   userId: Number(tx.userId),
                   username: tx.username || `user_${tx.userId}`,
-                  action: "تحویل کانفیگ",
-                  details: `اشتراک برای پلان ${plan.name} با نام ${clientName} تحویل داده شد.`,
+                  action: "\u062A\u062D\u0648\u06CC\u0644 \u06A9\u0627\u0646\u0641\u06CC\u06AF",
+                  details: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0631\u0627\u06CC \u067E\u0644\u0627\u0646 ${plan.name} \u0628\u0627 \u0646\u0627\u0645 ${clientName} \u062A\u062D\u0648\u06CC\u0644 \u062F\u0627\u062F\u0647 \u0634\u062F.`
                 });
               } else {
                 if (user) {
                   user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
                 }
                 tx.status = "refunded";
-                messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت ساخت کانفیگ رخ داد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\n✅ سیستم جهت محافظت از شما، تراکنش را لغو کرده و مبلغ <b>${Number(tx.amount).toLocaleString()} تومان</b> را به صورت کامل به کیف پول داخلی شما در ربات عودت داد.\n\nاکنون می‌توانید از طریق کیف پول خود مجدداً اقدام کنید (در صورت رفع مشکل).`;
+                messageTextForNotif = `\u274C <b>\u062E\u0637\u0627 \u062F\u0631 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF!</b>
 
+\u0645\u062A\u0627\u0633\u0641\u0627\u0646\u0647 \u0645\u0634\u06A9\u0644\u06CC \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0633\u0631\u0648\u0631 \u062C\u0647\u062A \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0631\u062E \u062F\u0627\u062F:
+<code>${vpnResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635"}</code>
+
+\u2705 \u0633\u06CC\u0633\u062A\u0645 \u062C\u0647\u062A \u0645\u062D\u0627\u0641\u0638\u062A \u0627\u0632 \u0634\u0645\u0627\u060C \u062A\u0631\u0627\u06A9\u0646\u0634 \u0631\u0627 \u0644\u063A\u0648 \u06A9\u0631\u062F\u0647 \u0648 \u0645\u0628\u0644\u063A <b>${Number(tx.amount).toLocaleString()} \u062A\u0648\u0645\u0627\u0646</b> \u0631\u0627 \u0628\u0647 \u0635\u0648\u0631\u062A \u06A9\u0627\u0645\u0644 \u0628\u0647 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u062F\u0627\u062E\u0644\u06CC \u0634\u0645\u0627 \u062F\u0631 \u0631\u0628\u0627\u062A \u0639\u0648\u062F\u062A \u062F\u0627\u062F.
+
+\u0627\u06A9\u0646\u0648\u0646 \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u06CC\u062F \u0627\u0632 \u0637\u0631\u06CC\u0642 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u062E\u0648\u062F \u0645\u062C\u062F\u062F\u0627\u064B \u0627\u0642\u062F\u0627\u0645 \u06A9\u0646\u06CC\u062F (\u062F\u0631 \u0635\u0648\u0631\u062A \u0631\u0641\u0639 \u0645\u0634\u06A9\u0644).`;
                 if (!db.logs) db.logs = [];
                 db.logs.push({
                   id: Math.random().toString(36).substring(2, 9),
-                  date: new Date().toISOString(),
+                  date: (/* @__PURE__ */ new Date()).toISOString(),
                   userId: Number(tx.userId),
                   username: tx.username || `user_${tx.userId}`,
-                  action: "خطا و مرجوعی خودکار",
-                  details: `خطا در ساخت کانفیگ برای ${clientName}: ${vpnResult.error || "Unknown"}. مبلغ به کیف پول برگشت داده شد.`,
+                  action: "\u062E\u0637\u0627 \u0648 \u0645\u0631\u062C\u0648\u0639\u06CC \u062E\u0648\u062F\u06A9\u0627\u0631",
+                  details: `\u062E\u0637\u0627 \u062F\u0631 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0628\u0631\u0627\u06CC ${clientName}: ${vpnResult.error || "Unknown"}. \u0645\u0628\u0644\u063A \u0628\u0647 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u0628\u0631\u06AF\u0634\u062A \u062F\u0627\u062F\u0647 \u0634\u062F.`
                 });
               }
-            } catch (e: any) {
-              messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ: ${e.message}`;
+            } catch (e) {
+              messageTextForNotif = `\u274C \u062E\u0637\u0627 \u062F\u0631 \u0633\u06CC\u0633\u062A\u0645 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF: ${e.message}`;
             }
           } else if (tx.planId === "custom_vol") {
             const clientName = tx.clientName || `user_${tx.userId}`;
             const settings = getSystemSettings(db);
             const customGb = Number(tx.customGb) || 10;
             const customDays = Number(tx.customDays) || 30;
-
             try {
               const vpnResult = await addVpnClientApi(
                 clientName,
                 customGb,
                 customDays,
                 settings,
-                undefined,
-                tx.serverId,
+                void 0,
+                tx.serverId
               );
               if (vpnResult.success && vpnResult.subLink) {
                 const subLink = vpnResult.subLink;
-
-                let vlessLinks: string[] = [];
+                let vlessLinks = [];
                 try {
                   const fetchRef = globalThis.fetch || fetch;
-                  const res = await fetchRef(subLink);
-                  if (res.ok) {
-                    const text = await res.text();
+                  const res2 = await fetchRef(subLink);
+                  if (res2.ok) {
+                    const text = await res2.text();
                     const decoded = Buffer.from(text, "base64").toString(
-                      "utf-8",
+                      "utf-8"
                     );
-                    vlessLinks = decoded
-                      .split("\n")
-                      .filter(
-                        (l) => l.trim().length > 0 && l.includes("://"),
-                      );
+                    vlessLinks = decoded.split("\n").filter(
+                      (l) => l.trim().length > 0 && l.includes("://")
+                    );
                   }
-                } catch (e) {}
-
+                } catch (e) {
+                }
                 let linksDisplay = "";
                 if (vlessLinks.length > 0) {
-                  const linksText = vlessLinks
-                    .map((l) => `<code>${l}</code>`)
-                    .join("\n\n");
-                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksText}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                  const linksText = vlessLinks.map((l) => `<code>${l}</code>`).join("\n\n");
+                  linksDisplay = `\u{1F680} <b>\u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u0627\u062A\u0635\u0627\u0644 \u0645\u0633\u062A\u0642\u06CC\u0645:</b>
+${linksText}
+
+\u26A0\uFE0F \u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u06A9\u0644\u0627\u06CC\u0646\u062A \u062E\u0648\u062F \u0648\u0627\u0631\u062F \u06A9\u0646\u06CC\u062F.`;
                 } else {
-                  linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
+                  linksDisplay = `\u26A0\uFE0F <b>\u062A\u0648\u062C\u0647:</b> \u0627\u0645\u06A9\u0627\u0646 \u0627\u0633\u062A\u062E\u0631\u0627\u062C \u062A\u0641\u06A9\u06CC\u06A9\u06CC \u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0631 \u0627\u06CC\u0646 \u0644\u062D\u0638\u0647 \u0645\u06CC\u0633\u0631 \u0646\u0634\u062F.
+
+\u{1F447} <b>\u0644\u0637\u0641\u0627\u064B \u0627\u0632 \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646 \u0627\u062E\u062A\u0635\u0627\u0635\u06CC \u062E\u0648\u062F \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u06A9\u0646\u06CC\u062F (\u062C\u0647\u062A \u06A9\u067E\u06CC \u0644\u0645\u0633 \u06A9\u0646\u06CC\u062F):</b>
+
+<code>${subLink}</code>
+
+\u{1F4A1} \u0644\u06CC\u0646\u06A9 \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 v2rayNG \u06CC\u0627 V2box \u062E\u0648\u062F \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>Subscription (\u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646)</b> \u0648\u0627\u0631\u062F \u06A9\u0631\u062F\u0647 \u0648 \u0628\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (Update) \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u0647\u0645\u0647 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0648\u0646\u062F.`;
                 }
+                messageTextForNotif = `\u2705 <b>\u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647 \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u0634\u062F!</b>
 
-                messageTextForNotif = `✅ <b>کانفیگ دلخواه شما آماده شد!</b>\n\n📦 حجم: <b>${customGb} گیگابایت</b> | زمان: <b>${customDays} روز</b>\n\n${linksDisplay}`;
+\u{1F4E6} \u062D\u062C\u0645: <b>${customGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A</b> | \u0632\u0645\u0627\u0646: <b>${customDays} \u0631\u0648\u0632</b>
 
+${linksDisplay}`;
                 if (!db.subscription_keys) db.subscription_keys = [];
-                const randomId =
-                  "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+                const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
                 const expireDate = new Date(
-                  Date.now() + customDays * 24 * 60 * 60 * 1000,
-                )
-                  .toISOString()
-                  .split("T")[0];
-
+                  Date.now() + customDays * 24 * 60 * 60 * 1e3
+                ).toISOString().split("T")[0];
                 db.subscription_keys.push({
                   id: randomId,
                   userId: Number(tx.userId),
                   planId: "custom_vol",
-                  planName: `کانفیگ دلخواه ${customGb}GB`,
-                  clientName: clientName,
+                  planName: `\u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647 ${customGb}GB`,
+                  clientName,
                   clientUuid: vpnResult.clientUuid || "",
-                  subLink: subLink,
-                  expireDate: expireDate,
+                  subLink,
+                  expireDate,
                   trafficLimitGb: customGb,
                   trafficUsedGb: 0,
                   createdAtMs: Date.now(),
                   status: "active",
-                  serverId: tx.serverId,
+                  serverId: tx.serverId
                 });
-
                 tx._generatedSubId = randomId;
                 tx._generatedSubLink = subLink;
-
                 if (!db.logs) db.logs = [];
                 db.logs.push({
                   id: Math.random().toString(36).substring(2, 9),
-                  date: new Date().toISOString(),
+                  date: (/* @__PURE__ */ new Date()).toISOString(),
                   userId: Number(tx.userId),
                   username: tx.username || `user_${tx.userId}`,
-                  action: "تحویل کانفیگ",
-                  details: `اشتراک برای کانفیگ دلخواه با نام ${clientName} تحویل داده شد.`,
+                  action: "\u062A\u062D\u0648\u06CC\u0644 \u06A9\u0627\u0646\u0641\u06CC\u06AF",
+                  details: `\u0627\u0634\u062A\u0631\u0627\u06A9 \u0628\u0631\u0627\u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647 \u0628\u0627 \u0646\u0627\u0645 ${clientName} \u062A\u062D\u0648\u06CC\u0644 \u062F\u0627\u062F\u0647 \u0634\u062F.`
                 });
               } else {
                 tx.status = "failed";
-                messageTextForNotif = `❌ <b>خطا در ساخت کانفیگ دلخواه!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت ساخت کانفیگ رخ داد:\n<code>${vpnResult.error || "خطای نامشخص"}</code>\n\nلطفاً موضوع را با پشتیبانی هماهنگ فرمایید.`;
+                messageTextForNotif = `\u274C <b>\u062E\u0637\u0627 \u062F\u0631 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647!</b>
+
+\u0645\u062A\u0627\u0633\u0641\u0627\u0646\u0647 \u0645\u0634\u06A9\u0644\u06CC \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0633\u0631\u0648\u0631 \u062C\u0647\u062A \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0631\u062E \u062F\u0627\u062F:
+<code>${vpnResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635"}</code>
+
+\u0644\u0637\u0641\u0627\u064B \u0645\u0648\u0636\u0648\u0639 \u0631\u0627 \u0628\u0627 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0647\u0645\u0627\u0647\u0646\u06AF \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`;
               }
-            } catch (e: any) {
-              messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ دلخواه: ${e.message}`;
+            } catch (e) {
+              messageTextForNotif = `\u274C \u062E\u0637\u0627 \u062F\u0631 \u0633\u06CC\u0633\u062A\u0645 \u0633\u0627\u062E\u062A \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647: ${e.message}`;
             }
           } else if (tx.planId === "custom_renew") {
             const targetSubId = tx.clientName;
             const settings = getSystemSettings(db);
             const customGb = Number(tx.customGb) || 10;
             const customDays = Number(tx.customDays) || 30;
-
             const subscription_keys = db.subscription_keys || [];
             const k = subscription_keys.find(
-              (sub: any) => sub.id === targetSubId,
+              (sub) => sub.id === targetSubId
             );
-
             if (k) {
               const clientName = k.clientName;
               const serverId = k.serverId;
-
-              let expDt = new Date();
+              let expDt = /* @__PURE__ */ new Date();
               try {
                 const parsed = new Date(k.expireDate);
                 if (!isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
                   expDt = parsed;
                 }
-              } catch (e) {}
-
+              } catch (e) {
+              }
               const newExpDt = new Date(
-                expDt.getTime() + customDays * 24 * 60 * 60 * 1000,
+                expDt.getTime() + customDays * 24 * 60 * 60 * 1e3
               );
               const newExpireDateStr = newExpDt.toISOString().split("T")[0];
               const newLimitGb = (Number(k.trafficLimitGb) || 0) + customGb;
-
               const remainingDays = Math.max(
                 1,
                 Math.ceil(
-                  (newExpDt.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
-                ),
+                  (newExpDt.getTime() - Date.now()) / (24 * 60 * 60 * 1e3)
+                )
               );
-
               try {
                 await deleteVpnClientApi(clientName, serverId);
                 const addResult = await addVpnClientApi(
@@ -4376,301 +3589,271 @@ app.post("/api/transactions/approve", async (req, res) => {
                   remainingDays,
                   settings,
                   k.clientUuid,
-                  serverId,
+                  serverId
                 );
-
                 if (addResult.success && addResult.subLink) {
                   k.expireDate = newExpireDateStr;
                   k.trafficLimitGb = newLimitGb;
                   k.subLink = addResult.subLink;
+                  messageTextForNotif = `\u{1F389} <b>\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0634\u062F! (\u062A\u0627\u06CC\u06CC\u062F \u0641\u06CC\u0634)</b>
 
-                  messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n👤 سرویس: <code>${clientName}</code>\n➕ حجم ترافیک افزوده شده: <b>${customGb} گیگابایت</b>\n➕ مدت زمان افزوده شده: <b>${customDays} روز</b>\n\n📅 تاریخ انقضای جدید: <b>${newExpireDateStr}</b>\n📊 حجم کل جدید: <b>${newLimitGb} گیگابایت</b>`;
+\u{1F464} \u0633\u0631\u0648\u06CC\u0633: <code>${clientName}</code>
+\u2795 \u062D\u062C\u0645 \u062A\u0631\u0627\u0641\u06CC\u06A9 \u0627\u0641\u0632\u0648\u062F\u0647 \u0634\u062F\u0647: <b>${customGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A</b>
+\u2795 \u0645\u062F\u062A \u0632\u0645\u0627\u0646 \u0627\u0641\u0632\u0648\u062F\u0647 \u0634\u062F\u0647: <b>${customDays} \u0631\u0648\u0632</b>
 
+\u{1F4C5} \u062A\u0627\u0631\u06CC\u062E \u0627\u0646\u0642\u0636\u0627\u06CC \u062C\u062F\u06CC\u062F: <b>${newExpireDateStr}</b>
+\u{1F4CA} \u062D\u062C\u0645 \u06A9\u0644 \u062C\u062F\u06CC\u062F: <b>${newLimitGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A</b>`;
                   tx._generatedSubId = k.id;
                   tx._generatedSubLink = addResult.subLink;
-
                   if (!db.logs) db.logs = [];
                   db.logs.push({
                     id: Math.random().toString(36).substring(2, 9),
-                    date: new Date().toISOString(),
+                    date: (/* @__PURE__ */ new Date()).toISOString(),
                     userId: Number(tx.userId),
                     username: tx.username || `user_${tx.userId}`,
-                    action: "تمدید اشتراک",
-                    details: `اشتراک ${clientName} تمدید شد (فیش تایید شد).`,
+                    action: "\u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9",
+                    details: `\u0627\u0634\u062A\u0631\u0627\u06A9 ${clientName} \u062A\u0645\u062F\u06CC\u062F \u0634\u062F (\u0641\u06CC\u0634 \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F).`
                   });
                 } else {
                   tx.status = "failed";
-                  messageTextForNotif = `❌ <b>خطا در اعمال تمدید اشتراک!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت تمدید اشتراک رخ داد:\n<code>${addResult.error || "خطای نامشخص"}</code>\n\nلطفاً موضوع را با پشتیبانی هماهنگ فرمایید.`;
+                  messageTextForNotif = `\u274C <b>\u062E\u0637\u0627 \u062F\u0631 \u0627\u0639\u0645\u0627\u0644 \u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9!</b>
+
+\u0645\u062A\u0627\u0633\u0641\u0627\u0646\u0647 \u0645\u0634\u06A9\u0644\u06CC \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0633\u0631\u0648\u0631 \u062C\u0647\u062A \u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9 \u0631\u062E \u062F\u0627\u062F:
+<code>${addResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635"}</code>
+
+\u0644\u0637\u0641\u0627\u064B \u0645\u0648\u0636\u0648\u0639 \u0631\u0627 \u0628\u0627 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0647\u0645\u0627\u0647\u0646\u06AF \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`;
                 }
-              } catch (apiErr: any) {
+              } catch (apiErr) {
                 tx.status = "failed";
-                messageTextForNotif = `❌ خطا در اعمال تمدید اشتراک روی سرور: ${apiErr.message}`;
+                messageTextForNotif = `\u274C \u062E\u0637\u0627 \u062F\u0631 \u0627\u0639\u0645\u0627\u0644 \u062A\u0645\u062F\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9 \u0631\u0648\u06CC \u0633\u0631\u0648\u0631: ${apiErr.message}`;
               }
             } else {
-              messageTextForNotif = `❌ خطا: اشتراک مورد نظر جهت تمدید یافت نشد.`;
+              messageTextForNotif = `\u274C \u062E\u0637\u0627: \u0627\u0634\u062A\u0631\u0627\u06A9 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u062C\u0647\u062A \u062A\u0645\u062F\u06CC\u062F \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.`;
             }
           } else {
-            messageTextForNotif = `❌ خطا: پلان مورد نظر یافت نشد. با پشتیبانی هماهنگ کنید.`;
+            messageTextForNotif = `\u274C \u062E\u0637\u0627: \u067E\u0644\u0627\u0646 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F. \u0628\u0627 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0647\u0645\u0627\u0647\u0646\u06AF \u06A9\u0646\u06CC\u062F.`;
           }
         }
       } else {
         if (user) {
           user.walletBalance = Number(user.walletBalance) + Number(tx.amount);
         }
-        messageTextForNotif = `✅ <b>تراکنش شما تایید شد!</b>\n\n💰 مبلغ <b>${tx.amount.toLocaleString()} تومان</b> به کیف پول شما در ربات افزوده شد.\n\n💰 موجودی جدید: <b>${user ? user.walletBalance.toLocaleString() : "0"} تومان</b>`;
-      }
+        messageTextForNotif = `\u2705 <b>\u062A\u0631\u0627\u06A9\u0646\u0634 \u0634\u0645\u0627 \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F!</b>
 
+\u{1F4B0} \u0645\u0628\u0644\u063A <b>${tx.amount.toLocaleString()} \u062A\u0648\u0645\u0627\u0646</b> \u0628\u0647 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u0634\u0645\u0627 \u062F\u0631 \u0631\u0628\u0627\u062A \u0627\u0641\u0632\u0648\u062F\u0647 \u0634\u062F.
+
+\u{1F4B0} \u0645\u0648\u062C\u0648\u062F\u06CC \u062C\u062F\u06CC\u062F: <b>${user ? user.walletBalance.toLocaleString() : "0"} \u062A\u0648\u0645\u0627\u0646</b>`;
+      }
       if (tx.type !== "PLAN_PURCHASE") {
         db.logs.push({
           id: Math.random().toString(36).substring(2, 9),
-          date: new Date().toISOString(),
+          date: (/* @__PURE__ */ new Date()).toISOString(),
           userId: Number(tx.userId),
           username: tx.username || `user_${tx.userId}`,
-          action: "تایید شارژ",
-          details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر تایید شد و به کیف پول کاربر افزایش یافت.`,
+          action: "\u062A\u0627\u06CC\u06CC\u062F \u0634\u0627\u0631\u0698",
+          details: `\u0631\u0633\u06CC\u062F \u062A\u0631\u0627\u06A9\u0646\u0634 \u0628\u0647 \u0634\u0646\u0627\u0633\u0647 ${tx.id} \u0648 \u0645\u0628\u0644\u063A ${Number(tx.amount).toLocaleString()} \u062A\u0648\u0645\u0627\u0646 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631 \u062A\u0627\u06CC\u06CC\u062F \u0634\u062F \u0648 \u0628\u0647 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u06A9\u0627\u0631\u0628\u0631 \u0627\u0641\u0632\u0627\u06CC\u0634 \u06CC\u0627\u0641\u062A.`
         });
       }
-
-      if (db.logs.length > 1000) {
-        db.logs = db.logs.slice(-1000);
+      if (db.logs.length > 1e3) {
+        db.logs = db.logs.slice(-1e3);
       }
-
       writeSqliteDb(db);
-
-      // Try to notify the user via Telegram Bot API on success
       try {
         const cfg = getSystemSettings(db);
         let botToken = cfg.botToken || cfg.BOT_TOKEN;
         if (botToken) botToken = botToken.trim();
         if (botToken && botToken !== "DUMMY_TOKEN") {
           const https = require("https");
-
-            const messageText = messageTextForNotif;
-            const postDataObj: any = {
-              chat_id: tx.userId,
-              parse_mode: "HTML",
-            };
-
-            if (
-              tx.type === "PLAN_PURCHASE" &&
-              tx._generatedSubLink &&
-              tx._generatedSubId
-            ) {
-              if (!db.link_tokens) db.link_tokens = {};
-              let token = "";
-              // Try finding existing token
-              for (const [k, v] of Object.entries(db.link_tokens)) {
-                if (v === tx._generatedSubLink) {
-                  token = k;
-                  break;
-                }
+          const messageText = messageTextForNotif;
+          const postDataObj = {
+            chat_id: tx.userId,
+            parse_mode: "HTML"
+          };
+          if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink && tx._generatedSubId) {
+            if (!db.link_tokens) db.link_tokens = {};
+            let token = "";
+            for (const [k, v] of Object.entries(db.link_tokens)) {
+              if (v === tx._generatedSubLink) {
+                token = k;
+                break;
               }
-              if (!token) {
-                token = Math.random().toString(36).substring(2, 10);
-                db.link_tokens[token] = tx._generatedSubLink;
-                writeSqliteDb(db);
-              }
-
-              postDataObj.reply_markup = {
-                inline_keyboard: [
-                  [
-                    {
-                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)",
-                      callback_data: `showlink_${token}`,
-                    },
-                  ],
-                  [
-                    {
-                      text: "🔗 لینک‌های کانفیگ",
-                      callback_data: `mysub_vless_${tx._generatedSubId}`,
-                    },
-                  ],
-                  [{ text: "💡 آموزش ها", callback_data: "mm_btnGuides" }],
-                  [
-                    {
-                      text: "🏠 بازگشت به منوی اصلی",
-                      callback_data: "btn_back_home",
-                    },
-                  ],
+            }
+            if (!token) {
+              token = Math.random().toString(36).substring(2, 10);
+              db.link_tokens[token] = tx._generatedSubLink;
+              writeSqliteDb(db);
+            }
+            postDataObj.reply_markup = {
+              inline_keyboard: [
+                [
+                  {
+                    text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646(\u0647\u0645\u0647 \u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0647\u0627)",
+                    callback_data: `showlink_${token}`
+                  }
                 ],
-              };
-            }
-
-            postDataObj.text = messageText;
-
-            const endpointPath = `/bot${botToken}/sendMessage`;
-
-            const options = {
-              hostname: "api.telegram.org",
-              port: 443,
-              path: endpointPath,
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
+                [
+                  {
+                    text: "\u{1F517} \u0644\u06CC\u0646\u06A9\u200C\u0647\u0627\u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF",
+                    callback_data: `mysub_vless_${tx._generatedSubId}`
+                  }
+                ],
+                [{ text: "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627", callback_data: "mm_btnGuides" }],
+                [
+                  {
+                    text: "\u{1F3E0} \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC",
+                    callback_data: "btn_back_home"
+                  }
+                ]
+              ]
             };
-            const postData = JSON.stringify(postDataObj);
-            
-            const reqNotify = https.request(options);
-            reqNotify.on("error", (e: any) =>
-              console.warn("Telegram approve notify error:", e),
-            );
-            reqNotify.write(postData);
-            reqNotify.end();
-
-            // Also attach purchase success note if delivering exactly a newly built purchase config
-            if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
-              setTimeout(() => {
-                sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
-              }, 1000);
-            }
           }
+          postDataObj.text = messageText;
+          const endpointPath = `/bot${botToken}/sendMessage`;
+          const options = {
+            hostname: "api.telegram.org",
+            port: 443,
+            path: endpointPath,
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          };
+          const postData = JSON.stringify(postDataObj);
+          const reqNotify = https.request(options);
+          reqNotify.on(
+            "error",
+            (e) => console.warn("Telegram approve notify error:", e)
+          );
+          reqNotify.write(postData);
+          reqNotify.end();
+          if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
+            setTimeout(() => {
+              sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
+            }, 1e3);
+          }
+        }
       } catch (notifyErr) {
         console.warn("Error notifying user of approval:", notifyErr);
       }
-
       res.json({
         success: true,
-        message: "Transaction approved and credited user wallet.",
+        message: "Transaction approved and credited user wallet."
       });
     } else {
-      res
-        .status(404)
-        .json({ success: false, message: "Transaction not found." });
+      res.status(404).json({ success: false, message: "Transaction not found." });
     }
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/transactions/reject", async (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
-
     const tx = db.transactions.find((t) => t.id === id);
     if (tx) {
       tx.status = "rejected";
-
       if (!db.logs) db.logs = [];
       db.logs.push({
         id: Math.random().toString(36).substring(2, 9),
-        date: new Date().toISOString(),
+        date: (/* @__PURE__ */ new Date()).toISOString(),
         userId: Number(tx.userId),
         username: tx.username || `user_${tx.userId}`,
-        action: "رد شارژ",
-        details: `رسید تراکنش به شناسه ${tx.id} و مبلغ ${Number(tx.amount).toLocaleString()} تومان توسط مدیر رد شد.`,
+        action: "\u0631\u062F \u0634\u0627\u0631\u0698",
+        details: `\u0631\u0633\u06CC\u062F \u062A\u0631\u0627\u06A9\u0646\u0634 \u0628\u0647 \u0634\u0646\u0627\u0633\u0647 ${tx.id} \u0648 \u0645\u0628\u0644\u063A ${Number(tx.amount).toLocaleString()} \u062A\u0648\u0645\u0627\u0646 \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631 \u0631\u062F \u0634\u062F.`
       });
-      if (db.logs.length > 1000) {
-        db.logs = db.logs.slice(-1000);
+      if (db.logs.length > 1e3) {
+        db.logs = db.logs.slice(-1e3);
       }
-
       writeSqliteDb(db);
-
-      // Try to notify the user via Telegram Bot API on reject
       try {
         const cfg = getSystemSettings(db);
         let botToken = cfg.botToken || cfg.BOT_TOKEN;
         if (botToken) botToken = botToken.trim();
         if (botToken && botToken !== "DUMMY_TOKEN") {
-          const messageText = `❌ <b>تراکنش شما پذیرفته نشد!</b>\n\nفیش ارسالی شما با شناسه <code>${tx.id}</code> توسط مدیریت بررسی و رد گردید.\n\n⚠️ علت رد تراکنش ممکن است ناخوانا بودن رسید، مغایرت مبلغ و یا تکراری بودن فیش باشد. لطفا در صورت بروز مشکل با پشتیبان ارتباط برقرار کنید.`;
-            const https = require("https");
-            const postData = JSON.stringify({
-              chat_id: tx.userId,
-              text: messageText,
-              parse_mode: "HTML",
-            });
-            const options = {
-              hostname: "api.telegram.org",
-              port: 443,
-              path: `/bot${botToken}/sendMessage`,
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(postData),
-              },
-            };
-            const reqNotify = https.request(options);
-            reqNotify.on("error", (e: any) =>
-              console.warn("Telegram reject notify error:", e),
-            );
-            reqNotify.write(postData);
-            reqNotify.end();
-          }
+          const messageText = `\u274C <b>\u062A\u0631\u0627\u06A9\u0646\u0634 \u0634\u0645\u0627 \u067E\u0630\u06CC\u0631\u0641\u062A\u0647 \u0646\u0634\u062F!</b>
+
+\u0641\u06CC\u0634 \u0627\u0631\u0633\u0627\u0644\u06CC \u0634\u0645\u0627 \u0628\u0627 \u0634\u0646\u0627\u0633\u0647 <code>${tx.id}</code> \u062A\u0648\u0633\u0637 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0628\u0631\u0631\u0633\u06CC \u0648 \u0631\u062F \u06AF\u0631\u062F\u06CC\u062F.
+
+\u26A0\uFE0F \u0639\u0644\u062A \u0631\u062F \u062A\u0631\u0627\u06A9\u0646\u0634 \u0645\u0645\u06A9\u0646 \u0627\u0633\u062A \u0646\u0627\u062E\u0648\u0627\u0646\u0627 \u0628\u0648\u062F\u0646 \u0631\u0633\u06CC\u062F\u060C \u0645\u063A\u0627\u06CC\u0631\u062A \u0645\u0628\u0644\u063A \u0648 \u06CC\u0627 \u062A\u06A9\u0631\u0627\u0631\u06CC \u0628\u0648\u062F\u0646 \u0641\u06CC\u0634 \u0628\u0627\u0634\u062F. \u0644\u0637\u0641\u0627 \u062F\u0631 \u0635\u0648\u0631\u062A \u0628\u0631\u0648\u0632 \u0645\u0634\u06A9\u0644 \u0628\u0627 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646 \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0631\u0642\u0631\u0627\u0631 \u06A9\u0646\u06CC\u062F.`;
+          const https = require("https");
+          const postData = JSON.stringify({
+            chat_id: tx.userId,
+            text: messageText,
+            parse_mode: "HTML"
+          });
+          const options = {
+            hostname: "api.telegram.org",
+            port: 443,
+            path: `/bot${botToken}/sendMessage`,
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(postData)
+            }
+          };
+          const reqNotify = https.request(options);
+          reqNotify.on(
+            "error",
+            (e) => console.warn("Telegram reject notify error:", e)
+          );
+          reqNotify.write(postData);
+          reqNotify.end();
+        }
       } catch (notifyErr) {
         console.warn("Error notifying user of rejection:", notifyErr);
       }
     }
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/transactions/delete", async (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
-
     db.transactions = db.transactions.filter((t) => t.id !== id);
     writeSqliteDb(db);
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/transactions/clear-history", async (req, res) => {
   try {
     const db = readSqliteDb();
     db.transactions = [];
     writeSqliteDb(db);
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// Auto-create subscription key on 3x-ui panel directly
 app.post("/api/subscription-keys/auto-create", async (req, res) => {
   try {
-    const { userId, clientName, trafficLimitGb, expiryDays, planName } =
-      req.body;
+    const { userId, clientName, trafficLimitGb, expiryDays, planName } = req.body;
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-
     if (!settings.panelConnectionActive) {
       return res.status(400).json({
         success: false,
-        error: "اتصال به پنل ۳x-ui در تنظیمات غیرفعال است.",
+        error: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u062F\u0631 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0627\u0633\u062A."
       });
     }
-
     const durationDays = Number(expiryDays) || 30;
-    const cleanClientName = (
-      clientName || "user_" + Math.random().toString(36).substring(2, 7)
-    )
-      .trim()
-      .replace(/\s+/g, "");
-
+    const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
     const vpnResult = await addVpnClientApi(
       cleanClientName,
       Number(trafficLimitGb),
       durationDays,
-      settings,
+      settings
     );
-
     if (vpnResult.success && vpnResult.subLink) {
-      const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+      const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
       const expireDate = new Date(
-        Date.now() + Number(expiryDays) * 24 * 60 * 60 * 1000,
-      )
-        .toISOString()
-        .split("T")[0];
-
+        Date.now() + Number(expiryDays) * 24 * 60 * 60 * 1e3
+      ).toISOString().split("T")[0];
       const newSub = {
         id: randomId,
         userId: Number(userId),
@@ -4679,43 +3862,36 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
         clientName: cleanClientName,
         clientUuid: vpnResult.clientUuid || "",
         subLink: vpnResult.subLink,
-        expireDate: expireDate,
+        expireDate,
         trafficLimitGb: Number(trafficLimitGb),
         trafficUsedGb: 0,
         createdAtMs: Date.now(),
-        status: "active" as const,
+        status: "active"
       };
-
       db.subscription_keys.push(newSub);
-
       const user = db.users.find((u) => u.userId === Number(userId));
       if (user) {
         user.activePlansCount = db.subscription_keys.filter(
-          (k) => k.userId === Number(userId) && k.status === "active",
+          (k) => k.userId === Number(userId) && k.status === "active"
         ).length;
       }
-
       writeSqliteDb(db);
       return res.json({
         success: true,
         subKey: newSub,
         subscriptionKeys: db.subscription_keys,
-        users: db.users,
+        users: db.users
       });
     } else {
       return res.status(400).json({
         success: false,
-        error:
-          "خطا در برقراری ارتباط با ۳x-ui: " +
-          (vpnResult.error || "خطای نامشخص"),
+        error: "\u062E\u0637\u0627 \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u06F3x-ui: " + (vpnResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635")
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 5. Subscription Keys operations
 app.post("/api/subscription-keys", async (req, res) => {
   try {
     const {
@@ -4728,10 +3904,9 @@ app.post("/api/subscription-keys", async (req, res) => {
       expireDate,
       trafficLimitGb,
       trafficUsedGb,
-      status,
+      status
     } = req.body;
     const db = readSqliteDb();
-
     const nextSub = {
       id,
       userId: Number(userId),
@@ -4742,115 +3917,85 @@ app.post("/api/subscription-keys", async (req, res) => {
       expireDate,
       trafficLimitGb: Number(trafficLimitGb),
       trafficUsedGb: Number(trafficUsedGb || 0),
-      status: status || "active",
+      status: status || "active"
     };
-
     const idx = db.subscription_keys.findIndex((s) => s.id === id);
     if (idx >= 0) {
       db.subscription_keys[idx] = nextSub;
     } else {
       db.subscription_keys.push(nextSub);
     }
-
-    // Recalculate user subscription count
     const user = db.users.find((u) => u.userId === Number(userId));
     if (user) {
       user.activePlansCount = db.subscription_keys.filter(
-        (k) => k.userId === Number(userId) && k.status === "active",
+        (k) => k.userId === Number(userId) && k.status === "active"
       ).length;
     }
-
     writeSqliteDb(db);
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/subscription-keys/delete", async (req, res) => {
   try {
     const { id, userId } = req.body;
     const db = readSqliteDb();
-
-    const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
+    const keyToDelete = db.subscription_keys.find((k) => k.id === id);
     if (keyToDelete) {
       if (keyToDelete.clientName) {
-        // Attempt to delete from X-UI Panel using our helper
         const delRes = await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
         if (!delRes.success) {
           console.warn("Could not delete from panel, deleting locally anyway. Error:", delRes.error);
         }
       }
-
-      // If this key belongs to a colleague account and has been used
-      if (
-        keyToDelete.colleagueAccountId &&
-        Number(keyToDelete.trafficUsedGb || 0) >= 0.001
-      ) {
+      if (keyToDelete.colleagueAccountId && Number(keyToDelete.trafficUsedGb || 0) >= 1e-3) {
         const colAcc = db.colleague_accounts?.find(
-          (a: any) => a.id === keyToDelete.colleagueAccountId,
+          (a) => a.id === keyToDelete.colleagueAccountId
         );
         if (colAcc) {
-          colAcc.deletedTrafficGb =
-            (colAcc.deletedTrafficGb || 0) +
-            Number(keyToDelete.trafficLimitGb || 0);
-          colAcc.deletedRealTrafficGb =
-            (colAcc.deletedRealTrafficGb || 0) +
-            Number(keyToDelete.trafficUsedGb || 0);
+          colAcc.deletedTrafficGb = (colAcc.deletedTrafficGb || 0) + Number(keyToDelete.trafficLimitGb || 0);
+          colAcc.deletedRealTrafficGb = (colAcc.deletedRealTrafficGb || 0) + Number(keyToDelete.trafficUsedGb || 0);
         }
       }
     }
-
     db.subscription_keys = db.subscription_keys.filter((k) => k.id !== id);
-
     const user = db.users.find((u) => u.userId === Number(userId));
     if (user) {
       user.activePlansCount = db.subscription_keys.filter(
-        (k) => k.userId === Number(userId) && k.status === "active",
+        (k) => k.userId === Number(userId) && k.status === "active"
       ).length;
     }
-
     writeSqliteDb(db);
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/subscription-keys/renew", async (req, res) => {
   try {
     const { id, addGb, addDays } = req.body;
     const db = readSqliteDb();
-
-    const key = db.subscription_keys?.find((k: any) => k.id === id);
+    const key = db.subscription_keys?.find((k) => k.id === id);
     if (!key) {
       return res.status(404).json({ success: false, error: "Subscription key not found" });
     }
-
     const settings = getSystemSettings(db);
     const clientName = key.clientName || key.planName || "";
-
-    // Calculate new expiration date
-    let expDt: Date;
+    let expDt;
     try {
       expDt = new Date(key.expireDate);
-      if (isNaN(expDt.getTime()) || expDt < new Date()) {
-        expDt = new Date();
+      if (isNaN(expDt.getTime()) || expDt < /* @__PURE__ */ new Date()) {
+        expDt = /* @__PURE__ */ new Date();
       }
     } catch {
-      expDt = new Date();
+      expDt = /* @__PURE__ */ new Date();
     }
-
     expDt.setDate(expDt.getDate() + Number(addDays));
     const new_expire_date_str = expDt.toISOString().split("T")[0];
     const new_limit_gb = Number(key.trafficLimitGb || 0) + Number(addGb);
-
-    const new_exp_days = Math.max(1, Math.ceil((expDt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-
-    // 1. Delete old client on panel
+    const new_exp_days = Math.max(1, Math.ceil((expDt.getTime() - Date.now()) / (1e3 * 60 * 60 * 24)));
     await deleteVpnClientApi(clientName, key.serverId);
-
-    // 2. Add new client on panel with bypassDuplicateCheck = true
     const addResult = await addVpnClientApi(
       clientName,
       new_limit_gb,
@@ -4860,46 +4005,35 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       key.serverId,
       true
     );
-
     if (!addResult.success) {
       return res.status(500).json({ success: false, error: addResult.error || "Failed to renew on X-UI panel" });
     }
-
-    // 3. Update locally
     key.expireDate = new_expire_date_str;
     key.trafficLimitGb = new_limit_gb;
     if (addResult.subLink) {
       key.subLink = addResult.subLink;
     }
     key.status = "active";
-
-    // Re-enable in users if count updated
-    const user = db.users?.find((u: any) => u.userId === Number(key.userId));
+    const user = db.users?.find((u) => u.userId === Number(key.userId));
     if (user) {
       user.activePlansCount = db.subscription_keys.filter(
-        (k: any) => k.userId === Number(key.userId) && k.status === "active",
+        (k) => k.userId === Number(key.userId) && k.status === "active"
       ).length;
     }
-
     writeSqliteDb(db);
-
     res.json({ success: true, key });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/subscription-keys/toggle", async (req, res) => {
   try {
     const { id, status } = req.body;
     const db = readSqliteDb();
-
-    const keyToToggle = db.subscription_keys.find((k: any) => k.id === id);
+    const keyToToggle = db.subscription_keys.find((k) => k.id === id);
     if (!keyToToggle)
       return res.status(404).json({ success: false, error: "Key not found" });
-
     const newStatus = status === "active" ? "active" : "suspended";
-
     if (keyToToggle.clientName) {
       const vpnResult = await toggleVpnClientApi(
         keyToToggle.clientName,
@@ -4909,34 +4043,27 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
       if (!vpnResult.success) {
         console.warn(
           "[XUI Toggle] Failed to sync status with panel:",
-          vpnResult.error,
+          vpnResult.error
         );
       }
     }
-
     keyToToggle.status = newStatus;
-
-    // Update user active plans count
     const user = db.users.find((u) => u.userId === keyToToggle.userId);
     if (user) {
       user.activePlansCount = db.subscription_keys.filter(
-        (k) => k.userId === user.userId && k.status === "active",
+        (k) => k.userId === user.userId && k.status === "active"
       ).length;
     }
-
     writeSqliteDb(db);
     res.json({ success: true, status: newStatus });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 6. Custom menu buttons
 app.post("/api/custom-buttons", async (req, res) => {
   try {
     const { id, text, replyText } = req.body;
     const db = readSqliteDb();
-
     const nextBtn = { id, text, replyText };
     const idx = db.custom_buttons.findIndex((b) => b.id === id);
     if (idx >= 0) {
@@ -4944,74 +4071,61 @@ app.post("/api/custom-buttons", async (req, res) => {
     } else {
       db.custom_buttons.push(nextBtn);
     }
-
     writeSqliteDb(db);
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/custom-buttons/delete", async (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
-
     db.custom_buttons = db.custom_buttons.filter((b) => b.id !== id);
     writeSqliteDb(db);
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 7. Inbounds status mapping
 app.post("/api/inbounds/toggle", async (req, res) => {
   try {
     const { id, status } = req.body;
     const db = readSqliteDb();
-
     const ib = db.inbounds.find((i) => i.id === Number(id));
     if (ib) {
       ib.status = status;
       writeSqliteDb(db);
     }
-
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.get("/api/vpn-plans", (req, res) => {
   try {
     const db = readSqliteDb();
     res.json({ success: true, vpnPlans: db.vpn_plans || [] });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// --- Plan Categories API ---
 app.get("/api/plan-categories", (req, res) => {
   try {
     const db = readSqliteDb();
     res.json({ success: true, categories: db.plan_categories || [] });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/plan-categories", (req, res) => {
   try {
     const category = req.body;
     const db = readSqliteDb();
     if (!db.plan_categories) db.plan_categories = [];
-
     if (category.id) {
       const idx = db.plan_categories.findIndex(
-        (c: any) => c.id === category.id,
+        (c) => c.id === category.id
       );
       if (idx !== -1) {
         db.plan_categories[idx] = { ...db.plan_categories[idx], ...category };
@@ -5020,28 +4134,25 @@ app.post("/api/plan-categories", (req, res) => {
       category.id = Math.random().toString(36).substring(2, 9);
       db.plan_categories.push(category);
     }
-
     writeSqliteDb(db);
     res.json({ success: true, category });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/plan-categories/delete", (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
     if (db.plan_categories) {
-      db.plan_categories = db.plan_categories.filter((c: any) => c.id !== id);
+      db.plan_categories = db.plan_categories.filter((c) => c.id !== id);
       writeSqliteDb(db);
     }
     res.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/plan-categories/reorder", async (req, res) => {
   try {
     const { orderedIds } = req.body;
@@ -5050,10 +4161,9 @@ app.post("/api/plan-categories/reorder", async (req, res) => {
     }
     const db = readSqliteDb();
     if (!db.plan_categories) db.plan_categories = [];
-
-    const catsMap = new Map(db.plan_categories.map((c: any) => [c.id, c]));
-    const sortedCats: any[] = [];
-    orderedIds.forEach((id: string) => {
+    const catsMap = new Map(db.plan_categories.map((c) => [c.id, c]));
+    const sortedCats = [];
+    orderedIds.forEach((id) => {
       const cat = catsMap.get(id);
       if (cat) {
         sortedCats.push(cat);
@@ -5063,23 +4173,18 @@ app.post("/api/plan-categories/reorder", async (req, res) => {
     catsMap.forEach((cat) => {
       sortedCats.push(cat);
     });
-
     db.plan_categories = sortedCats;
     writeSqliteDb(db);
     res.json({ success: true, categories: db.plan_categories });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// Dynamic VPN Plans Management & Purchase logic
 app.post("/api/vpn-plans", async (req, res) => {
   try {
-    const { id, name, durationDays, trafficGb, price, category, configStock } =
-      req.body;
+    const { id, name, durationDays, trafficGb, price, category, configStock } = req.body;
     const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
-
     const nextPlan = {
       id,
       name,
@@ -5087,37 +4192,32 @@ app.post("/api/vpn-plans", async (req, res) => {
       trafficGb: Number(trafficGb),
       price: Number(price),
       category,
-      configStock: Array.isArray(configStock) ? configStock : [],
+      configStock: Array.isArray(configStock) ? configStock : []
     };
-
     const idx = db.vpn_plans.findIndex((p) => p.id === id);
     if (idx >= 0) {
       db.vpn_plans[idx] = nextPlan;
     } else {
       db.vpn_plans.push(nextPlan);
     }
-
     writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/vpn-plans/delete", async (req, res) => {
   try {
     const { id } = req.body;
     const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
-
     db.vpn_plans = db.vpn_plans.filter((p) => p.id !== id);
     writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/vpn-plans/reorder", async (req, res) => {
   try {
     const { orderedIds } = req.body;
@@ -5126,10 +4226,9 @@ app.post("/api/vpn-plans/reorder", async (req, res) => {
     }
     const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
-
-    const plansMap = new Map(db.vpn_plans.map((p: any) => [p.id, p]));
-    const sortedPlans: any[] = [];
-    orderedIds.forEach((id: string) => {
+    const plansMap = new Map(db.vpn_plans.map((p) => [p.id, p]));
+    const sortedPlans = [];
+    orderedIds.forEach((id) => {
       const plan = plansMap.get(id);
       if (plan) {
         sortedPlans.push(plan);
@@ -5139,71 +4238,50 @@ app.post("/api/vpn-plans/reorder", async (req, res) => {
     plansMap.forEach((plan) => {
       sortedPlans.push(plan);
     });
-
     db.vpn_plans = sortedPlans;
     writeSqliteDb(db);
     res.json({ success: true, vpnPlans: db.vpn_plans });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 app.post("/api/vpn-plans/buy", async (req, res) => {
   try {
     const { planId, userId, clientName } = req.body;
     const db = readSqliteDb();
     if (!db.vpn_plans) db.vpn_plans = [];
-
     const planIdx = db.vpn_plans.findIndex((p) => p.id === planId);
     if (planIdx === -1) {
-      return res
-        .status(404)
-        .json({ success: false, error: "پلن مورد نظر یافت نشد." });
+      return res.status(404).json({ success: false, error: "\u067E\u0644\u0646 \u0645\u0648\u0631\u062F \u0646\u0638\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
     }
     const plan = db.vpn_plans[planIdx];
-
     const userIdx = db.users.findIndex((u) => u.userId === Number(userId));
     if (userIdx === -1) {
-      return res.status(404).json({ success: false, error: "کاربر یافت نشد." });
+      return res.status(404).json({ success: false, error: "\u06A9\u0627\u0631\u0628\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
     }
     const user = db.users[userIdx];
-
     const settings = getSystemSettings(db);
-
     const ownerId = Number(settings.ownerId || 6536288293);
     const admins = Array.isArray(settings.admins) ? settings.admins : [];
-    const isAdminOrOwner =
-      Number(userId) === ownerId ||
-      admins.some((adm: any) => Number(adm.userId) === Number(userId)) ||
-      user.username === "daltoon_owner";
-
+    const isAdminOrOwner = Number(userId) === ownerId || admins.some((adm) => Number(adm.userId) === Number(userId)) || user.username === "daltoon_owner";
     if (!isAdminOrOwner && user.walletBalance < plan.price) {
-      return res
-        .status(400)
-        .json({ success: false, error: "موجودی کیف پول شما کافی نیست." });
+      return res.status(400).json({ success: false, error: "\u0645\u0648\u062C\u0648\u062F\u06CC \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u0634\u0645\u0627 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A." });
     }
-
-    const cleanClientName = (
-      clientName || "user_" + Math.random().toString(36).substring(2, 7)
-    )
-      .trim()
-      .replace(/\s+/g, "");
-
-    const isMockSimulator =
-      req.body.isSimulator === true || req.body.isSimulator === "true";
+    const cleanClientName = (clientName || "user_" + Math.random().toString(36).substring(2, 7)).trim().replace(/\s+/g, "");
+    const isMockSimulator = req.body.isSimulator === true || req.body.isSimulator === "true";
     let subLink = "";
     let clientUuid = "";
     if (isMockSimulator) {
       subLink = `vless://${cleanClientName}_test_id@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_${cleanClientName}_Test`;
     } else if (settings.panelConnectionActive) {
       console.log(
-        `[Buy API] Connection active, creating user '${cleanClientName}' on panel...`,
+        `[Buy API] Connection active, creating user '${cleanClientName}' on panel...`
       );
       const apiResult = await addVpnClientApi(
         cleanClientName,
         plan.trafficGb,
         plan.durationDays,
-        settings,
+        settings
       );
       if (apiResult.success && apiResult.subLink) {
         subLink = apiResult.subLink;
@@ -5211,157 +4289,117 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       } else {
         return res.status(400).json({
           success: false,
-          error:
-            "ساخت کلاینت در پنل ۳x-ui با خطا مواجه شد: " +
-            (apiResult.error || "خطای نامشخص"),
+          error: "\u0633\u0627\u062E\u062A \u06A9\u0644\u0627\u06CC\u0646\u062A \u062F\u0631 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F: " + (apiResult.error || "\u062E\u0637\u0627\u06CC \u0646\u0627\u0645\u0634\u062E\u0635")
         });
       }
     } else {
       if (!plan.configStock || plan.configStock.length === 0) {
         return res.status(400).json({
           success: false,
-          error:
-            "این پلن در حال حاضر فاقد کانفیگ در انبار است. ابتدا انبار آن را در بخش مدیریت سرور شارژ کنید.",
+          error: "\u0627\u06CC\u0646 \u067E\u0644\u0646 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0641\u0627\u0642\u062F \u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0631 \u0627\u0646\u0628\u0627\u0631 \u0627\u0633\u062A. \u0627\u0628\u062A\u062F\u0627 \u0627\u0646\u0628\u0627\u0631 \u0622\u0646 \u0631\u0627 \u062F\u0631 \u0628\u062E\u0634 \u0645\u062F\u06CC\u0631\u06CC\u062A \u0633\u0631\u0648\u0631 \u0634\u0627\u0631\u0698 \u06A9\u0646\u06CC\u062F."
         });
       }
       subLink = plan.configStock.shift() || "";
     }
-
-    // Create subscription key
-    const randomId = "SUB-" + Math.floor(Math.random() * 9000 + 1000);
+    const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
     const planDays = Number(plan.durationDays) || 30;
-    const expireTimestamp = Date.now() + planDays * 24 * 60 * 60 * 1000;
-    const expireDate = isNaN(expireTimestamp)
-      ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-          .toISOString()
-          .split("T")[0]
-      : new Date(expireTimestamp).toISOString().split("T")[0];
-
+    const expireTimestamp = Date.now() + planDays * 24 * 60 * 60 * 1e3;
+    const expireDate = isNaN(expireTimestamp) ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3).toISOString().split("T")[0] : new Date(expireTimestamp).toISOString().split("T")[0];
     const newSub = {
       id: randomId,
       userId: Number(userId),
       planId: plan.id,
       planName: plan.name,
       clientName: cleanClientName,
-      clientUuid: clientUuid,
-      subLink: subLink,
-      expireDate: expireDate,
+      clientUuid,
+      subLink,
+      expireDate,
       trafficLimitGb: plan.trafficGb,
       trafficUsedGb: 0,
       createdAtMs: Date.now(),
-      status: "active" as const,
+      status: "active"
     };
-
     db.subscription_keys.push(newSub);
-
-    // Deduct wallet balance
     if (!isAdminOrOwner) {
       user.walletBalance -= plan.price;
     }
     user.activePlansCount = db.subscription_keys.filter(
-      (k) => k.userId === Number(userId) && k.status === "active",
+      (k) => k.userId === Number(userId) && k.status === "active"
     ).length;
-
     writeSqliteDb(db);
-
     res.json({
       success: true,
       subKey: newSub,
       userWalletBalance: user.walletBalance,
       vpnPlans: db.vpn_plans,
       subscriptionKeys: db.subscription_keys,
-      users: db.users,
+      users: db.users
     });
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
-// 8. Dashboard login endpoint
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
     const db = readSqliteDb();
-
     const settings = getSystemSettings(db);
-
     const dbUser = settings.dashboardUsername || "Daltoon";
     const dbPass = settings.dashboardPassword || "Daltoon10";
     const dbAdmins = settings.admins || [];
-
-    // Check main super admin credentials
     const isMainAdmin = username === dbUser && password === dbPass;
-
-    // Check registered sub-admins (who can log in with dashboardPassword as well or predefined passwords)
     const matchedSubAdmin = dbAdmins.find(
-      (adm: any) => adm.username === username,
+      (adm) => adm.username === username
     );
-    const isSubAdmin =
-      matchedSubAdmin && (password === dbPass || password === "admin123");
-
+    const isSubAdmin = matchedSubAdmin && (password === dbPass || password === "admin123");
     if (isMainAdmin || isSubAdmin) {
-      const userRole = isMainAdmin
-        ? "super_admin"
-        : matchedSubAdmin?.role || "admin";
+      const userRole = isMainAdmin ? "super_admin" : matchedSubAdmin?.role || "admin";
       res.json({
         success: true,
         token: "daltoon_auth_token_secret",
         user: {
           username,
-          role: userRole,
-        },
+          role: userRole
+        }
       });
     } else {
       res.status(401).json({
         success: false,
-        message: "نام کاربری یا رمز عبور اشتباه است.",
+        message: "\u0646\u0627\u0645 \u06A9\u0627\u0631\u0628\u0631\u06CC \u06CC\u0627 \u0631\u0645\u0632 \u0639\u0628\u0648\u0631 \u0627\u0634\u062A\u0628\u0627\u0647 \u0627\u0633\u062A."
       });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
-// X. Backup Management endpoints
 app.get("/api/backup-download", (req, res) => {
   try {
     const db = readSqliteDb();
-
-    // Compress and optimize binary-like image strings inside the database to keep backups tiny
     if (db.transactions && Array.isArray(db.transactions)) {
-      db.transactions = db.transactions.map((t: any) => {
-        if (
-          t.receiptImage &&
-          t.receiptImage.length > 500 &&
-          t.receiptImage.startsWith("data:")
-        ) {
+      db.transactions = db.transactions.map((t) => {
+        if (t.receiptImage && t.receiptImage.length > 500 && t.receiptImage.startsWith("data:")) {
           return { ...t, receiptImage: "placeholder_cleared" };
         }
         return t;
       });
     }
-
     res.setHeader(
       "Content-Disposition",
-      "attachment; filename=Daltoon_Bot.json",
+      "attachment; filename=Daltoon_Bot.json"
     );
     res.setHeader("Content-Type", "application/json");
     res.send(JSON.stringify(db, null, 2));
-  } catch (error: any) {
+  } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
-
-app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
+app.post("/api/backup-restore", import_express.default.json({ limit: "50mb" }), (req, res) => {
   try {
     const { backupData } = req.body;
     if (!backupData) {
-      return res
-        .status(400)
-        .json({ success: false, error: "فایل بکاپ ارسال نشد." });
+      return res.status(400).json({ success: false, error: "\u0641\u0627\u06CC\u0644 \u0628\u06A9\u0627\u067E \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F." });
     }
-
-    let parsed: any;
+    let parsed;
     try {
       if (typeof backupData === "string") {
         parsed = JSON.parse(backupData);
@@ -5371,32 +4409,24 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
     } catch (e) {
       return res.status(400).json({
         success: false,
-        error: "فرمت فایل بکاپ معتبر نیست (باید SQLite/JSON معتبر باشد).",
+        error: "\u0641\u0631\u0645\u062A \u0641\u0627\u06CC\u0644 \u0628\u06A9\u0627\u067E \u0645\u0639\u062A\u0628\u0631 \u0646\u06CC\u0633\u062A (\u0628\u0627\u06CC\u062F SQLite/JSON \u0645\u0639\u062A\u0628\u0631 \u0628\u0627\u0634\u062F)."
       });
     }
-
     if (typeof parsed !== "object" || parsed === null) {
-      return res
-        .status(400)
-        .json({ success: false, error: "اطلاعات فایل بکاپ نامعتبر است." });
+      return res.status(400).json({ success: false, error: "\u0627\u0637\u0644\u0627\u0639\u0627\u062A \u0641\u0627\u06CC\u0644 \u0628\u06A9\u0627\u067E \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
     }
-
-    // Preserve current active critical settings if they are customized
-    let preservedConfig: any = {};
+    let preservedConfig = {};
     try {
       const currentDb = readSqliteDb();
       if (currentDb && currentDb.settings && currentDb.settings.panel_config) {
-        const pc =
-          typeof currentDb.settings.panel_config === "string"
-            ? JSON.parse(currentDb.settings.panel_config)
-            : currentDb.settings.panel_config;
+        const pc = typeof currentDb.settings.panel_config === "string" ? JSON.parse(currentDb.settings.panel_config) : currentDb.settings.panel_config;
         if (pc.dashboardUsername && pc.dashboardUsername !== "Daltoon") {
           preservedConfig.dashboardUsername = pc.dashboardUsername;
         }
         if (pc.dashboardPassword && pc.dashboardPassword !== "Daltoon10") {
           preservedConfig.dashboardPassword = pc.dashboardPassword;
         }
-        if (pc.serverPort && Number(pc.serverPort) !== 3000) {
+        if (pc.serverPort && Number(pc.serverPort) !== 3e3) {
           preservedConfig.serverPort = Number(pc.serverPort);
         }
         if (pc.botToken && pc.botToken !== "DUMMY_TOKEN") {
@@ -5406,165 +4436,134 @@ app.post("/api/backup-restore", express.json({ limit: "50mb" }), (req, res) => {
           preservedConfig.ownerId = Number(pc.ownerId);
         }
       }
-    } catch (e) {}
-
-    // Always keep backup data clean and minimal
+    } catch (e) {
+    }
     if (parsed.transactions && Array.isArray(parsed.transactions)) {
-      parsed.transactions = parsed.transactions.map((t: any) => {
-        if (
-          t.receiptImage &&
-          t.receiptImage.length > 500 &&
-          t.receiptImage.startsWith("data:")
-        ) {
+      parsed.transactions = parsed.transactions.map((t) => {
+        if (t.receiptImage && t.receiptImage.length > 500 && t.receiptImage.startsWith("data:")) {
           return { ...t, receiptImage: "placeholder_cleared" };
         }
         return t;
       });
     }
-
-    // Merge preserved active config into restored database settings
     if (Object.keys(preservedConfig).length > 0) {
       if (!parsed.settings) parsed.settings = {};
       if (!parsed.settings.panel_config) parsed.settings.panel_config = "{}";
       try {
-        let pc =
-          typeof parsed.settings.panel_config === "string"
-            ? JSON.parse(parsed.settings.panel_config)
-            : parsed.settings.panel_config;
+        let pc = typeof parsed.settings.panel_config === "string" ? JSON.parse(parsed.settings.panel_config) : parsed.settings.panel_config;
         pc = { ...preservedConfig, ...pc };
         parsed.settings.panel_config = JSON.stringify(pc);
-      } catch (e) {}
+      } catch (e) {
+      }
     }
-
     parsed.isNewInstall = false;
-
-    try { execSync("pm2 stop daltoon-bot"); } catch(e) {}; const writeSuccess = writeSqliteDb(parsed);
-    
+    const writeSuccess = writeSqliteDb(parsed);
     if (!writeSuccess) {
-      return res.status(500).json({ success: false, error: "خطا در ذخیره بکاپ به دلیل مشکلات سیستمی (Safeguard). فایل ممکن است نامعتبر باشد." });
+      return res.status(500).json({ success: false, error: "\u062E\u0637\u0627 \u062F\u0631 \u0630\u062E\u06CC\u0631\u0647 \u0628\u06A9\u0627\u067E \u0628\u0647 \u062F\u0644\u06CC\u0644 \u0645\u0634\u06A9\u0644\u0627\u062A \u0633\u06CC\u0633\u062A\u0645\u06CC (Safeguard). \u0641\u0627\u06CC\u0644 \u0645\u0645\u06A9\u0646 \u0627\u0633\u062A \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0628\u0627\u0634\u062F." });
     }
-
-    // Attempt dynamic python bot restart to apply configurations immediately
     startPythonBot();
-
-    res.json({ success: true, message: "فایل بکاپ با موفقیت بازگردانی شد." });
-  } catch (error: any) {
+    res.json({ success: true, message: "\u0641\u0627\u06CC\u0644 \u0628\u06A9\u0627\u067E \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0627\u0632\u06AF\u0631\u062F\u0627\u0646\u06CC \u0634\u062F." });
+  } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
-
 async function performAutoBackup() {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-
     if (!settings.autoBackupEnabled) return;
     if (!settings.autoBackupInterval) return;
-
     const ownerId = Number(settings.ownerId || 6536288293);
     const botToken = settings.botToken;
     if (!botToken || botToken === "DUMMY_TOKEN") return;
-
     const fileBuffer = Buffer.from(JSON.stringify(db, null, 2), "utf8");
-
-    const dateStr = new Date().toLocaleString("fa-IR", {
-      timeZone: "Asia/Tehran",
+    const dateStr = (/* @__PURE__ */ new Date()).toLocaleString("fa-IR", {
+      timeZone: "Asia/Tehran"
     });
-    const periods: any = {
-      hourly: "ساعتی",
-      daily: "روزانه",
-      weekly: "هفتگی",
-      monthly: "ماهانه",
+    const periods = {
+      hourly: "\u0633\u0627\u0639\u062A\u06CC",
+      daily: "\u0631\u0648\u0632\u0627\u0646\u0647",
+      weekly: "\u0647\u0641\u062A\u06AF\u06CC",
+      monthly: "\u0645\u0627\u0647\u0627\u0646\u0647"
     };
-    const caption = `📦 پشتیبان‌گیری خودکار\n\n🕒 تاریخ: ${dateStr}\nتنظیمات: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}\n\n#DaltoonBot`;
+    const caption = `\u{1F4E6} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u200C\u06AF\u06CC\u0631\u06CC \u062E\u0648\u062F\u06A9\u0627\u0631
 
-    // Extremely robust manual multipart payload construction to bypass Node.js FormData/Blob fetch boundary bugs
+\u{1F552} \u062A\u0627\u0631\u06CC\u062E: ${dateStr}
+\u062A\u0646\u0638\u06CC\u0645\u0627\u062A: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}
+
+#DaltoonBot`;
     const boundary = "----WebKitFormBoundaryDaltoonBackup" + Math.random().toString(36).substring(2);
-    
     const headerParts = [
       `--${boundary}`,
       `Content-Disposition: form-data; name="chat_id"`,
-      '',
+      "",
       String(ownerId),
       `--${boundary}`,
       `Content-Disposition: form-data; name="caption"`,
-      '',
+      "",
       caption,
       `--${boundary}`,
       `Content-Disposition: form-data; name="document"; filename="Daltoon_Bot.db"`,
       `Content-Type: application/json`,
-      '',
-      ''
-    ].join('\r\n');
-
+      "",
+      ""
+    ].join("\r\n");
     const headerBuffer = Buffer.from(headerParts);
-    const footerBuffer = Buffer.from(`\r\n--${boundary}--\r\n`);
+    const footerBuffer = Buffer.from(`\r
+--${boundary}--\r
+`);
     const bodyBuffer = Buffer.concat([headerBuffer, fileBuffer, footerBuffer]);
-
     const response = await fetch(`https://api.telegram.org/bot${botToken}/sendDocument`, {
       method: "POST",
       headers: {
-        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        "Content-Type": `multipart/form-data; boundary=${boundary}`
       },
-      body: bodyBuffer,
+      body: bodyBuffer
     });
-
-    const resJson = await response.json() as any;
+    const resJson = await response.json();
     if (!resJson || !resJson.ok) {
       throw new Error(resJson?.description || "Failed to send backup document to Telegram");
     }
-
     const freshDb = readSqliteDb();
     if (!freshDb.settings) freshDb.settings = {};
     freshDb.settings.lastAutoBackup = String(Date.now());
     writeSqliteDb(freshDb);
     console.log(`[Auto Backup] Successfully sent backup to owner ${ownerId}`);
-  } catch (err: any) {
+  } catch (err) {
     console.error(`[Auto Backup Error]`, err.message);
   }
 }
-
 async function checkAutoBackup() {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-
     if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
-
     const lastBackup = Number(db.settings?.lastAutoBackup) || 0;
     const now = Date.now();
-
     let shouldBackup = false;
-
     if (lastBackup === 0) {
       shouldBackup = true;
     } else {
       const diffMs = now - lastBackup;
       const interval = settings.autoBackupInterval;
-
       if (interval === "hourly") {
-        // Run hourly if at least 55 minutes have passed
-        if (diffMs >= 55 * 60 * 1000) {
+        if (diffMs >= 55 * 60 * 1e3) {
           shouldBackup = true;
         }
       } else if (interval === "daily") {
-        // Run daily if at least 23 hours have passed
-        if (diffMs >= 23 * 60 * 60 * 1000) {
+        if (diffMs >= 23 * 60 * 60 * 1e3) {
           shouldBackup = true;
         }
       } else if (interval === "weekly") {
-        // Run weekly if at least 6 days and 23 hours have passed
-        if (diffMs >= (7 * 24 - 1) * 60 * 60 * 1000) {
+        if (diffMs >= (7 * 24 - 1) * 60 * 60 * 1e3) {
           shouldBackup = true;
         }
       } else if (interval === "monthly") {
-        // Run monthly if at least 29 days have passed
-        if (diffMs >= 29 * 24 * 60 * 60 * 1000) {
+        if (diffMs >= 29 * 24 * 60 * 60 * 1e3) {
           shouldBackup = true;
         }
       }
     }
-
     if (shouldBackup) {
       await performAutoBackup();
     }
@@ -5572,55 +4571,44 @@ async function checkAutoBackup() {
     console.error("[Auto Backup Check Error]", e);
   }
 }
-
-// 9. System auto-update endpoints
 app.get("/api/system/version", (req, res) => {
   try {
-    const fs = require("fs");
-    const path = require("path");
-    const pkgPath = path.join(process.cwd(), "package.json");
-    if (fs.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+    const fs2 = require("fs");
+    const path2 = require("path");
+    const pkgPath = path2.join(process.cwd(), "package.json");
+    if (fs2.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs2.readFileSync(pkgPath, "utf8"));
       res.json({ success: true, version: pkg.version || "1.0.0" });
     } else {
       res.json({ success: true, version: "2.0.0" });
     }
-  } catch (err: any) {
+  } catch (err) {
     res.json({ success: false, error: err.message, version: "2.0.0" });
   }
 });
-
 app.get("/api/system/status", (req, res) => {
   try {
-    const os = require("os");
-
-    // CPU load calculation using load average or synthetic load representation
-    const cpus = os.cpus();
-    const loadAvg = os.loadavg()[0];
+    const os2 = require("os");
+    const cpus = os2.cpus();
+    const loadAvg = os2.loadavg()[0];
     const cpuCount = cpus ? cpus.length : 1;
-    let cpuUsage = Math.round((loadAvg / cpuCount) * 100);
+    let cpuUsage = Math.round(loadAvg / cpuCount * 100);
     if (!cpuUsage || cpuUsage <= 0 || isNaN(cpuUsage)) {
-      // safe fallback for development / server startup
       cpuUsage = Math.floor(Math.random() * 15) + 8;
     }
     if (cpuUsage > 100) cpuUsage = 100;
-
-    // Memory usage
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
+    const totalMem = os2.totalmem();
+    const freeMem = os2.freemem();
     const usedMem = totalMem - freeMem;
-    const memoryUsage = Math.round((usedMem / totalMem) * 100) || 10;
-
+    const memoryUsage = Math.round(usedMem / totalMem * 100) || 10;
     const totalMemGB = (totalMem / (1024 * 1024 * 1024)).toFixed(1) + "GB";
     const usedMemGB = (usedMem / (1024 * 1024 * 1024)).toFixed(1) + "GB";
-
-    // Disk usage calculation
     let diskUsage = 38;
     let diskTotal = "80GB";
     let diskUsed = "30.4GB";
     try {
-      const { execSync } = require("child_process");
-      const dfOut = execSync("df -h /").toString().split("\n")[1];
+      const { execSync: execSync2 } = require("child_process");
+      const dfOut = execSync2("df -h /").toString().split("\n")[1];
       const parts = dfOut.split(/\s+/);
       if (parts.length >= 5) {
         diskTotal = parts[1];
@@ -5628,37 +4616,30 @@ app.get("/api/system/status", (req, res) => {
         diskUsage = parseInt(parts[4].replace("%", ""), 10);
       }
     } catch (e) {
-      // silent fallback
     }
-
-    // Uptime calculation
-    const sysUptimeSec = os.uptime();
+    const sysUptimeSec = os2.uptime();
     const hours = Math.floor(sysUptimeSec / 3600);
-    const minutes = Math.floor((sysUptimeSec % 3600) / 60);
+    const minutes = Math.floor(sysUptimeSec % 3600 / 60);
     const uptimeStr = `${hours}h ${minutes}m`;
-
     res.json({
       cpu: { usage: cpuUsage },
       memory: { usage: memoryUsage, total: totalMemGB, used: usedMemGB },
       disk: { usage: diskUsage, total: diskTotal, used: diskUsed },
-      uptime: uptimeStr,
+      uptime: uptimeStr
     });
-  } catch (err: any) {
+  } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
 });
-
 app.get("/api/system/info", async (req, res) => {
   try {
     let ipv4 = "Unknown";
     let ipv6 = "Unknown";
-    
     const services = [
       { url: "https://api4.ipify.org?format=json", type: "v4" },
       { url: "https://api6.ipify.org?format=json", type: "v6" },
       { url: "https://ifconfig.co/json", type: "both" }
     ];
-
     for (const service of services) {
       try {
         const response = await fetch(service.url, { signal: AbortSignal.timeout(1500) });
@@ -5669,39 +4650,37 @@ app.get("/api/system/info", async (req, res) => {
           if (!ipv4 || ipv4 === "Unknown") ipv4 = data.ip;
           if (data.ip.includes(":")) ipv6 = data.ip;
         }
-      } catch {}
+      } catch {
+      }
     }
-
-    // Fallback for IPv4 using shell
     if (ipv4 === "Unknown") {
       try {
-        ipv4 = execSync("curl -4 -s https://api.ipify.org", { encoding: "utf8", timeout: 2000 }).trim();
-      } catch {}
+        ipv4 = (0, import_child_process.execSync)("curl -4 -s https://api.ipify.org", { encoding: "utf8", timeout: 2e3 }).trim();
+      } catch {
+      }
     }
-
-    const loads = os.loadavg();
-    const baseLoad = (loads[0] * 10) + 20;
+    const loads = import_os.default.loadavg();
+    const baseLoad = loads[0] * 10 + 20;
     const activityData = Array.from({ length: 20 }, (_, i) => {
       const randomNoise = Math.floor(Math.random() * 15) - 7;
-      return Math.min(100, Math.max(10, Math.floor(baseLoad + randomNoise + (Math.sin(i / 3) * 10))));
+      return Math.min(100, Math.max(10, Math.floor(baseLoad + randomNoise + Math.sin(i / 3) * 10)));
     });
-
     res.json({
       success: true,
-      publicIp: ipv4, // backwards compatibility
+      publicIp: ipv4,
+      // backwards compatibility
       ipv4,
       ipv6,
-      uptime: os.uptime(),
-      load: os.loadavg(),
+      uptime: import_os.default.uptime(),
+      load: import_os.default.loadavg(),
       activityData
     });
   } catch (err) {
     res.status(500).json({ success: false, error: "Failed to fetch system info" });
   }
 });
-
-function isVersionNewer(current: string, latest: string): boolean {
-  const parse = (v: string) => v.split('.').map(x => parseInt(x, 10) || 0);
+function isVersionNewer(current, latest) {
+  const parse = (v) => v.split(".").map((x) => parseInt(x, 10) || 0);
   const curParts = parse(current);
   const latParts = parse(latest);
   for (let i = 0; i < Math.max(curParts.length, latParts.length); i++) {
@@ -5712,159 +4691,80 @@ function isVersionNewer(current: string, latest: string): boolean {
   }
   return false;
 }
-
-function runCommandAsync(cmd: string, cwd: string = process.cwd()): Promise<{ success: boolean; stdout: string; stderr: string }> {
+function runCommandAsync(cmd, cwd = process.cwd()) {
   return new Promise((resolve) => {
-    exec(cmd, { cwd }, (error, stdout, stderr) => {
+    (0, import_child_process.exec)(cmd, { cwd }, (error, stdout, stderr) => {
       resolve({
         success: !error,
         stdout: stdout || "",
-        stderr: stderr || "",
+        stderr: stderr || ""
       });
     });
   });
 }
-
 app.get("/api/system/update-log", (req, res) => {
-  const logFile = path.join(process.cwd(), "update.log");
-  if (fs.existsSync(logFile)) {
+  const logFile = import_path.default.join(process.cwd(), "update.log");
+  if (import_fs.default.existsSync(logFile)) {
     try {
-      const content = fs.readFileSync(logFile, "utf8");
+      const content = import_fs.default.readFileSync(logFile, "utf8");
       res.json({ success: true, log: content });
-    } catch (err: any) {
+    } catch (err) {
       res.json({ success: false, error: err.message });
     }
   } else {
     res.json({ success: false, error: "No update log found" });
   }
 });
-
 app.get("/api/system/check-update", async (req, res) => {
-  let version = "2.3.2";
-  const pkgPath = path.join(process.cwd(), "package.json");
-  if (fs.existsSync(pkgPath)) {
+  let version = "2.1.8";
+  const pkgPath = import_path.default.join(process.cwd(), "package.json");
+  if (import_fs.default.existsSync(pkgPath)) {
     try {
-      version = JSON.parse(fs.readFileSync(pkgPath, "utf8")).version || version;
-    } catch {}
+      version = JSON.parse(import_fs.default.readFileSync(pkgPath, "utf8")).version || version;
+    } catch {
+    }
   }
-
-  const channel = req.query.channel || (version.includes('dev') ? 'dev' : 'stable');
-
+  const channel = req.query.channel || (version.includes("dev") ? "dev" : "stable");
   try {
     let updateAvailable = false;
     let latestVersion = "";
-    const isGit = fs.existsSync(path.join(process.cwd(), ".git"));
-
-    // Helper to check and set update status from a version string
-    const applyLatestVersion = (latVer: string) => {
-      latestVersion = latVer;
-      const cleanCurrent = version.replace('-dev', '');
-      if (isVersionNewer(cleanCurrent, latestVersion)) {
-        updateAvailable = true;
-      }
-    };
-
+    const isGit = import_fs.default.existsSync(import_path.default.join(process.cwd(), ".git"));
     try {
-      if (channel === 'dev') {
-        const randomSha = Math.random().toString(16).substring(2, 9);
-        version = `Dev+${randomSha}`;
-        latestVersion = version;
-        updateAvailable = false;
-        res.json({
-          success: true,
-          updateAvailable,
-          currentVersion: version,
-          latestVersion
-        });
-        return;
-      }
-      
-      const githubUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases?t=${Date.now()}`;
-      const response = await fetch(githubUrl, { 
-        headers: { 
-          'User-Agent': 'Daltoon-Dashboard',
-          'Accept': 'application/vnd.github.v3+json'
+      const githubUrl = "https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases";
+      const response = await fetch(githubUrl, {
+        headers: {
+          "User-Agent": "Daltoon-Dashboard",
+          "Accept": "application/vnd.github.v3+json"
         },
-        signal: AbortSignal.timeout(8000)
+        signal: AbortSignal.timeout(8e3)
       });
       if (response.ok) {
         const releases = await response.json();
         if (Array.isArray(releases) && releases.length > 0) {
-          // Find published releases (not drafts)
-          const publishedReleases = releases.filter((r: any) => !r.draft);
-          
-          // Depending on channel, allow prereleases or strict stable only
-          const targetReleases = channel === 'dev' 
-            ? publishedReleases 
-            : publishedReleases.filter((r: any) => !r.prerelease);
-            
+          const publishedReleases = releases.filter((r) => !r.draft);
+          const targetReleases = channel === "dev" ? publishedReleases : publishedReleases.filter((r) => !r.prerelease);
           if (targetReleases.length > 0) {
-            // Find the highest version instead of just taking the first one
-            let highestTag = targetReleases[0].tag_name;
-            let highestVersion = highestTag.startsWith('v') ? highestTag.substring(1) : highestTag;
-            
-            for (let j = 1; j < targetReleases.length; j++) {
-              const currentTag = targetReleases[j].tag_name;
-              const currentVersion = currentTag.startsWith('v') ? currentTag.substring(1) : currentTag;
-              if (isVersionNewer(highestVersion, currentVersion)) {
-                highestVersion = currentVersion;
-                highestTag = currentTag;
-              }
-            }
-            
-            applyLatestVersion(highestVersion);
-          }
-        }
-      } else {
-        const errorText = await response.text().catch(() => "Unknown error");
-        console.warn(`GitHub API failed: ${response.status} ${errorText}. Trying fallbacks...`);
-        throw new Error(`API returned ${response.status}`);
-      }
-    } catch (err: any) {
-      console.warn("GitHub API check failed, trying raw file fallbacks:", err.message);
-      
-      // Fallback 1: raw.githubusercontent.com
-      try {
-        const rawUrl = `https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/package.json?t=${Date.now()}`;
-        const rawRes = await fetch(rawUrl, { signal: AbortSignal.timeout(6000) });
-        if (rawRes.ok) {
-          const rawPkg = await rawRes.json();
-          if (rawPkg && rawPkg.version) {
-            console.log(`Fallback 1 Success: Found version ${rawPkg.version}`);
-            applyLatestVersion(rawPkg.version);
-          }
-        } else {
-          throw new Error(`Raw fallback 1 returned status ${rawRes.status}`);
-        }
-      } catch (f1Err: any) {
-        console.warn("Fallback 1 (raw.githubusercontent.com) failed, trying fallback 2:", f1Err.message);
-        
-        // Fallback 2: github.com/.../raw/...
-        try {
-          const rawUrl2 = `https://github.com/mdaltoon10/Daltoon-Bot/raw/main/package.json?t=${Date.now()}`;
-          const rawRes2 = await fetch(rawUrl2, { signal: AbortSignal.timeout(6000) });
-          if (rawRes2.ok) {
-            const rawPkg2 = await rawRes2.json();
-            if (rawPkg2 && rawPkg2.version) {
-              console.log(`Fallback 2 Success: Found version ${rawPkg2.version}`);
-              applyLatestVersion(rawPkg2.version);
+            const latestTag = targetReleases[0].tag_name;
+            latestVersion = latestTag.startsWith("v") ? latestTag.substring(1) : latestTag;
+            const cleanCurrent = version.replace("-dev", "");
+            if (isVersionNewer(cleanCurrent, latestVersion)) {
+              updateAvailable = true;
             }
           }
-        } catch (f2Err: any) {
-          console.warn("All update check fallbacks failed:", f2Err.message);
         }
       }
+    } catch (err) {
+      console.warn("Update check logic error:", err);
     }
-
-    res.json({ 
-      success: true, 
-      updateAvailable, 
+    res.json({
+      success: true,
+      updateAvailable,
       currentVersion: version,
       latestVersion: latestVersion || version,
       channel,
       isGit
     });
-  } catch (err: any) {
+  } catch (err) {
     res.json({
       success: false,
       updateAvailable: false,
@@ -5873,182 +4773,112 @@ app.get("/api/system/check-update", async (req, res) => {
     });
   }
 });
-
 app.post("/api/system/update", async (req, res) => {
   const channel = req.body.channel || "stable";
   try {
     res.json({
       success: true,
-      message:
-        "به‌روزرسانی در پس‌زمینه آغاز شد. سیستم به‌زودی راه‌اندازی مجدد می‌شود...",
+      message: "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u062F\u0631 \u067E\u0633\u200C\u0632\u0645\u06CC\u0646\u0647 \u0622\u063A\u0627\u0632 \u0634\u062F. \u0633\u06CC\u0633\u062A\u0645 \u0628\u0647\u200C\u0632\u0648\u062F\u06CC \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u0645\u062C\u062F\u062F \u0645\u06CC\u200C\u0634\u0648\u062F..."
     });
-
-    // Run update sequence asynchronously
     setTimeout(async () => {
-      const logFile = path.join(process.cwd(), "update.log");
-      const writeLog = (message: string) => {
-        const time = new Date().toISOString();
+      const logFile = import_path.default.join(process.cwd(), "update.log");
+      const writeLog = (message) => {
+        const time = (/* @__PURE__ */ new Date()).toISOString();
         try {
-          fs.appendFileSync(logFile, `[${time}] ${message}\n`, "utf8");
-        } catch {}
+          import_fs.default.appendFileSync(logFile, `[${time}] ${message}
+`, "utf8");
+        } catch {
+        }
         console.log(`[Auto-Update] ${message}`);
       };
-
       try {
-        fs.writeFileSync(logFile, `=== Auto-Update Started ===\n`, "utf8");
+        import_fs.default.writeFileSync(logFile, `=== Auto-Update Started ===
+`, "utf8");
         writeLog(`Starting background update sequence for channel: ${channel}...`);
-
         let targetTag = "";
-        const isGit = fs.existsSync(path.join(process.cwd(), ".git"));
-
-        // Determine target from GitHub Releases
+        const isGit = import_fs.default.existsSync(import_path.default.join(process.cwd(), ".git"));
+        if (!isGit) {
+          writeLog("Error: Not a git repository. Cannot update.");
+          return;
+        }
         try {
-          const githubUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases?t=${Date.now()}`;
-          const response = await fetch(githubUrl, { 
-            headers: { 
+          const githubUrl = "https://api.github.com/repos/mdaltoon10/Daltoon-Bot/releases";
+          const response = await fetch(githubUrl, {
+            headers: {
               "User-Agent": "Daltoon-Dashboard",
               "Accept": "application/vnd.github.v3+json"
             },
-            signal: AbortSignal.timeout(8000)
+            signal: AbortSignal.timeout(8e3)
           });
           if (response.ok) {
             const releases = await response.json();
             if (Array.isArray(releases) && releases.length > 0) {
-              const publishedReleases = releases.filter((r: any) => !r.draft);
-              const targetReleases = channel === 'dev' 
-                ? publishedReleases 
-                : publishedReleases.filter((r: any) => !r.prerelease);
-                
+              const publishedReleases = releases.filter((r) => !r.draft);
+              const targetReleases = channel === "dev" ? publishedReleases : publishedReleases.filter((r) => !r.prerelease);
               if (targetReleases.length > 0) {
                 targetTag = targetReleases[0].tag_name;
               }
             }
-          } else {
-            throw new Error(`API response status ${response.status}`);
           }
-        } catch (tErr: any) {
-          writeLog(`Failed to fetch target release via GitHub API: ${tErr.message}. Trying fallbacks...`);
-          
-          // Fallback 1: raw.githubusercontent.com
-          try {
-            const rawUrl = `https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/package.json?t=${Date.now()}`;
-            const rawRes = await fetch(rawUrl, { signal: AbortSignal.timeout(6000) });
-            if (rawRes.ok) {
-              const rawPkg = await rawRes.json();
-              if (rawPkg && rawPkg.version) {
-                targetTag = `v${rawPkg.version}`;
-                writeLog(`Fallback 1 Success: Determined target tag from raw package.json: ${targetTag}`);
-              }
-            } else {
-              throw new Error(`Status ${rawRes.status}`);
-            }
-          } catch (f1Err: any) {
-            writeLog(`Fallback 1 failed: ${f1Err.message}. Trying Fallback 2...`);
-            
-            // Fallback 2: github.com/raw
-            try {
-              const rawUrl2 = `https://github.com/mdaltoon10/Daltoon-Bot/raw/main/package.json?t=${Date.now()}`;
-              const rawRes2 = await fetch(rawUrl2, { signal: AbortSignal.timeout(6000) });
-              if (rawRes2.ok) {
-                const rawPkg2 = await rawRes2.json();
-                if (rawPkg2 && rawPkg2.version) {
-                  targetTag = `v${rawPkg2.version}`;
-                  writeLog(`Fallback 2 Success: Determined target tag from raw package.json: ${targetTag}`);
-                }
-              }
-            } catch (f2Err: any) {
-              writeLog(`All fallbacks failed to determine targetTag: ${f2Err.message}`);
-            }
-          }
+        } catch (tErr) {
+          writeLog(`Failed to fetch target release via GitHub API: ${tErr.message}`);
         }
-
-        // Default fallback if targetTag is still empty
-        if (!targetTag) {
-          targetTag = "v2.4.1";
-          writeLog(`Using default targetTag fallback: ${targetTag}`);
-        }
-
         writeLog(`Git status check...`);
         const statusResult = await runCommandAsync("git status");
-        writeLog(`Git status before update:\n${statusResult.stdout}\n${statusResult.stderr}`);
-
-        if (channel === 'dev') {
-          writeLog(`Step 1: Pulling latest changes from dev branch...`);
-          const gitCmd = `git fetch origin dev && git reset --hard origin/dev`;
-          const gitResult = await runCommandAsync(gitCmd);
-          writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
-          
-          writeLog(`Step 2: Building project...`);
-          const buildResult = await runCommandAsync(`npm run build`);
-          writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
-        } else {
-          // Step 1: Download Release Artifact
-          writeLog(`Step 1: Downloading release artifact for ${targetTag}...`);
-          const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-          const artifactName = `daltoon-bot-linux-${arch}.tar.gz`;
-          const downloadUrl = `https://github.com/mdaltoon10/Daltoon-Bot/releases/download/${targetTag}/${artifactName}`;
-          
-          const curlCmd = `curl -L -o update.tar.gz "${downloadUrl}"`;
-          const curlResult = await runCommandAsync(curlCmd);
-          writeLog(`Download output:\n${curlResult.stdout}\n${curlResult.stderr}`);
-
-          // Step 2: Extract Artifact
-          writeLog(`Step 2: Extracting artifact...`);
-          const extractCmd = `tar -xzf update.tar.gz && rm update.tar.gz`;
-          const extractResult = await runCommandAsync(extractCmd);
-          writeLog(`Extract output:\n${extractResult.stdout}\n${extractResult.stderr}`);
-        }
-
-        // Step 3: Make files executable
+        writeLog(`Git status before update:
+${statusResult.stdout}
+${statusResult.stderr}`);
+        writeLog(`Step 1: Downloading release artifact for ${targetTag}...`);
+        const arch = process.arch === "arm64" ? "arm64" : "amd64";
+        const artifactName = `daltoon-bot-linux-${arch}.tar.gz`;
+        const downloadUrl = `https://github.com/mdaltoon10/Daltoon-Bot/releases/download/${targetTag}/${artifactName}`;
+        const curlCmd = `curl -L -o update.tar.gz "${downloadUrl}"`;
+        const curlResult = await runCommandAsync(curlCmd);
+        writeLog(`Download output:
+${curlResult.stdout}
+${curlResult.stderr}`);
+        writeLog(`Step 2: Extracting artifact...`);
+        const extractCmd = `tar -xzf update.tar.gz && rm update.tar.gz`;
+        const extractResult = await runCommandAsync(extractCmd);
+        writeLog(`Extract output:
+${extractResult.stdout}
+${extractResult.stderr}`);
         writeLog(`Step 3: Making executable files executable...`);
         await runCommandAsync("chmod +x daltoon-dashboard install.sh 2>/dev/null || true");
-
-        // Step 4: Install Python Dependencies (Optional/No-block)
         writeLog(`Step 4: Installing Python dependencies...`);
         const pipCmd = "pip3 install -U pyTelegramBotAPI python-dotenv requests --break-system-packages || pip3 install -U pyTelegramBotAPI python-dotenv requests || true";
         const pipResult = await runCommandAsync(pipCmd);
-        writeLog(`Pip output:\n${pipResult.stdout}\n${pipResult.stderr}`);
-
-        // Step 5: Install npm dependencies (only production)
+        writeLog(`Pip output:
+${pipResult.stdout}
+${pipResult.stderr}`);
         writeLog(`Step 5: Installing npm dependencies...`);
         const npmInstallResult = await runCommandAsync("npm ci --omit=dev || npm install --omit=dev");
-        writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
-
-        // Step 6: Restart PM2 processes
+        writeLog(`npm install output:
+${npmInstallResult.stdout}
+${npmInstallResult.stderr}`);
         writeLog(`Step 6: Restarting PM2 processes...`);
         const restartResult = await runCommandAsync("pm2 restart daltoon-store || pm2 restart daltoon-bot || pm2 restart all || true");
-        writeLog(`PM2 restart output:\n${restartResult.stdout}\n${restartResult.stderr}`);
-
+        writeLog(`PM2 restart output:
+${restartResult.stdout}
+${restartResult.stderr}`);
         writeLog(`=== Auto-Update Completed Successfully ===`);
-        // Force process exit to allow service manager to restart with new code
-        setTimeout(() => {
-          writeLog("Exiting process to trigger restart...");
-          process.exit(0);
-        }, 3000);
-      } catch (err: any) {
+      } catch (err) {
         writeLog(`=== Auto-Update Failed with error: ${err.message} ===`);
       }
-    }, 1000);
-  } catch (err: any) {
+    }, 1e3);
+  } catch (err) {
     console.error("[Auto-Update Catch Error]", err.message);
   }
 });
-
-// Integrate Vite developer server in development environment
-// --- CRON JOBS ---
 async function autoCleanExpiredFreeTrials() {
   try {
     const db = readSqliteDb();
-    const now = new Date();
-    // Allow 1 day buffer or strict? The user said "تست های رایگان بعد از تموم شدن مستقیم پاک بشن"
-    // So if expireDate is yesterday or earlier, delete.
+    const now = /* @__PURE__ */ new Date();
     now.setHours(0, 0, 0, 0);
-
     const keysToKeep = [];
     const keysToDelete = [];
-
     for (let k of db.subscription_keys || []) {
-      if (k.planName && k.planName.includes("تست رایگان")) {
+      if (k.planName && k.planName.includes("\u062A\u0633\u062A \u0631\u0627\u06CC\u06AF\u0627\u0646")) {
         const expDate = new Date(k.expireDate);
         if (expDate < now) {
           keysToDelete.push(k);
@@ -6057,53 +4887,47 @@ async function autoCleanExpiredFreeTrials() {
       }
       keysToKeep.push(k);
     }
-
     if (keysToDelete.length === 0) return;
-
     console.log(
-      `[Auto Cleanup] Found ${keysToDelete.length} expired free trials. Deleting...`,
+      `[Auto Cleanup] Found ${keysToDelete.length} expired free trials. Deleting...`
     );
-
     const parsedSettings = getSystemSettings(db);
     const activeServers = getActiveServers(parsedSettings);
-
     for (const server of activeServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
-          server.panelPassword,
+          server.panelPassword
         );
-
         if (loginResult.success && loginResult.cookie) {
-          const headers: Record<string, string> = {
+          const headers = {
             Cookie: loginResult.cookie,
-            Accept: "application/json",
+            Accept: "application/json"
           };
           if (loginResult.csrfToken)
             headers["X-Csrf-Token"] = loginResult.csrfToken;
-
           for (let k of keysToDelete) {
             let uuid = "";
             if (k.subLink) {
               const match = k.subLink.match(
-                /(vless|vmess|trojan):\/\/([^@]+)@/,
+                /(vless|vmess|trojan):\/\/([^@]+)@/
               );
               if (match && match[2]) uuid = match[2];
             }
-
             if (uuid) {
               await xuiFetch(
                 `${cleanedUrl}/panel/api/client/${uuid}/del`,
                 { method: "POST", headers },
-                4000,
-              ).catch(() => {});
+                4e3
+              ).catch(() => {
+              });
               try {
                 const inbRes = await xuiFetch(
                   `${cleanedUrl}/panel/api/inbounds/list`,
                   { method: "GET", headers },
-                  4000,
+                  4e3
                 );
                 if (inbRes.ok) {
                   const inbJson = await inbRes.json();
@@ -6112,59 +4936,46 @@ async function autoCleanExpiredFreeTrials() {
                       await xuiFetch(
                         `${cleanedUrl}/panel/api/inbounds/${inb.id}/delClient/${uuid}`,
                         { method: "POST", headers },
-                        3000,
-                      ).catch(() => {});
+                        3e3
+                      ).catch(() => {
+                      });
                     }
                   }
                 }
-              } catch (err) {}
+              } catch (err) {
+              }
             }
           }
         }
       } catch (err) {
-        // Continue to next server
       }
     }
-
     const freshDb = readSqliteDb();
-
-    // We only remove keys that we specifically decided to delete earlier
     const deletedIds = new Set(keysToDelete.map((k) => k.id));
     freshDb.subscription_keys = (freshDb.subscription_keys || []).filter(
-      (k) => !deletedIds.has(k.id),
+      (k) => !deletedIds.has(k.id)
     );
-
     for (let u of freshDb.users || []) {
       u.activePlansCount = (freshDb.subscription_keys || []).filter(
-        (sk: any) =>
-          sk.userId === u.userId &&
-          sk.status === "active" &&
-          !sk.planName.includes("تست رایگان"),
+        (sk) => sk.userId === u.userId && sk.status === "active" && !sk.planName.includes("\u062A\u0633\u062A \u0631\u0627\u06CC\u06AF\u0627\u0646")
       ).length;
     }
-
     writeSqliteDb(freshDb);
     console.log(
-      `[Auto Cleanup] Successfully deleted ${keysToDelete.length} expired free trials from Panel and Local DB.`,
+      `[Auto Cleanup] Successfully deleted ${keysToDelete.length} expired free trials from Panel and Local DB.`
     );
   } catch (err) {
     console.error("[Auto Cleanup Error]", err);
   }
 }
-
-async function sendTelegramMessage(
-  botToken: string,
-  chatId: string | number,
-  text: string,
-  replyMarkup?: any,
-) {
+async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   try {
     const fetchRef = globalThis.fetch || fetch;
-    const body: any = {
+    const body = {
       chat_id: chatId,
-      text: text,
-      parse_mode: "HTML",
+      text,
+      parse_mode: "HTML"
     };
     if (replyMarkup) {
       body.reply_markup = replyMarkup;
@@ -6172,38 +4983,29 @@ async function sendTelegramMessage(
     await fetchRef(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(body)
     });
   } catch (err) {
     console.error(`[Telegram Warning] Fail to send to ${chatId}:`, err);
   }
 }
-
-async function sendPurchaseSuccessNoteIfAnyServer(
-  botToken: string,
-  chatId: string | number,
-  settings: any,
-) {
+async function sendPurchaseSuccessNoteIfAnyServer(botToken, chatId, settings) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   const fetchRef = globalThis.fetch || fetch;
   const noteText = settings.purchaseSuccessNote || "";
   const attachment = settings.purchaseSuccessAttachment || null;
-
   if (!noteText && !attachment) return;
-
   try {
     if (attachment && attachment.fileData) {
       const fileType = attachment.fileType || "image";
       let b64Str = attachment.fileData;
       if (b64Str.includes(",")) b64Str = b64Str.split(",")[1];
-
       const buffer = Buffer.from(b64Str, "base64");
       const blob = new Blob([buffer]);
       const fd = new FormData();
       fd.append("chat_id", String(chatId));
       if (noteText) fd.append("caption", noteText);
       fd.append("parse_mode", "HTML");
-
       let endpoint = "sendDocument";
       if (fileType === "image") {
         endpoint = "sendPhoto";
@@ -6217,10 +5019,9 @@ async function sendPurchaseSuccessNoteIfAnyServer(
       } else {
         fd.append("document", blob, attachment.fileName || "attachment.dat");
       }
-
       await fetchRef(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
         method: "POST",
-        body: fd as any,
+        body: fd
       });
     } else if (noteText) {
       await sendTelegramMessage(botToken, chatId, noteText);
@@ -6228,73 +5029,50 @@ async function sendPurchaseSuccessNoteIfAnyServer(
   } catch (err) {
     console.warn(
       `[Purchase Success Note Server] Error sending to ${chatId}:`,
-      err,
+      err
     );
   }
 }
-
 async function autoSyncTrafficUsage() {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-
     const activeServers = getActiveServers(settings);
-
-    // Only continue if panel is connected
     if (activeServers.length === 0) {
       return;
     }
-
-    const trafficMap: Record<
-      string,
-      {
-        up: number;
-        down: number;
-        total: number;
-        expiryTime?: number;
-        totalGb?: number;
-      }
-    > = {};
-    const seenStats = new Set<string>();
-
+    const trafficMap = {};
+    const seenStats = /* @__PURE__ */ new Set();
     for (const server of activeServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
-          server.panelPassword,
+          server.panelPassword
         );
-
         if (!loginResult.success || !loginResult.cookie) {
           continue;
         }
-
-        const headers: Record<string, string> = {
+        const headers = {
           Cookie: loginResult.cookie,
-          Accept: "application/json",
+          Accept: "application/json"
         };
-
-        // Try to get clientTraffics API directly for accurate unique stats
         let trafficJson = null;
         try {
           const ctRes = await xuiFetch(
             `${cleanedUrl}/panel/api/inbounds/getClientTraffics`,
             { method: "GET", headers },
-            8000,
+            8e3
           );
           if (ctRes.ok) trafficJson = await ctRes.json();
-        } catch (e) {}
-
-        if (
-          trafficJson &&
-          trafficJson.success &&
-          Array.isArray(trafficJson.obj)
-        ) {
+        } catch (e) {
+        }
+        if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
           for (let cs of trafficJson.obj) {
             if (cs.email) {
               const lMail = cs.email.toLowerCase();
-              if (cs.id !== undefined && cs.id !== null) {
+              if (cs.id !== void 0 && cs.id !== null) {
                 const statKey = `${cs.id}_${cs.email}`;
                 if (seenStats.has(statKey)) continue;
                 seenStats.add(statKey);
@@ -6303,33 +5081,27 @@ async function autoSyncTrafficUsage() {
                 trafficMap[lMail] = { up: 0, down: 0, total: 0 };
               trafficMap[lMail].up += Number(cs.up) || 0;
               trafficMap[lMail].down += Number(cs.down) || 0;
-              trafficMap[lMail].total +=
-                (Number(cs.up) || 0) + (Number(cs.down) || 0);
+              trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
               if (cs.expiryTime)
                 trafficMap[lMail].expiryTime = Number(cs.expiryTime);
               if (cs.total)
-                trafficMap[lMail].totalGb =
-                  Number(cs.total) / (1024 * 1024 * 1024);
+                trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
             }
           }
         } else {
-          // Get all inbounds fallback
           const inbRes = await xuiFetch(
             `${cleanedUrl}/panel/api/inbounds/list`,
             { method: "GET", headers },
-            10000,
+            1e4
           );
           if (!inbRes.ok) continue;
-
           const inbJson = await inbRes.json();
           if (!inbJson.success || !Array.isArray(inbJson.obj)) continue;
-
           for (let inb of inbJson.obj) {
             let clientStats = inb.clientStats || [];
             for (let cs of clientStats) {
               if (cs.email) {
-                // deduplicate if id exists
-                if (cs.id !== undefined && cs.id !== null) {
+                if (cs.id !== void 0 && cs.id !== null) {
                   const statKey = `${cs.id}_${cs.email}`;
                   if (seenStats.has(statKey)) continue;
                   seenStats.add(statKey);
@@ -6339,185 +5111,170 @@ async function autoSyncTrafficUsage() {
                   trafficMap[lMail] = { up: 0, down: 0, total: 0 };
                 trafficMap[lMail].up += Number(cs.up) || 0;
                 trafficMap[lMail].down += Number(cs.down) || 0;
-                trafficMap[lMail].total +=
-                  (Number(cs.up) || 0) + (Number(cs.down) || 0);
+                trafficMap[lMail].total += (Number(cs.up) || 0) + (Number(cs.down) || 0);
                 if (cs.expiryTime)
                   trafficMap[lMail].expiryTime = Number(cs.expiryTime);
                 if (cs.total)
-                  trafficMap[lMail].totalGb =
-                    Number(cs.total) / (1024 * 1024 * 1024);
+                  trafficMap[lMail].totalGb = Number(cs.total) / (1024 * 1024 * 1024);
               }
             }
           }
         }
       } catch (err) {
-        // Continue
       }
     }
-
     const freshDb = readSqliteDb();
     let updatedCount = 0;
-
     for (let k of freshDb.subscription_keys || []) {
-      const matchName = (
-        k.clientName ||
-        k.planName ||
-        k.name ||
-        ""
-      ).toLowerCase();
+      const matchName = (k.clientName || k.planName || k.name || "").toLowerCase();
       if (matchName && trafficMap[matchName]) {
         const usedGb = trafficMap[matchName].total / (1024 * 1024 * 1024);
         if (Math.abs((k.trafficUsedGb || 0) - usedGb) > 0.01) {
           k.trafficUsedGb = Number(usedGb.toFixed(2));
           updatedCount++;
         }
-
-        if (
-          trafficMap[matchName].totalGb &&
-          trafficMap[matchName].totalGb! > 0
-        ) {
-          const capGb = trafficMap[matchName].totalGb!;
+        if (trafficMap[matchName].totalGb && trafficMap[matchName].totalGb > 0) {
+          const capGb = trafficMap[matchName].totalGb;
           if (Math.abs((k.trafficLimitGb || 0) - capGb) > 0.01) {
             k.trafficLimitGb = Number(capGb.toFixed(2));
             updatedCount++;
           }
         }
-
-        if (
-          trafficMap[matchName].expiryTime &&
-          trafficMap[matchName].expiryTime! > 0
-        ) {
+        if (trafficMap[matchName].expiryTime && trafficMap[matchName].expiryTime > 0) {
           try {
-            const expiryTs = trafficMap[matchName].expiryTime!;
-            if (expiryTs > 0 && expiryTs < 10000000000000) {
-              // Practical limit (year 2286 approx)
-              const newExpiryISO = new Date(expiryTs)
-                .toISOString()
-                .split("T")[0];
+            const expiryTs = trafficMap[matchName].expiryTime;
+            if (expiryTs > 0 && expiryTs < 1e13) {
+              const newExpiryISO = new Date(expiryTs).toISOString().split("T")[0];
               if (k.expireDate !== newExpiryISO) {
                 k.expireDate = newExpiryISO;
                 updatedCount++;
               }
             }
-          } catch (e) {}
+          } catch (e) {
+          }
         }
       }
-
-      // Check Expiry Warning Feature (1GB remaining or 1 Day remaining)
-      const isAutoWarningEnabled =
-        String(freshDb.settings?.autoWarningConfigBtn || "true") !== "false";
+      const isAutoWarningEnabled = String(freshDb.settings?.autoWarningConfigBtn || "true") !== "false";
       let expDateObj = null;
       let remainingDays = 999;
       const remainingGb = (k.trafficLimitGb || 50) - (k.trafficUsedGb || 0);
-
       try {
         expDateObj = new Date(k.expireDate);
         remainingDays = Math.ceil(
-          (expDateObj.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+          (expDateObj.getTime() - Date.now()) / (1e3 * 60 * 60 * 24)
         );
-      } catch (e) {}
-
+      } catch (e) {
+      }
       if (isAutoWarningEnabled && !k.expiryWarningSent) {
-        if (
-          (remainingGb <= 1 && remainingGb > 0) ||
-          (remainingDays <= 1 && remainingDays > 0)
-        ) {
+        if (remainingGb <= 1 && remainingGb > 0 || remainingDays <= 1 && remainingDays > 0) {
           console.log(
-            `[Official Warning] User ${k.userId} subscription "${k.planName || k.clientName}" is running out.`,
+            `[Official Warning] User ${k.userId} subscription "${k.planName || k.clientName}" is running out.`
           );
-          const msg = `⚠️ <b>هشدار اتمام سرویس</b>\n\nکاربر گرامی، سرویس شما در حال اتمام است.\n\n🌐 نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔻 حجم باقیمانده: ${remainingGb.toFixed(2)} GB\n⏳ روز باقیمانده: ${remainingDays} روز\n\nلطفاً نسبت به تمدید سرویس خود اقدام نمایید.`;
+          const msg = `\u26A0\uFE0F <b>\u0647\u0634\u062F\u0627\u0631 \u0627\u062A\u0645\u0627\u0645 \u0633\u0631\u0648\u06CC\u0633</b>
+
+\u06A9\u0627\u0631\u0628\u0631 \u06AF\u0631\u0627\u0645\u06CC\u060C \u0633\u0631\u0648\u06CC\u0633 \u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u0627\u062A\u0645\u0627\u0645 \u0627\u0633\u062A.
+
+\u{1F310} \u0646\u0627\u0645 \u0633\u0631\u0648\u06CC\u0633: ${k.planName || "\u0628\u062F\u0648\u0646 \u0646\u0627\u0645"}
+\u{1F530} \u06A9\u062F \u0633\u0631\u0648\u06CC\u0633: <code>${k.clientName}</code>
+\u{1F53B} \u062D\u062C\u0645 \u0628\u0627\u0642\u06CC\u0645\u0627\u0646\u062F\u0647: ${remainingGb.toFixed(2)} GB
+\u23F3 \u0631\u0648\u0632 \u0628\u0627\u0642\u06CC\u0645\u0627\u0646\u062F\u0647: ${remainingDays} \u0631\u0648\u0632
+
+\u0644\u0637\u0641\u0627\u064B \u0646\u0633\u0628\u062A \u0628\u0647 \u062A\u0645\u062F\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633 \u062E\u0648\u062F \u0627\u0642\u062F\u0627\u0645 \u0646\u0645\u0627\u06CC\u06CC\u062F.`;
           const inlineKeyboard = {
             inline_keyboard: [
               [
                 {
-                  text: "🔄 تمدید سرویس",
-                  callback_data: `mysub_renew_${k.id}`,
+                  text: "\u{1F504} \u062A\u0645\u062F\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633",
+                  callback_data: `mysub_renew_${k.id}`
                 },
                 {
-                  text: "🔗 دریافت لینک اتصال",
-                  callback_data: `vless_link_${k.id}`,
-                },
+                  text: "\u{1F517} \u062F\u0631\u06CC\u0627\u0641\u062A \u0644\u06CC\u0646\u06A9 \u0627\u062A\u0635\u0627\u0644",
+                  callback_data: `vless_link_${k.id}`
+                }
               ],
-              [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }],
-            ],
+              [{ text: "\u{1F3AB} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport" }]
+            ]
           };
           await sendTelegramMessage(
             settings.botToken,
             k.userId,
             msg,
-            inlineKeyboard,
+            inlineKeyboard
           );
           k.expiryWarningSent = true;
           updatedCount++;
         }
       }
-
-      // Check No-Connection Warning Alert
-      const isNoConnAlertEnabled =
-        String(freshDb.settings?.autoWarningNoConnectionBtn || "true") !==
-        "false";
-      if (
-        isNoConnAlertEnabled &&
-        !k.noConnectionWarningSent &&
-        Math.abs(k.trafficUsedGb || 0) < 0.001
-      ) {
+      const isNoConnAlertEnabled = String(freshDb.settings?.autoWarningNoConnectionBtn || "true") !== "false";
+      if (isNoConnAlertEnabled && !k.noConnectionWarningSent && Math.abs(k.trafficUsedGb || 0) < 1e-3) {
         if (expDateObj) {
-          // We infer creation date from expire date and limit duration. For simplicity, just check if 1 day passed since 'now' and start date if possible.
-          // However, without a clean createdAt, we can approximate: if duration is standard 30 and remaining is <= 29.
-          // Better yet, just check if `k.createdAtMs` exists. Since we don't have it, we'll mark existing ones to avoid spam.
           if (!k.createdAtMs) {
-            // Assign current time to old ones to avoid spamming everyone suddenly
             k.createdAtMs = Date.now();
             updatedCount++;
           } else {
-            const daysSinceCreation =
-              (Date.now() - k.createdAtMs) / (1000 * 60 * 60 * 24);
+            const daysSinceCreation = (Date.now() - k.createdAtMs) / (1e3 * 60 * 60 * 24);
             if (daysSinceCreation >= 1) {
               console.log(
-                `[Official Warning] User ${k.userId} hasn't connected for 1 day.`,
+                `[Official Warning] User ${k.userId} hasn't connected for 1 day.`
               );
               let jalaliDate = k.expireDate;
               try {
                 jalaliDate = new Intl.DateTimeFormat("fa-IR", {
                   year: "numeric",
                   month: "numeric",
-                  day: "numeric",
+                  day: "numeric"
                 }).format(new Date(k.expireDate));
-              } catch (e) {}
-              const msg = `🔔 <b>پیام سیستم:</b>\n\n🤔 <b>آیا مشکلی در اتصال به VPN دارید؟</b>\n\nسرویس شما 1 روز پیش فعال شده اما هنوز به آن متصل نشده‌اید.\n\n🖌️ نام سرویس: ${k.planName || "بدون نام"}\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n\n🔧 <b>اگر در اتصال مشکل دارید:</b>\n• راهنمای اتصال را مطالعه کنید\n• اپلیکیشن VPN خود را بررسی کنید\n• در صورت نیاز به پشتیبانی پیام دهید`;
+              } catch (e) {
+              }
+              const msg = `\u{1F514} <b>\u067E\u06CC\u0627\u0645 \u0633\u06CC\u0633\u062A\u0645:</b>
+
+\u{1F914} <b>\u0622\u06CC\u0627 \u0645\u0634\u06A9\u0644\u06CC \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 VPN \u062F\u0627\u0631\u06CC\u062F\u061F</b>
+
+\u0633\u0631\u0648\u06CC\u0633 \u0634\u0645\u0627 1 \u0631\u0648\u0632 \u067E\u06CC\u0634 \u0641\u0639\u0627\u0644 \u0634\u062F\u0647 \u0627\u0645\u0627 \u0647\u0646\u0648\u0632 \u0628\u0647 \u0622\u0646 \u0645\u062A\u0635\u0644 \u0646\u0634\u062F\u0647\u200C\u0627\u06CC\u062F.
+
+\u{1F58C}\uFE0F \u0646\u0627\u0645 \u0633\u0631\u0648\u06CC\u0633: ${k.planName || "\u0628\u062F\u0648\u0646 \u0646\u0627\u0645"}
+\u{1F530} \u06A9\u062F \u0633\u0631\u0648\u06CC\u0633: <code>${k.clientName}</code>
+\u{1F53A}\u062D\u062C\u0645 \u0628\u0633\u062A\u0647: ${(k.trafficLimitGb || 0).toFixed(2)} GB
+\u{1F53B}\u062D\u062C\u0645 \u0628\u0627\u0642\u06CC \u0645\u0627\u0646\u062F\u0647: ${remainingGb.toFixed(2)} GB
+\u{1F4C5} \u062A\u0627\u0631\u06CC\u062E \u0627\u0646\u0642\u0636\u0627: ${jalaliDate}
+
+\u{1F527} <b>\u0627\u06AF\u0631 \u062F\u0631 \u0627\u062A\u0635\u0627\u0644 \u0645\u0634\u06A9\u0644 \u062F\u0627\u0631\u06CC\u062F:</b>
+\u2022 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC \u0627\u062A\u0635\u0627\u0644 \u0631\u0627 \u0645\u0637\u0627\u0644\u0639\u0647 \u06A9\u0646\u06CC\u062F
+\u2022 \u0627\u067E\u0644\u06CC\u06A9\u06CC\u0634\u0646 VPN \u062E\u0648\u062F \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F
+\u2022 \u062F\u0631 \u0635\u0648\u0631\u062A \u0646\u06CC\u0627\u0632 \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u067E\u06CC\u0627\u0645 \u062F\u0647\u06CC\u062F`;
               const inlineKeyboard = {
                 inline_keyboard: [
                   [
                     {
-                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)",
-                      callback_data: `vless_link_${k.id}`,
-                    },
+                      text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646(\u0647\u0645\u0647 \u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0647\u0627)",
+                      callback_data: `vless_link_${k.id}`
+                    }
                   ],
                   [
                     {
-                      text: "🔗 لینک های تکی",
-                      callback_data: `mysub_vless_${k.id}`,
-                    },
+                      text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0647\u0627\u06CC \u062A\u06A9\u06CC",
+                      callback_data: `mysub_vless_${k.id}`
+                    }
                   ],
                   [
                     {
-                      text: "💡 آموزش ها",
-                      callback_data: "mm_btnGuides",
-                    },
+                      text: "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627",
+                      callback_data: "mm_btnGuides"
+                    }
                   ],
                   [
                     {
-                      text: "🎫 تیکت به پشتیبانی",
-                      callback_data: "mm_btnTicketSupport",
-                    },
-                  ],
-                ],
+                      text: "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC",
+                      callback_data: "mm_btnTicketSupport"
+                    }
+                  ]
+                ]
               };
               await sendTelegramMessage(
                 settings.botToken,
                 k.userId,
                 msg,
-                inlineKeyboard,
+                inlineKeyboard
               );
               k.noConnectionWarningSent = true;
               updatedCount++;
@@ -6525,67 +5282,60 @@ async function autoSyncTrafficUsage() {
           }
         }
       }
-
-      // Check First Connection Alert
-      const isFirstConnAlertEnabled =
-        String(freshDb.settings?.autoWarningFirstConnectionBtn || "true") !==
-        "false";
-      if (
-        isFirstConnAlertEnabled &&
-        !k.firstConnectionMessageSent &&
-        (k.trafficUsedGb || 0) > 0.001
-      ) {
+      const isFirstConnAlertEnabled = String(freshDb.settings?.autoWarningFirstConnectionBtn || "true") !== "false";
+      if (isFirstConnAlertEnabled && !k.firstConnectionMessageSent && (k.trafficUsedGb || 0) > 1e-3) {
         console.log(
-          `[Official Warning] User ${k.userId} made their first connection.`,
+          `[Official Warning] User ${k.userId} made their first connection.`
         );
         let jalaliDate = k.expireDate;
         try {
           jalaliDate = new Intl.DateTimeFormat("fa-IR", {
             year: "numeric",
             month: "numeric",
-            day: "numeric",
+            day: "numeric"
           }).format(new Date(k.expireDate));
-        } catch (e) {}
-        const msg = `🔔 <b>پیام سیستم:</b>\n\nسرویس شما با موفقیت متصل شد\n\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n🔹 نام سرویس: ${k.planName || "بدون نام"}`;
+        } catch (e) {
+        }
+        const msg = `\u{1F514} <b>\u067E\u06CC\u0627\u0645 \u0633\u06CC\u0633\u062A\u0645:</b>
+
+\u0633\u0631\u0648\u06CC\u0633 \u0634\u0645\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0645\u062A\u0635\u0644 \u0634\u062F
+
+\u{1F530} \u06A9\u062F \u0633\u0631\u0648\u06CC\u0633: <code>${k.clientName}</code>
+\u{1F53A}\u062D\u062C\u0645 \u0628\u0633\u062A\u0647: ${(k.trafficLimitGb || 0).toFixed(2)} GB
+\u{1F53B}\u062D\u062C\u0645 \u0628\u0627\u0642\u06CC \u0645\u0627\u0646\u062F\u0647: ${remainingGb.toFixed(2)} GB
+\u{1F4C5} \u062A\u0627\u0631\u06CC\u062E \u0627\u0646\u0642\u0636\u0627: ${jalaliDate}
+\u{1F539} \u0646\u0627\u0645 \u0633\u0631\u0648\u06CC\u0633: ${k.planName || "\u0628\u062F\u0648\u0646 \u0646\u0627\u0645"}`;
         const inlineKeyboard = {
           inline_keyboard: [
-            [{ text: "🔗 لینک اشتراک", callback_data: `vless_link_${k.id}` }],
-            [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }],
-          ],
+            [{ text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9", callback_data: `vless_link_${k.id}` }],
+            [{ text: "\u{1F3AB} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport" }]
+          ]
         };
         await sendTelegramMessage(
           settings.botToken,
           k.userId,
           msg,
-          inlineKeyboard,
+          inlineKeyboard
         );
         k.firstConnectionMessageSent = true;
         updatedCount++;
       }
     }
-
-    // Now recalculate colleague accounts' usedTrafficGb based on allocated limits
-    if (
-      freshDb.colleague_accounts &&
-      Array.isArray(freshDb.colleague_accounts)
-    ) {
+    if (freshDb.colleague_accounts && Array.isArray(freshDb.colleague_accounts)) {
       for (const colAcc of freshDb.colleague_accounts) {
         const colKeys = (freshDb.subscription_keys || []).filter(
-          (k: any) => k.colleagueAccountId === colAcc.id,
+          (k) => k.colleagueAccountId === colAcc.id
         );
         const totalUsed = colKeys.reduce(
-          (sum: number, k: any) => sum + (k.trafficLimitGb || 0),
-          0,
+          (sum, k) => sum + (k.trafficLimitGb || 0),
+          0
         );
         const totalRealUsed = colKeys.reduce(
-          (sum: number, k: any) => sum + (k.trafficUsedGb || 0),
-          0,
+          (sum, k) => sum + (k.trafficUsedGb || 0),
+          0
         );
-
         const finalUsed = totalUsed + (colAcc.deletedTrafficGb || 0);
-        const finalRealUsed =
-          totalRealUsed + (colAcc.deletedRealTrafficGb || 0);
-
+        const finalRealUsed = totalRealUsed + (colAcc.deletedRealTrafficGb || 0);
         if (Math.abs((colAcc.usedTrafficGb || 0) - finalUsed) > 0.01) {
           colAcc.usedTrafficGb = Number(finalUsed.toFixed(2));
           updatedCount++;
@@ -6596,114 +5346,49 @@ async function autoSyncTrafficUsage() {
         }
       }
     }
-
     if (updatedCount > 0) {
       writeSqliteDb(freshDb);
       console.log(
-        `[Auto Sync Usage] Updated traffic usage for ${updatedCount} subscriptions.`,
+        `[Auto Sync Usage] Updated traffic usage for ${updatedCount} subscriptions.`
       );
     }
   } catch (err) {
     console.error("[Auto Sync Usage Error]", err);
   }
 }
-
 async function startServer() {
-  // Start the background cron job for auto cleaning expired trials
-  setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1000);
-  setTimeout(autoCleanExpiredFreeTrials, 10000); // Also run shortly after startup
-
-  // Start background cron job for auto syncing traffic every 10 seconds
-  setInterval(autoSyncTrafficUsage, 10 * 1000);
-  setTimeout(autoSyncTrafficUsage, 5000); // Also run shortly after startup
-
-  // Start background cron job for auto backup check every minute
-  setInterval(checkAutoBackup, 60 * 1000);
-  setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
-
+  setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1e3);
+  setTimeout(autoCleanExpiredFreeTrials, 1e4);
+  setInterval(autoSyncTrafficUsage, 10 * 1e3);
+  setTimeout(autoSyncTrafficUsage, 5e3);
+  setInterval(checkAutoBackup, 60 * 1e3);
+  setTimeout(checkAutoBackup, 5e3);
   const isCompiled = process.argv[1] && process.argv[1].endsWith("server.cjs");
   const isProduction = process.env.NODE_ENV === "production" || isCompiled;
-
   if (!isProduction) {
     console.log("[Server] Mount dev Vite middleware mode.");
-
-    // Create Vite server in middleware mode
-    const vite = await createViteServer({
+    const vite = await (0, import_vite.createServer)({
       server: { middlewareMode: true, hmr: false },
-      appType: "spa",
+      appType: "spa"
     });
-
-    // Force Vite request processing
     app.use(vite.middlewares);
   } else {
-    // Serve static files in production
-    const distPath = path.join(process.cwd(), "dist");
+    const distPath = import_path.default.join(process.cwd(), "dist");
     console.log(`[Server] Serving production files from: ${distPath}`);
-    
-    // Explicitly bypass static cache for the entry HTML files
-    app.get(["/", "/index.html"], (req, res) => {
-      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-      res.setHeader("Pragma", "no-cache");
-      res.setHeader("Expires", "0");
-      res.setHeader("Surrogate-Control", "no-store");
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-
-    // Find the current JS file hash to detect clients with old cached index.html
-    let currentJsFile = "";
-    try {
-      const assetsPath = path.join(distPath, "assets");
-      if (fs.existsSync(assetsPath)) {
-        const files = fs.readdirSync(assetsPath);
-        const jsFile = files.find((f: string) => f.startsWith("index-") && f.endsWith(".js"));
-        if (jsFile) currentJsFile = jsFile;
-      }
-    } catch (e) {
-      console.warn("Could not determine current JS file", e);
-    }
-
-    app.get("/assets/index-*.js", (req, res, next) => {
-       const requestedFile = path.basename(req.path);
-       // If the client is requesting an old JS file because they have a stale index.html cached
-       if (currentJsFile && requestedFile !== currentJsFile && requestedFile.startsWith("index-") && requestedFile.endsWith(".js")) {
-          console.log(`[Cache-Buster] Intercepted request for old JS file: ${requestedFile}. Sending reload script.`);
-          res.setHeader("Content-Type", "application/javascript");
-          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-          return res.send(`
-             console.log("Stale frontend cache detected. Forcing reload...");
-             window.location.href = window.location.pathname + "?bust=" + new Date().getTime();
-          `);
-       }
-       next();
-    });
-
-    app.use(express.static(distPath, {
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-          res.setHeader('Pragma', 'no-cache');
-          res.setHeader('Expires', '0');
-        } else {
-          // Cache JS/CSS assets for 1 year since Vite uses content hashes
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        }
-      }
-    }));
-
+    app.use(import_express.default.static(distPath));
     app.get("*", (req, res) => {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
       res.setHeader("Surrogate-Control", "no-store");
-      res.sendFile(path.join(distPath, "index.html"));
+      res.sendFile(import_path.default.join(distPath, "index.html"));
     });
   }
-
   app.listen(PORT, "0.0.0.0", () => {
     console.log(
-      `[Daltoon Full-Stack Server] Ready at: http://localhost:${PORT}`,
+      `[Daltoon Full-Stack Server] Ready at: http://localhost:${PORT}`
     );
   });
 }
-
 startServer();
+//# sourceMappingURL=server.cjs.map

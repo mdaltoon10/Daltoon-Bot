@@ -326,7 +326,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <span>{st.selectBackup}</span>
               <input
                 type="file"
-                accept=".json"
+                accept="*/*"
                 className="hidden"
                 disabled={isValidating}
                 onChange={async (e) => {
