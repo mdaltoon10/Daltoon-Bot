@@ -68,8 +68,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       passwordPl: "•••",
       loginBtn: "ورود به مدیریت",
       loggingIn: "در حال بررسی اطلاعات...",
-      invalidCreds:
-        "اطلاعات ورود اشتباه است، لطفاً به سرور لینوکس متصل شده یا مجدد تلاش کنید.",
+      invalidCreds: "اطلاعات ورود اشتباه است، لطفاً به سرور لینوکس متصل شده یا مجدد تلاش کنید.",
       rememberMe: "مرا به خاطر بسپار",
     },
     en: {
@@ -81,11 +80,69 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       passwordPl: "•••",
       loginBtn: "Sign In",
       loggingIn: "Authenticating...",
-      invalidCreds:
-        "Invalid credentials. Please verify your config or try again.",
+      invalidCreds: "Invalid credentials. Please verify your config or try again.",
       rememberMe: "Remember Me",
     },
-  }[lang];
+    ar: {
+      title: "تسجيل الدخول إلى دالتون بات",
+      subtitle: "يرجى إدخال بيانات المشرف لتسجيل الدخول",
+      usernameLabel: "اسم المستخدم",
+      passwordLabel: "كلمة المرور",
+      usernamePl: "مثال: admin",
+      passwordPl: "•••",
+      loginBtn: "تسجيل الدخول",
+      loggingIn: "جاري التحقق...",
+      invalidCreds: "بيانات الاعتماد غير صالحة.",
+      rememberMe: "تذكرني",
+    },
+    ru: {
+      title: "Панель управления Daltoon",
+      subtitle: "Пожалуйста, введите учетные данные администратора",
+      usernameLabel: "Имя пользователя",
+      passwordLabel: "Пароль",
+      usernamePl: "например, admin",
+      passwordPl: "•••",
+      loginBtn: "Войти",
+      loggingIn: "Аутентификация...",
+      invalidCreds: "Неверные учетные данные.",
+      rememberMe: "Запомнить меня",
+    },
+    tr: {
+      title: "Daltoon Bot Yönetim Paneli",
+      subtitle: "Lütfen yönetici kimlik bilgilerini girin",
+      usernameLabel: "Kullanıcı Adı",
+      passwordLabel: "Şifre",
+      usernamePl: "örneğin: admin",
+      passwordPl: "•••",
+      loginBtn: "Giriş Yap",
+      loggingIn: "Doğrulanıyor...",
+      invalidCreds: "Geçersiz kimlik bilgileri.",
+      rememberMe: "Beni Hatırla",
+    },
+    es: {
+      title: "Panel de Daltoon Bot",
+      subtitle: "Ingrese sus credenciales de administrador",
+      usernameLabel: "Usuario",
+      passwordLabel: "Contraseña",
+      usernamePl: "ej., admin",
+      passwordPl: "•••",
+      loginBtn: "Iniciar Sesión",
+      loggingIn: "Autenticando...",
+      invalidCreds: "Credenciales inválidas.",
+      rememberMe: "Recordarme",
+    }
+  }[lang] || {
+      title: "Daltoon Bot Admin Panel",
+      subtitle: "Please enter your administrative credentials to log in",
+      usernameLabel: "Username",
+      passwordLabel: "Password",
+      usernamePl: "e.g., admin",
+      passwordPl: "•••",
+      loginBtn: "Sign In",
+      loggingIn: "Authenticating...",
+      invalidCreds: "Invalid credentials. Please verify your config or try again.",
+      rememberMe: "Remember Me",
+  };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
