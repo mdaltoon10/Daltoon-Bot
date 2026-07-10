@@ -875,7 +875,9 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const [appVersion, setAppVersion] = useState("2.3.0");
+  const [appVersion, setAppVersion] = useState<string>(() => {
+    return localStorage.getItem("daltoon_last_running_version") || "2.3.4";
+  });
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -895,23 +897,15 @@ export default function App() {
     fetch(`/api/system/check-update?channel=${updateChannel}`)
       .then((res) => res.json())
       .then((data) => {
-        if (data.currentVersion) setAppVersion(data.currentVersion);
+        if (data.currentVersion) {
+          setAppVersion(data.currentVersion);
+          localStorage.setItem("daltoon_last_running_version", data.currentVersion);
+        }
         if (data.latestVersion) setLatestVersion(data.latestVersion);
         setUpdateAvailable(data.updateAvailable);
       })
       .catch((err) => console.warn("Check update failed", err));
   }, [updateChannel]);
-
-  useEffect(() => {
-    const cachedVersion = localStorage.getItem("daltoon_last_running_version");
-    if (cachedVersion && cachedVersion !== appVersion && appVersion !== "1.0.0") {
-      localStorage.setItem("daltoon_last_running_version", appVersion);
-      console.log(`Version bumped from ${cachedVersion} to ${appVersion}. Reloading to clear cache.`);
-      window.location.href = window.location.pathname + "?v=" + appVersion + "&t=" + new Date().getTime();
-    } else {
-      localStorage.setItem("daltoon_last_running_version", appVersion);
-    }
-  }, [appVersion]);
 
   const [isLightMode, setIsLightMode] = useState<boolean>(() => {
     return localStorage.getItem("theme") === "light";
