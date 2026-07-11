@@ -5984,7 +5984,11 @@ app.post("/api/system/update", async (req, res) => {
           const gitResult = await runCommandAsync(gitCmd);
           writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
           
-          writeLog(`Step 2: Building project...`);
+          writeLog(`Step 2: Installing dependencies...`);
+          const npmInstallResult = await runCommandAsync("npm install");
+          writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
+
+          writeLog(`Step 3: Building project...`);
           const buildResult = await runCommandAsync(`npm run build`);
           writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
         } else {
@@ -5993,25 +5997,24 @@ app.post("/api/system/update", async (req, res) => {
           const gitResult = await runCommandAsync(gitCmd);
           writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
           
-          writeLog(`Step 2: Building project...`);
+          writeLog(`Step 2: Installing dependencies...`);
+          const npmInstallResult = await runCommandAsync("npm install");
+          writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
+
+          writeLog(`Step 3: Building project...`);
           const buildResult = await runCommandAsync(`npm run build`);
           writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
         }
 
-        // Step 3: Make files executable
-        writeLog(`Step 3: Making executable files executable...`);
+        // Step 4: Make files executable
+        writeLog(`Step 4: Making executable files executable...`);
         await runCommandAsync("chmod +x daltoon-dashboard install.sh 2>/dev/null || true");
 
-        // Step 4: Install Python Dependencies (Optional/No-block)
-        writeLog(`Step 4: Installing Python dependencies...`);
+        // Step 5: Install Python Dependencies (Optional/No-block)
+        writeLog(`Step 5: Installing Python dependencies...`);
         const pipCmd = "pip3 install -U pyTelegramBotAPI python-dotenv requests --break-system-packages || pip3 install -U pyTelegramBotAPI python-dotenv requests || true";
         const pipResult = await runCommandAsync(pipCmd);
         writeLog(`Pip output:\n${pipResult.stdout}\n${pipResult.stderr}`);
-
-        // Step 5: Install npm dependencies (only production)
-        writeLog(`Step 5: Installing npm dependencies...`);
-        const npmInstallResult = await runCommandAsync("npm ci --omit=dev || npm install --omit=dev");
-        writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
 
         // Step 6: Restart PM2 processes
         writeLog(`Step 6: Restarting PM2 processes...`);
