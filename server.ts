@@ -1808,7 +1808,7 @@ app.post("/api/ai/chat", async (req, res) => {
         apiKey: apiKeyToUse,
       });
 
-      const modelName = finalModelName || "gemini-2.5-flash";
+      const modelName = finalModelName || "gemini-1.5-flash";
       
       const configObj: any = {
         systemInstruction: systemPrompt,
@@ -1963,7 +1963,7 @@ app.post("/api/ai/test-key", async (req, res) => {
         apiKey: trimmedKey,
       });
 
-      const model = finalModelName || "gemini-2.5-flash";
+      const model = finalModelName || "gemini-1.5-flash";
       const response = await ai.models.generateContent({
         model: model,
         contents: "سلام",
