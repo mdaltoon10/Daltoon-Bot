@@ -57,6 +57,7 @@ export default function SettingsPanel({
     settings.ownerId ? settings.ownerId.toString() : "",
   );
   const [geminiApiKey, setGeminiApiKey] = useState(settings.geminiApiKey || "");
+  const [geminiBaseUrl, setGeminiBaseUrl] = useState(settings.geminiBaseUrl || "");
   const [customAiApiKey, setCustomAiApiKey] = useState(settings.customAiApiKey || "");
   const [aiBaseUrl, setAiBaseUrl] = useState(settings.aiBaseUrl || "");
   const [aiModelName, setAiModelName] = useState(settings.aiModelName || "");
@@ -94,7 +95,7 @@ export default function SettingsPanel({
       const response = await fetch("/api/ai/test-key", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: geminiApiKey, type: "gemini" })
+        body: JSON.stringify({ apiKey: geminiApiKey, baseUrl: geminiBaseUrl, type: "gemini" })
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -229,6 +230,7 @@ export default function SettingsPanel({
       currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      geminiBaseUrl,
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
@@ -270,6 +272,7 @@ export default function SettingsPanel({
       currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      geminiBaseUrl,
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
@@ -576,6 +579,7 @@ export default function SettingsPanel({
       currency,
       ownerId: parseInt(ownerId) || 0,
       geminiApiKey,
+      geminiBaseUrl,
       customAiApiKey,
       aiBaseUrl,
       aiModelName,
@@ -954,6 +958,18 @@ export default function SettingsPanel({
                 className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 value={geminiApiKey}
                 onChange={(e) => setGeminiApiKey(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                {translateText("Gemini API Base URL (Proxy/Optional):", "آدرس Base URL جیمینای (پراکسی/اختیاری):", lang)}
+              </label>
+              <input
+                type="text"
+                placeholder="https://generativelanguage.googleapis.com"
+                className="w-full bg-[#0a0e17] border border-gray-800 rounded-lg p-2.5 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value={geminiBaseUrl}
+                onChange={(e) => setGeminiBaseUrl(e.target.value)}
               />
             </div>
 

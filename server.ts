@@ -1735,6 +1735,7 @@ app.post("/api/ai/chat", async (req, res) => {
       geminiApiKey = process.env.GEMINI_API_KEY || "";
     }
 
+    let geminiBaseUrl = systemSettings.geminiBaseUrl || "";
     let customAiApiKey = systemSettings.customAiApiKey || "";
     let aiBaseUrl = systemSettings.aiBaseUrl || "";
     let aiModelName = systemSettings.aiModelName || "";
@@ -1747,6 +1748,7 @@ app.post("/api/ai/chat", async (req, res) => {
     if (isSupport) {
       // Support assistant strictly uses geminiApiKey
       apiKeyToUse = geminiApiKey.trim();
+      finalBaseUrl = geminiBaseUrl ? geminiBaseUrl.trim() : "";
       if (!apiKeyToUse || apiKeyToUse.trim() === "") {
         return res.status(400).json({
           error:
@@ -1804,9 +1806,7 @@ app.post("/api/ai/chat", async (req, res) => {
       console.log(
         `[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`,
       );
-      const ai = new GoogleGenAI({
-        apiKey: apiKeyToUse,
-      });
+      const ai = new GoogleGenAI({ apiKey: apiKeyToUse, ...(finalBaseUrl ? { baseUrl: finalBaseUrl } : {}) });
 
       const modelName = finalModelName || "gemini-1.5-flash";
       
@@ -1961,6 +1961,7 @@ app.post("/api/ai/test-key", async (req, res) => {
       console.log(`[AI Key Test] Testing direct Gemini API key`);
       const ai = new GoogleGenAI({
         apiKey: trimmedKey,
+        ...(finalBaseUrl ? { baseUrl: finalBaseUrl } : {})
       });
 
       const model = finalModelName || "gemini-1.5-flash";

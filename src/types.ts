@@ -26,6 +26,7 @@ export interface PanelSettings {
   activeInboundIds: number[]; // Deprecated
   ownerId: number;
   geminiApiKey?: string;
+  geminiBaseUrl?: string;
   customAiApiKey?: string;
   aiBaseUrl?: string;
   aiModelName?: string;
