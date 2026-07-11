@@ -1808,7 +1808,7 @@ app.post("/api/ai/chat", async (req, res) => {
       );
       const ai = new GoogleGenAI({ apiKey: apiKeyToUse, ...(finalBaseUrl ? { httpOptions: { baseUrl: finalBaseUrl } } : {}) });
 
-      const modelName = finalModelName || "gemini-1.5-flash";
+      const modelName = finalModelName || "gemini-2.5-flash";
       
       const configObj: any = {
         systemInstruction: systemPrompt,
@@ -1969,7 +1969,7 @@ app.post("/api/ai/test-key", async (req, res) => {
         ...(finalBaseUrl ? { httpOptions: { baseUrl: finalBaseUrl } } : {})
       });
 
-      const model = finalModelName || "gemini-1.5-flash";
+      const model = finalModelName || "gemini-2.5-flash";
       const response = await ai.models.generateContent({
         model: model,
         contents: "سلام",
