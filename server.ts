@@ -5982,21 +5982,14 @@ app.post("/api/system/update", async (req, res) => {
           const buildResult = await runCommandAsync(`npm run build`);
           writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
         } else {
-          // Step 1: Download Release Artifact
-          writeLog(`Step 1: Downloading release artifact for ${targetTag}...`);
-          const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
-          const artifactName = `daltoon-bot-linux-${arch}.tar.gz`;
-          const downloadUrl = `https://github.com/mdaltoon10/Daltoon-Bot/releases/download/${targetTag}/${artifactName}`;
+          writeLog(`Step 1: Pulling latest changes from stable branch (tag ${targetTag})...`);
+          const gitCmd = `git fetch origin --tags && git checkout -f ${targetTag}`;
+          const gitResult = await runCommandAsync(gitCmd);
+          writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
           
-          const curlCmd = `curl -L -o update.tar.gz "${downloadUrl}"`;
-          const curlResult = await runCommandAsync(curlCmd);
-          writeLog(`Download output:\n${curlResult.stdout}\n${curlResult.stderr}`);
-
-          // Step 2: Extract Artifact
-          writeLog(`Step 2: Extracting artifact...`);
-          const extractCmd = `tar -xzf update.tar.gz && rm update.tar.gz`;
-          const extractResult = await runCommandAsync(extractCmd);
-          writeLog(`Extract output:\n${extractResult.stdout}\n${extractResult.stderr}`);
+          writeLog(`Step 2: Building project...`);
+          const buildResult = await runCommandAsync(`npm run build`);
+          writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
         }
 
         // Step 3: Make files executable
