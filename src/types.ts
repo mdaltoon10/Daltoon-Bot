@@ -185,7 +185,7 @@ export interface User {
   activePlansCount: number;
   joinDate: string;
   referralCount?: number;
-  referralRewards?: number;
+  referralRewardTotal?: number;
   status: "active" | "banned";
 }
 

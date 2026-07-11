@@ -623,7 +623,7 @@ export default function UserManagement({
                             <span className="text-gray-500">{translateText("Invites:", "دعوت:", lang)}</span> {user.referralCount || 0}
                           </div>
                           <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
-                            <span className="text-gray-500">{translateText("Earned:", "درآمد:", lang)}</span> {(user.referralRewards || 0).toLocaleString()}
+                            <span className="text-gray-500">{translateText("Earned:", "درآمد:", lang)}</span> {(user.referralRewardTotal || 0).toLocaleString()}
                           </div>
                         </div>
                       </td>
