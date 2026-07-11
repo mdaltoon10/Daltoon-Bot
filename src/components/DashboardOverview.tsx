@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
 import { InboundInfo, Transaction, PanelSettings } from "../types";
-import { Language, translations } from "../locales";
 import SystemResourceMonitor from "./SystemResourceMonitor";
 import SystemHealthAssessment from "./SystemHealthAssessment";
 import { 
@@ -53,9 +53,9 @@ interface DashboardOverviewProps {
 const dTrans = {
   fa: {
     newUpdate: "نسخه جدید در دسترس است",
-    manageBot: "مدیریت، بررسی وضعیت و بروزرسانی ربات دالتون",
+    manageBot: "مدیریت، بررسی وضعیت و بروزرسانی دالتون بات",
     update: "بروزرسانی",
-    liveTreasury: "گزارش زنده درآمدهای ربات دالتون",
+    liveTreasury: "گزارش زنده درآمدهای دالتون بات",
     liveTreasuryDesc: "بررسی و پایش دقیق مالی در بازه‌های زمانی مختلف بر اساس تراکنش‌های تایید شده",
     liveSync: "به‌روزرسانی آنی فعال",
     last24h: "۲۴ ساعت گذشته",
@@ -219,8 +219,8 @@ export default function DashboardOverview({
   onOpenUpdatePanel,
   settings
 }: DashboardOverviewProps) {
-  const t = translations[lang];
-  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const t = { ...translations.en, ...translations[lang] };
+  const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const dt = dTrans[lang in dTrans ? lang : "en"];
   const [activePeriod, setActivePeriod] = useState<"daily" | "weekly" | "monthly" | "yearly">("daily");
   const [showIp, setShowIp] = useState(false);

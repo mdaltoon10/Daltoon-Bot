@@ -23,8 +23,8 @@ export const initialInbounds: InboundInfo[] = [
 ];
 
 export const initialUsers: User[] = [
-  { userId: 6536288293, username: "daltoon_admin", walletBalance: 250000, activePlansCount: 2, joinDate: "2026-05-12", status: "active" },
-  { userId: 512938474, username: "milad_kh", walletBalance: 120000, activePlansCount: 1, joinDate: "2026-05-15", status: "active" },
+  { userId: 6536288293, username: "daltoon_admin", walletBalance: 250000, activePlansCount: 2, joinDate: "2026-05-12", status: "active", referralCount: 12, referralRewards: 65000 },
+  { userId: 512938474, username: "milad_kh", walletBalance: 120000, activePlansCount: 1, joinDate: "2026-05-15", status: "active", referralCount: 3, referralRewards: 15000 },
   { userId: 382910482, username: "maryam_rz", walletBalance: 45000, activePlansCount: 0, joinDate: "2026-05-20", status: "active" },
   { userId: 882910493, username: "reza_parsa", walletBalance: 0, activePlansCount: 1, joinDate: "2026-05-25", status: "active" },
   { userId: 104829381, username: "hassan_v2ray", walletBalance: 450000, activePlansCount: 3, joinDate: "2026-06-01", status: "active" },

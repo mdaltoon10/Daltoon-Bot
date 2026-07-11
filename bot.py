@@ -1,3 +1,10 @@
+from translations import get_text
+def get_lang():
+    try:
+        db = read_sqlite_db()
+        return db.get("settings", {}).get("LANG", "fa")
+    except:
+        return "fa"
 # -*- coding: utf-8 -*-
 # Daltoon
 """

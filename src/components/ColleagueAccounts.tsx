@@ -1,3 +1,4 @@
+import { translateText } from "../lang/locales"; import { Language } from "../lang/locales";
 import React, { useState } from "react";
 import { ColleagueAccount } from "../types";
 import { Trash, Copy, RotateCcw, Pencil, AlertCircle, CheckCircle2, Ticket } from "lucide-react";
@@ -5,7 +6,7 @@ import { Trash, Copy, RotateCcw, Pencil, AlertCircle, CheckCircle2, Ticket } fro
 interface Props {
   accounts: ColleagueAccount[];
   setAccounts: (a: ColleagueAccount[]) => void;
-  lang: string;
+  lang: Language;
 }
 
 export default function ColleagueAccounts({ 
@@ -62,15 +63,13 @@ export default function ColleagueAccounts({
     }
 
     showToast(
-      lang === "fa"
-        ? `✅ ${label} کپی شد!`
-        : `✅ ${label} copied!`
+      translateText(`✅ ${label} copied!`, `✅ ${label} کپی شد!`, lang)
     );
   };
 
   const deleteAccount = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از حذف این حساب مستقل همکار اطمینان دارید؟" : "Are you sure you want to delete this colleague account?",
+      message: translateText("Are you sure you want to delete this colleague account?", "آیا از حذف این حساب مستقل همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -82,7 +81,7 @@ export default function ColleagueAccounts({
           const data = await res.json();
           if (data.success) {
             setAccounts(data.colleagueAccounts);
-            showToast(lang === "fa" ? "حساب همکار حذف شد." : "Account deleted successfully.", "success");
+            showToast(translateText("Account deleted successfully.", "حساب همکار حذف شد.", lang), "success");
           } else {
             showToast(data.error, "error");
           }
@@ -96,7 +95,7 @@ export default function ColleagueAccounts({
 
   const resetAccount = async (id: string) => {
     setConfirmAction({
-      message: lang === "fa" ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟" : "Are you sure you want to reset credentials for this account?",
+      message: translateText("Are you sure you want to reset credentials for this account?", "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -108,7 +107,7 @@ export default function ColleagueAccounts({
           const data = await res.json();
           if (data.success) {
             setAccounts(data.colleagueAccounts);
-            showToast(lang === "fa" ? "مشخصات اتصال نمایندگی با موفقیت ریست شد." : "Credentials reset successfully.", "success");
+            showToast(translateText("Credentials reset successfully.", "مشخصات اتصال نمایندگی با موفقیت ریست شد.", lang), "success");
           } else {
             showToast(data.error, "error");
           }
@@ -133,7 +132,7 @@ export default function ColleagueAccounts({
       if (data.success) {
         setAccounts(data.colleagueAccounts);
         setEditAccountId(null);
-        showToast(lang === "fa" ? "تغییرات با موفقیت ذخیره شد." : "Changes saved successfully.", "success");
+        showToast(translateText("Changes saved successfully.", "تغییرات با موفقیت ذخیره شد.", lang), "success");
       } else {
         showToast(data.error, "error");
       }
@@ -146,7 +145,7 @@ export default function ColleagueAccounts({
   const resetAccountUsage = async () => {
     if (!editAccountId) return;
     setConfirmAction({
-      message: lang === "fa" ? "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟" : "Are you sure you want to reset usage to zero?",
+      message: translateText("Are you sure you want to reset usage to zero?", "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -159,7 +158,7 @@ export default function ColleagueAccounts({
           if (data.success) {
             setAccounts(data.colleagueAccounts);
             setEditAccountId(null);
-            showToast(lang === "fa" ? "حجم مصرفی همکار با موفقیت صفر شد." : "Usage reset successfully.", "success");
+            showToast(translateText("Usage reset successfully.", "حجم مصرفی همکار با موفقیت صفر شد.", lang), "success");
           } else {
             showToast(data.error, "error");
           }
@@ -172,12 +171,12 @@ export default function ColleagueAccounts({
   };
 
   return (
-    <div className="space-y-6" dir={lang === "fa" ? "rtl" : "ltr"}>
+    <div className="space-y-6" dir={translateText("ltr", "rtl", lang)}>
       <div className="bg-[#0b0f19] border border-[#1f2937] rounded-2xl overflow-hidden shadow-xl">
         <div className="p-5 border-b border-[#1f2937] bg-slate-900/50 flex items-center justify-between">
           <h2 className="text-white font-bold flex items-center gap-2">
             <Ticket className="w-5 h-5 text-indigo-400" />
-            {lang === "fa" ? "حساب‌های صادر شده همکاران" : "Colleague Issued Accounts"}
+            {translateText("Colleague Issued Accounts", "حساب‌های صادر شده همکاران", lang)}
           </h2>
         </div>
 
@@ -185,16 +184,16 @@ export default function ColleagueAccounts({
           <table className="w-full text-right" dir="rtl">
             <thead className="bg-slate-900/60 sticky top-0 z-10">
               <tr>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "مخاطب (آیدی)" : "User ID"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "پکیج" : "Package"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "پیشوند" : "Prefix"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "توکن بازیابی" : "Recovery Token"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "یوزرنیم" : "Username"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "رمز" : "Password"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "کل حجم" : "Total Traffic"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "تخصیص داده شده" : "Allocated"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "مجموع مصرف کاربر" : "Real Usage"}</th>
-                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{lang === "fa" ? "وضعیت" : "Status"}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("User ID", "مخاطب (آیدی)", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Package", "پکیج", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Prefix", "پیشوند", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Recovery Token", "توکن بازیابی", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Username", "یوزرنیم", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Password", "رمز", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Total Traffic", "کل حجم", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Allocated", "تخصیص داده شده", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Real Usage", "مجموع مصرف کاربر", lang)}</th>
+                <th className="px-4 py-3 text-gray-400 font-bold text-xs">{translateText("Status", "وضعیت", lang)}</th>
                 <th className="px-4 py-3 text-gray-400 font-bold text-xs"></th>
               </tr>
             </thead>
@@ -209,7 +208,7 @@ export default function ColleagueAccounts({
                       <div className="flex items-center gap-1.5 justify-start">
                         <span>{acc.recoveryToken}</span>
                         <button
-                          onClick={() => copyToClipboard(acc.recoveryToken, lang === "fa" ? "توکن بازیابی" : "Recovery Token")}
+                          onClick={() => copyToClipboard(acc.recoveryToken, translateText("Recovery Token", "توکن بازیابی", lang))}
                           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
                         >
                           <Copy className="w-3.5 h-3.5" />
@@ -221,7 +220,7 @@ export default function ColleagueAccounts({
                     <div className="flex items-center gap-1.5 justify-start">
                       <span>{acc.username}</span>
                       <button
-                        onClick={() => copyToClipboard(acc.username, lang === "fa" ? "یوزرنیم" : "Username")}
+                        onClick={() => copyToClipboard(acc.username, translateText("Username", "یوزرنیم", lang))}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -232,7 +231,7 @@ export default function ColleagueAccounts({
                     <div className="flex items-center gap-1.5 justify-start">
                       <span>{acc.password}</span>
                       <button
-                        onClick={() => copyToClipboard(acc.password, lang === "fa" ? "رمز عبور" : "Password")}
+                        onClick={() => copyToClipboard(acc.password, translateText("Password", "رمز عبور", lang))}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-gray-400 hover:text-amber-400 transition cursor-pointer"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -282,7 +281,7 @@ export default function ColleagueAccounts({
               {accounts.length === 0 && (
                 <tr>
                   <td colSpan={11} className="text-center py-20 text-gray-500 font-bold">
-                    {lang === "fa" ? "هیچ حسابی در سیستم صادر نشده است." : "No accounts issued yet."}
+                    {translateText("No accounts issued yet.", "هیچ حسابی در سیستم صادر نشده است.", lang)}
                   </td>
                 </tr>
               )}
@@ -295,17 +294,17 @@ export default function ColleagueAccounts({
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[#0b0f19] rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-[#1f2937] animate-in zoom-in-95 duration-200">
             <div className="p-4 border-b border-[#1f2937] flex justify-between items-center bg-slate-900/50">
-              <h3 className="text-white font-bold">{lang === "fa" ? "ویرایش حجم حساب همکار" : "Edit Account Traffic"}</h3>
+              <h3 className="text-white font-bold">{translateText("Edit Account Traffic", "ویرایش حجم حساب همکار", lang)}</h3>
               <button onClick={() => setEditAccountId(null)} className="text-gray-400 hover:text-white transition">
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-6 space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wider">{lang === "fa" ? "کل حجم (گیگابایت)" : "Total Traffic (GB)"}</label>
+                <label className="block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wider">{translateText("Total Traffic (GB)", "کل حجم (گیگابایت)", lang)}</label>
                 <input type="number" value={aTraffic} onChange={e => setATraffic(e.target.value)} className="w-full bg-[#070913] border border-[#1f2937] rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500 transition-all" dir="ltr" />
                 <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
-                  {lang === "fa" ? "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد." : "Increasing this value expands the colleague's limit for creating users."}
+                  {translateText("Increasing this value expands the colleague's limit for creating users.", "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد.", lang)}
                 </p>
               </div>
 
@@ -317,7 +316,7 @@ export default function ColleagueAccounts({
                   className="w-full px-4 py-2.5 bg-rose-500/5 hover:bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl font-bold text-xs transition-all flex gap-2 items-center justify-center"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  {lang === "fa" ? "صفر کردن حجم مصرفی همکار" : "Reset Usage to Zero"}
+                  {translateText("Reset Usage to Zero", "صفر کردن حجم مصرفی همکار", lang)}
                 </button>
               </div>
             </div>
@@ -326,14 +325,14 @@ export default function ColleagueAccounts({
                 onClick={() => setEditAccountId(null)}
                 className="flex-1 px-4 py-2.5 hover:bg-white/5 rounded-xl text-xs font-bold text-gray-400 transition"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
               <button
                 onClick={saveAccount}
                 disabled={loading}
                 className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20"
               >
-                {loading ? "..." : (lang === "fa" ? "ذخیره تغییرات" : "Save Changes")}
+                {loading ? "..." : (translateText("Save Changes", "ذخیره تغییرات", lang))}
               </button>
             </div>
           </div>
@@ -352,11 +351,11 @@ export default function ColleagueAccounts({
 
       {confirmAction && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in font-sans">
-          <div className="bg-[#0b0f19] border border-[#1f2937] backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4" dir={lang === "fa" ? "rtl" : "ltr"}>
+          <div className="bg-[#0b0f19] border border-[#1f2937] backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4" dir={translateText("ltr", "rtl", lang)}>
             <div className="flex items-center gap-2 text-amber-400 border-b border-[#1f2937] pb-3">
               <AlertCircle className="w-5 h-5 text-amber-400" />
               <h3 className="text-sm font-bold text-white">
-                {lang === "fa" ? "تایید نهایی عملیات" : "Confirm Operation"}
+                {translateText("Confirm Operation", "تایید نهایی عملیات", lang)}
               </h3>
             </div>
             
@@ -370,7 +369,7 @@ export default function ColleagueAccounts({
                 onClick={() => setConfirmAction(null)}
                 className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-[#1f2937] text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
               <button
                 type="button"
@@ -380,7 +379,7 @@ export default function ColleagueAccounts({
                 }}
                 className="flex-1 px-4 py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 rounded-xl text-sm font-medium transition-all duration-200 shadow-lg shadow-indigo-500/10"
               >
-                {lang === "fa" ? "تایید" : "Confirm"}
+                {translateText("Confirm", "تایید", lang)}
               </button>
             </div>
           </div>

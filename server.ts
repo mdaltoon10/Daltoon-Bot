@@ -299,7 +299,7 @@ function writeSqliteDb(data: DbSchema): boolean {
       
       let hasToken = false;
       try {
-        let cfg = data.settings?.panel_config;
+        let cfg: any = data.settings?.panel_config;
         if (typeof cfg === "string") {
             cfg = JSON.parse(cfg);
         }

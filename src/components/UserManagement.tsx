@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useEffect } from "react";
 import { User, SubscriptionKey, PanelSettings } from "../types";
-import { Language, translations } from "../locales";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { 
   Search, 
@@ -57,8 +57,8 @@ export default function UserManagement({
   settings,
   updateSubscriptionKey
 }: UserManagementProps) {
-  const t = translations[lang];
-  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const t = { ...translations.en, ...translations[lang] };
+  const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const [searchTerm, setSearchTerm] = useState("");
 
   const getCalculatedPrice = () => {
@@ -133,7 +133,7 @@ export default function UserManagement({
   const handleRenewKeySubmit = () => {
     if (!renewingKey) return;
     setIsRenewSubmitting(true);
-    showToast(lang === "fa" ? "در حال تمدید اشتراک..." : "Renewing subscription...", "success");
+    showToast(translateText("Renewing subscription...", "در حال تمدید اشتراک...", lang), "success");
 
     fetch("/api/subscription-keys/renew", {
       method: "POST",
@@ -156,15 +156,15 @@ export default function UserManagement({
             status: data.key.status
           });
         }
-        showToast(lang === "fa" ? "سرویس با موفقیت تمدید شد! 🎉" : "Service renewed successfully! 🎉", "success");
+        showToast(translateText("Service renewed successfully! 🎉", "سرویس با موفقیت تمدید شد! 🎉", lang), "success");
         setRenewingKey(null);
       } else {
-        showToast(data.error || (lang === "fa" ? "خطا در تمدید سرویس" : "Error renewing service"), "error");
+        showToast(data.error || (translateText("Error renewing service", "خطا در تمدید سرویس", lang)), "error");
       }
     })
     .catch(err => {
       setIsRenewSubmitting(false);
-      showToast(err.message || (lang === "fa" ? "خطا در برقراری ارتباط" : "Connection error"), "error");
+      showToast(err.message || (translateText("Connection error", "خطا در برقراری ارتباط", lang)), "error");
     });
   };
 
@@ -174,7 +174,7 @@ export default function UserManagement({
     if (regeneratingKeyId) return;
     setRegeneratingKeyId(keyId);
     
-    showToast(lang === "fa" ? "در حال بازنشانی لینک کاربر..." : "Resetting user link...", "success");
+    showToast(translateText("Resetting user link...", "در حال بازنشانی لینک کاربر...", lang), "success");
 
     fetch("/api/subscription-keys/regenerate-uuid", {
       method: "POST",
@@ -200,14 +200,14 @@ export default function UserManagement({
             subLink: data.key.subLink
           });
         }
-        showToast(lang === "fa" ? "لینک و آیدی با موفقیت تغییر کرد! 🎉" : "Link & UUID regenerated successfully! 🎉", "success");
+        showToast(translateText("Link & UUID regenerated successfully! 🎉", "لینک و آیدی با موفقیت تغییر کرد! 🎉", lang), "success");
       } else {
-        showToast(data.error || (lang === "fa" ? "خطا در تغییر لینک" : "Error resetting link"), "error");
+        showToast(data.error || (translateText("Error resetting link", "خطا در تغییر لینک", lang)), "error");
       }
     })
     .catch(err => {
       setRegeneratingKeyId(null);
-      showToast(err.message || (lang === "fa" ? "خطا در ارتباط با سرور" : "Failed to communicate with server"), "error");
+      showToast(err.message || (translateText("Failed to communicate with server", "خطا در ارتباط با سرور", lang)), "error");
     });
   };
 
@@ -247,7 +247,7 @@ export default function UserManagement({
       })
       .catch(err => {
         setIsSubmittingConfig(false);
-        setConfigErrorMessage(lang === "fa" ? "خطا در ارتباط با سرور" : "Server connection failure");
+        setConfigErrorMessage(translateText("Server connection failure", "خطا در ارتباط با سرور", lang));
       });
       return;
     }
@@ -308,16 +308,16 @@ export default function UserManagement({
     .then(data => {
       setIsSendingMsg(false);
       if (data.success) {
-        showToast(lang === "fa" ? "پیام خصوصی با موفقیت ارسال شد!" : "Direct message sent successfully!", "success");
+        showToast(translateText("Direct message sent successfully!", "پیام خصوصی با موفقیت ارسال شد!", lang), "success");
         setDirectMsgText("");
         setSendingMsgUser(null);
       } else {
-        showToast(data.error || (lang === "fa" ? "خطا در ارسال پیام" : "Error sending message"), "error");
+        showToast(data.error || (translateText("Error sending message", "خطا در ارسال پیام", lang)), "error");
       }
     })
     .catch(err => {
       setIsSendingMsg(false);
-      showToast(err.message || (lang === "fa" ? "خطا در ارتباط با سرور" : "Failed to communicate with server"), "error");
+      showToast(err.message || (translateText("Failed to communicate with server", "خطا در ارتباط با سرور", lang)), "error");
     });
   };
 
@@ -326,7 +326,7 @@ export default function UserManagement({
     if (!adjustingUser) return;
     const amountNum = parseInt(adjustAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      console.warn(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
+      console.warn(translateText("Please enter a valid amount.", "لطفا مبلغ معتبری وارد کنید.", lang));
       return;
     }
     
@@ -341,11 +341,11 @@ export default function UserManagement({
     const parsedId = parseInt(newUserId);
     const parsedBalance = parseInt(newBalance) || 0;
     if (isNaN(parsedId) || parsedId <= 0) {
-      console.warn(lang === "fa" ? "لطفا شناسه عددی تلگرام معتبری وارد کنید." : "Please enter a valid Telegram User ID.");
+      console.warn(translateText("Please enter a valid Telegram User ID.", "لطفا شناسه عددی تلگرام معتبری وارد کنید.", lang));
       return;
     }
     if (!newUsername) {
-      console.warn(lang === "fa" ? "لطفا نام کاربری را وارد کنید." : "Please enter a username.");
+      console.warn(translateText("Please enter a username.", "لطفا نام کاربری را وارد کنید.", lang));
       return;
     }
 
@@ -458,6 +458,7 @@ export default function UserManagement({
                 <th className="px-5 py-3">{t.tableColHandle}</th>
                 <th className="px-5 py-3">{t.tableColWallet}</th>
                 <th className="px-5 py-3">{t.tableColSubs}</th>
+                <th className="px-5 py-3">{translateText("Referrals", "زیرمجموعه‌ها", lang)}</th>
                 <th className="px-5 py-3">{t.tableColRegDate}</th>
                 <th className="px-5 py-3">{t.tableColCompliance}</th>
                 <th className="px-5 py-3 text-right">{t.tableColActions}</th>
@@ -486,7 +487,7 @@ export default function UserManagement({
                               setTimeout(() => setCopiedKeyId(null), 1500);
                             }}
                             className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer"
-                            title={lang === "fa" ? "کپی شناسه تلگرام" : "Copy Telegram ID"}
+                            title={translateText("Copy Telegram ID", "کپی شناسه تلگرام", lang)}
                           >
                             {copiedKeyId === "uid_" + user.userId ? (
                               <Check className="w-3 h-3 text-emerald-400" />
@@ -507,7 +508,7 @@ export default function UserManagement({
                               setTimeout(() => setCopiedKeyId(null), 1500);
                             }}
                             className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer ml-1"
-                            title={lang === "fa" ? "کپی نام کاربری" : "Copy Username"}
+                            title={translateText("Copy Username", "کپی نام کاربری", lang)}
                           >
                             {copiedKeyId === "uname_" + user.userId ? (
                               <Check className="w-3 h-3 text-emerald-400" />
@@ -528,7 +529,7 @@ export default function UserManagement({
                           <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold inline-block text-center ${
                             userKeys.length > 0 ? "bg-indigo-500/10 text-indigo-300" : "bg-slate-800/60 text-gray-500"
                           }`}>
-                            {userKeys.length} {lang === "fa" ? "کانفیگ" : "configs"}
+                            {userKeys.length} {translateText("configs", "کانفیگ", lang)}
                           </span>
                           {userKeys.length > 0 && (
                             <div className="space-y-2 max-h-[160px] overflow-y-auto no-scrollbar pt-1">
@@ -546,7 +547,7 @@ export default function UserManagement({
                                           setTimeout(() => setCopiedKeyId(null), 1500);
                                         }}
                                         className="text-gray-400 hover:text-indigo-400 hover:bg-indigo-500/10 p-0.5 rounded transition cursor-pointer"
-                                        title={lang === "fa" ? "کپی لینک کانکشن" : "Copy connection link"}
+                                        title={translateText("Copy connection link", "کپی لینک کانکشن", lang)}
                                       >
                                         {copiedKeyId === key.id ? (
                                           <Check className="w-3 h-3 text-emerald-400" />
@@ -562,7 +563,7 @@ export default function UserManagement({
                                             ? "text-amber-500 hover:bg-amber-500/10"
                                             : "text-emerald-400 hover:bg-emerald-500/10"
                                         }`}
-                                        title={key.status === "active" ? (lang === "fa" ? "تعلیق" : "Suspend") : (lang === "fa" ? "فعال کردن" : "Enable")}
+                                        title={key.status === "active" ? (translateText("Suspend", "تعلیق", lang)) : (translateText("Enable", "فعال کردن", lang))}
                                       >
                                         <Ban className="w-3 h-3" />
                                       </button>
@@ -575,7 +576,7 @@ export default function UserManagement({
                                           setRenewDays("30");
                                         }}
                                         className="text-emerald-400 hover:bg-emerald-500/10 p-0.5 rounded transition cursor-pointer"
-                                        title={lang === "fa" ? "تمدید سرویس" : "Renew Service"}
+                                        title={translateText("Renew Service", "تمدید سرویس", lang)}
                                       >
                                         <RefreshCw className="w-3 h-3" />
                                       </button>
@@ -585,7 +586,7 @@ export default function UserManagement({
                                         onClick={() => handleRegenerateUuid(key.id)}
                                         disabled={regeneratingKeyId === key.id}
                                         className="text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition cursor-pointer disabled:opacity-50"
-                                        title={lang === "fa" ? "تغییر لینک" : "New Link"}
+                                        title={translateText("New Link", "تغییر لینک", lang)}
                                       >
                                         <RotateCcw className={`w-3 h-3 ${regeneratingKeyId === key.id ? 'animate-spin' : ''}`} />
                                       </button>
@@ -594,13 +595,11 @@ export default function UserManagement({
                                         onClick={() => setDeleteConfirm({
                                           id: key.id,
                                           type: "key",
-                                          title: lang === "fa" ? "تایید حذف کانفیگ" : "Confirm Delete Subscription",
-                                          message: lang === "fa"
-                                            ? `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`
-                                            : `Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`
+                                          title: translateText("Confirm Delete Subscription", "تایید حذف کانفیگ", lang),
+                                          message: translateText(`Are you sure you want to delete config ${key.planName} (ID: ${key.id})?`, `آیا از حذف دائم کانفیگ ${key.planName} (شناسه: ${key.id}) اطمینان دارید؟`, lang)
                                         })}
                                         className="text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 p-0.5 rounded transition shrink-0 cursor-pointer"
-                                        title={lang === "fa" ? "حذف این کانفیگ" : "Remove this key"}
+                                        title={translateText("Remove this key", "حذف این کانفیگ", lang)}
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </button>
@@ -618,6 +617,16 @@ export default function UserManagement({
                           )}
                         </div>
                       </td>
+                                            <td className="px-5 py-3">
+                        <div className="flex flex-col gap-1 text-xs">
+                          <div className="flex items-center gap-1.5 text-gray-300">
+                            <span className="text-gray-500">{translateText("Invites:", "دعوت:", lang)}</span> {user.referralCount || 0}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                            <span className="text-gray-500">{translateText("Earned:", "درآمد:", lang)}</span> {(user.referralRewards || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </td>
                       <td className="px-5 py-4 font-mono text-xs text-gray-400">{user.joinDate}</td>
                       <td className="px-5 py-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
@@ -625,7 +634,7 @@ export default function UserManagement({
                             ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                             : "bg-rose-500/10 text-rose-400 border border-rose-500/20"
                         }`}>
-                          {user.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "مسدود" : "banned")}
+                          {user.status === "active" ? (translateText("active", "فعال", lang)) : (translateText("banned", "مسدود", lang))}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right space-x-1 whitespace-nowrap flex items-center justify-end gap-1 font-sans">
@@ -644,10 +653,10 @@ export default function UserManagement({
                         <button
                           onClick={() => setAddingConfigForUser(user)}
                           className="p-1 px-2 bg-emerald-950/40 hover:bg-emerald-900 border border-emerald-500/10 text-emerald-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
-                          title={lang === "fa" ? "افزودن کانفیگ دستی" : "Add Manual VPN Config"}
+                          title={translateText("Add Manual VPN Config", "افزودن کانفیگ دستی", lang)}
                         >
                           <Key className="w-3 h-3 text-emerald-400" />
-                          {lang === "fa" ? "➕ کانفیگ" : "+ Config"}
+                          {translateText("+ Config", "➕ کانفیگ", lang)}
                         </button>
 
                         <button
@@ -662,10 +671,10 @@ export default function UserManagement({
                         <button
                           onClick={() => setSendingMsgUser(user)}
                           className="p-1 px-2 bg-fuchsia-950/40 hover:bg-fuchsia-900 border border-fuchsia-500/20 text-fuchsia-300 rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
-                          title={lang === "fa" ? "ارسال پیام خصوصی به تلگرام" : "Send direct Telegram message"}
+                          title={translateText("Send direct Telegram message", "ارسال پیام خصوصی به تلگرام", lang)}
                         >
                           <MessageSquare className="w-3 h-3 text-fuchsia-400" />
-                          {lang === "fa" ? "💬 پیام به PV" : "💬 Message PV"}
+                          {translateText("💬 Message PV", "💬 پیام به PV", lang)}
                         </button>
 
                         <button
@@ -684,13 +693,11 @@ export default function UserManagement({
                           onClick={() => setDeleteConfirm({
                             id: user.userId,
                             type: "user",
-                            title: lang === "fa" ? "تایید حذف کاربر" : "Confirm Delete User",
-                            message: lang === "fa"
-                              ? `آیا از حذف کامل کاربر @${user.username} و تمام سرویس‌ها و اکانت‌های فعال وی از دالتون بات اطمینان دارید؟`
-                              : `Are you sure you want to completely delete @${user.username} and all of their active subscription keys?`
+                            title: translateText("Confirm Delete User", "تایید حذف کاربر", lang),
+                            message: translateText(`Are you sure you want to completely delete @${user.username} and all of their active subscription keys?`, `آیا از حذف کامل کاربر @${user.username} و تمام سرویس‌ها و اکانت‌های فعال وی از دالتون بات اطمینان دارید؟`, lang)
                           })}
                           className="p-1 px-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/30 text-rose-400 hover:text-white rounded text-[11px] transition inline-flex items-center gap-0.5 cursor-pointer"
-                          title={lang === "fa" ? "حذف کامل کاربر" : "Delete User Completely"}
+                          title={translateText("Delete User Completely", "حذف کامل کاربر", lang)}
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -775,14 +782,14 @@ export default function UserManagement({
           <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4">
             <h3 className="font-display font-semibold text-lg text-white flex items-center gap-2">
               <Key className="w-5 h-5 text-indigo-400" />
-              {lang === "fa" ? (creationMode === "panel" ? "ایجاد کانفیگ خودکار روی پنل" : "ثبت کانفیگ دستی جدید") : (creationMode === "panel" ? "Auto-Create Client in X-UI" : "Create Manual VPN Config")}
+              {(creationMode === "panel" ? translateText("Auto-Create Client in X-UI", "ایجاد کانفیگ خودکار روی پنل", lang) : translateText("Create Manual VPN Config", "ثبت کانفیگ دستی جدید", lang))}
             </h3>
             <p className="text-xs text-gray-400">
               {lang === "fa" 
                 ? (creationMode === "panel" ? "مشخصات کلاینت را بنویسید تا سیستم به صورت خودکار کاربر را در پنل ۳x-ui بسازد." : "یک کانفیگ اختصاصی یا لینک اتصال دلخواه برای این کاربر ایجاد و ثبت کنید.")
                 : (creationMode === "panel" ? "Enter client details. The system will automatically add the user directly to the X-UI panel." : "Create a custom connection link or account subscription for this client.")}
               <br />
-              {lang === "fa" ? "کاربر هدف:" : "Target User:"}{" "}
+              {translateText("Target User:", "کاربر هدف:", lang)}{" "}
               <span className="text-indigo-400 font-semibold font-mono">@{addingConfigForUser.username || "بدون آیدی"} (ID: {addingConfigForUser.userId})</span>
             </p>
 
@@ -799,7 +806,7 @@ export default function UserManagement({
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  {lang === "fa" ? "ساخت خودکار روی پنل" : "Panel Auto-Create"}
+                  {translateText("Panel Auto-Create", "ساخت خودکار روی پنل", lang)}
                 </button>
                 <button
                   type="button"
@@ -811,7 +818,7 @@ export default function UserManagement({
                   }`}
                 >
                   <Settings className="w-3.5 h-3.5" />
-                  {lang === "fa" ? "ثبت دستی لینک" : "Manual Link"}
+                  {translateText("Manual Link", "ثبت دستی لینک", lang)}
                 </button>
               </div>
             )}
@@ -826,15 +833,15 @@ export default function UserManagement({
               <div>
                 <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
                   {creationMode === "panel" 
-                    ? (lang === "fa" ? "نام کاربری کلاینت (به انگلیسی، حداقل ۳ کاراکتر)" : "Client Email / Name (English, min 3 chars)")
-                    : (lang === "fa" ? "نام پلن / مدت دوره" : "Plan Title / Label")}
+                    ? (translateText("Client Email / Name (English, min 3 chars)", "نام کاربری کلاینت (به انگلیسی، حداقل ۳ کاراکتر)", lang))
+                    : (translateText("Plan Title / Label", "نام پلن / مدت دوره", lang))}
                 </label>
                 <input
                   type="text"
                   required
                   placeholder={creationMode === "panel" 
-                    ? (lang === "fa" ? "مثلا: active-vless" : "e.g. active-vless")
-                    : (lang === "fa" ? "مثلا: ۱ ماهه ۵۰ گیگ یا VIP" : "e.g. Monthly 50GB, VIP")}
+                    ? (translateText("e.g. active-vless", "مثلا: active-vless", lang))
+                    : (translateText("e.g. Monthly 50GB, VIP", "مثلا: ۱ ماهه ۵۰ گیگ یا VIP", lang))}
                   className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-sans"
                   value={manualPlanName}
                   onChange={(e) => setManualPlanName(e.target.value)}
@@ -844,10 +851,10 @@ export default function UserManagement({
               {creationMode === "manual" ? (
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                    {lang === "fa" ? "لینک کانکشن (Vless / Trojan / SS)" : "Connection Link (Vless / Trojan / SS)"}
+                    {translateText("Connection Link (Vless / Trojan / SS)", "لینک کانکشن (Vless / Trojan / SS)", lang)}
                   </label>
                   <textarea
-                    placeholder={lang === "fa" ? "لینک تولید شده در x-ui را اینجا پیست کنید (در صورت خالی بودن، لینک تصادفی ساخته میشود)" : "Paste connection link here (if left empty, a mock link is generated)"}
+                    placeholder={translateText("Paste connection link here (if left empty, a mock link is generated)", "لینک تولید شده در x-ui را اینجا پیست کنید (در صورت خالی بودن، لینک تصادفی ساخته میشود)", lang)}
                     rows={3}
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-3 text-xs text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 font-sans"
                     value={manualSubLink}
@@ -856,14 +863,14 @@ export default function UserManagement({
                 </div>
               ) : (
                 <div className="bg-slate-900/60 p-3 rounded-lg border border-slate-800 text-[11px] text-indigo-300 font-sans leading-relaxed">
-                  📢 {lang === "fa" ? "نحوه کارکرد پنل: سیستم به طور هوشمند کاربر تعریف‌شده را روی تمامی اینباندهای فعال چندگانه در هسته 3x-ui تعریف کرده و لینک جامع سابسکریپشن را تولید و در صفحه کاربری او فعال خواهد کرد. نیازی به ورود دستی هیچ کدی نیست!" : "How it works: System will define client in all active 3x-ui panel inbounds & dynamically register the unified subscription link automatically."}
+                  📢 {translateText("How it works: System will define client in all active 3x-ui panel inbounds & dynamically register the unified subscription link automatically.", "نحوه کارکرد پنل: سیستم به طور هوشمند کاربر تعریف‌شده را روی تمامی اینباندهای فعال چندگانه در هسته 3x-ui تعریف کرده و لینک جامع سابسکریپشن را تولید و در صفحه کاربری او فعال خواهد کرد. نیازی به ورود دستی هیچ کدی نیست!", lang)}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                    {lang === "fa" ? "حجم مجاز (گیگابایت)" : "Traffic Cap (GB)"}
+                    {translateText("Traffic Cap (GB)", "حجم مجاز (گیگابایت)", lang)}
                   </label>
                   <input
                     type="number"
@@ -875,7 +882,7 @@ export default function UserManagement({
                 </div>
                 <div>
                   <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                    {lang === "fa" ? "مدت زمان (روز)" : "Validity (Days)"}
+                    {translateText("Validity (Days)", "مدت زمان (روز)", lang)}
                   </label>
                   <input
                     type="number"
@@ -900,10 +907,10 @@ export default function UserManagement({
                   {isSubmittingConfig ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>{lang === "fa" ? "در حال ایجاد در پنل..." : "Generating on Panel..."}</span>
+                      <span>{translateText("Generating on Panel...", "در حال ایجاد در پنل...", lang)}</span>
                     </>
                   ) : (
-                    <span>{lang === "fa" ? "ثبت کانفیگ" : "Create Subscription"}</span>
+                    <span>{translateText("Create Subscription", "ثبت کانفیگ", lang)}</span>
                   )}
                 </button>
                 <button
@@ -946,14 +953,14 @@ export default function UserManagement({
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition cursor-pointer"
               >
-                {lang === "fa" ? "تایید و حذف دائم" : "Yes, Permanently Delete"}
+                {translateText("Yes, Permanently Delete", "تایید و حذف دائم", lang)}
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
             </div>
           </div>
@@ -963,28 +970,26 @@ export default function UserManagement({
       {/* Direct Telegram Message (PV Chat) Dialog */}
       {sendingMsgUser && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in font-sans">
-          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4 shadow-2xl" dir={lang === "fa" ? "rtl" : "ltr"}>
+          <div className="bg-[#111827] border border-[#1f2937] p-6 rounded-xl max-w-md w-full space-y-4 shadow-2xl" dir={translateText("ltr", "rtl", lang)}>
             <h3 className="font-display font-semibold text-base text-fuchsia-400 flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-fuchsia-400" />
-              {lang === "fa" ? `ارسال پیام خصوصی به @${sendingMsgUser.username || sendingMsgUser.userId}` : `Send Direct PV Message to @${sendingMsgUser.username || sendingMsgUser.userId}`}
+              {translateText("Send Direct PV Message to @", "ارسال پیام خصوصی به @", lang) + (sendingMsgUser.username || sendingMsgUser.userId)}
             </h3>
             
             <p className="text-xs text-gray-300 leading-relaxed">
-              {lang === "fa" 
-                ? "پیام شما به صورت مستقیم و خصوصی از طرف ربات تلگرام به پی‌وی کاربر ارسال خواهد شد. می‌توانید از تگ‌های HTML نظیر <b>خط ضخیم</b> یا <code>کد کپی‌شونده</code> استفاده کنید."
-                : "Your message will be sent directly from the Telegram bot to the user's private chat. You can use HTML formatting tags like <b>bold</b> or <code>code</code>."}
+              {translateText("Your message will be sent directly from the Telegram bot to the user's private chat. You can use HTML formatting tags like <b>bold</b> or <code>code</code>.", "پیام شما به صورت مستقیم و خصوصی از طرف ربات تلگرام به پی‌وی کاربر ارسال خواهد شد. می‌توانید از تگ‌های HTML نظیر <b>خط ضخیم</b> یا <code>کد کپی‌شونده</code> استفاده کنید.", lang)}
             </p>
 
             <form onSubmit={handleSendDirectMessage} className="space-y-4">
               <div>
                 <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                  {lang === "fa" ? "متن پیام:" : "Message Text:"}
+                  {translateText("Message Text:", "متن پیام:", lang)}
                 </label>
                 <textarea
                   rows={5}
                   value={directMsgText}
                   onChange={(e) => setDirectMsgText(e.target.value)}
-                  placeholder={lang === "fa" ? "سلام! اکانت شما با موفقیت تمدید شد..." : "Hello! Your account has been extended..."}
+                  placeholder={translateText("Hello! Your account has been extended...", "سلام! اکانت شما با موفقیت تمدید شد...", lang)}
                   className="w-full p-2.5 rounded-lg border border-gray-700 bg-slate-900 text-white text-xs focus:ring-1 focus:ring-fuchsia-500 focus:outline-none"
                   required
                 />
@@ -997,8 +1002,8 @@ export default function UserManagement({
                   className="px-4 py-2 bg-fuchsia-600 hover:bg-fuchsia-700 disabled:opacity-50 text-white font-semibold rounded-lg transition cursor-pointer"
                 >
                   {isSendingMsg 
-                    ? (lang === "fa" ? "در حال ارسال..." : "Sending...") 
-                    : (lang === "fa" ? "ارسال پیام" : "Send Message")}
+                    ? (translateText("Sending...", "در حال ارسال...", lang)) 
+                    : (translateText("Send Message", "ارسال پیام", lang))}
                 </button>
                 <button
                   type="button"
@@ -1008,7 +1013,7 @@ export default function UserManagement({
                   }}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
                 >
-                  {lang === "fa" ? "انصراف" : "Cancel"}
+                  {translateText("Cancel", "انصراف", lang)}
                 </button>
               </div>
             </form>
@@ -1029,7 +1034,7 @@ export default function UserManagement({
 
             <div className="text-center space-y-2">
               <h3 className="font-display font-medium text-lg text-white">
-                {lang === "fa" ? "🖼️ بارکد QR اتصال کلاینت" : "🖼️ Client Connection QR Code"}
+                {translateText("🖼️ Client Connection QR Code", "🖼️ بارکد QR اتصال کلاینت", lang)}
               </h3>
               <p className="text-xs text-indigo-300 font-mono">
                 {activeQrKey.planName}
@@ -1048,7 +1053,7 @@ export default function UserManagement({
             <div className="space-y-3">
               <div className="bg-slate-950/60 border border-slate-900 rounded-xl p-3 text-center space-y-1">
                 <span className="text-[10px] text-gray-500 block">
-                  {lang === "fa" ? "لینک هوشمند سابسکریپشن کلاینت:" : "Unified Client Subscription Link:"}
+                  {translateText("Unified Client Subscription Link:", "لینک هوشمند سابسکریپشن کلاینت:", lang)}
                 </span>
                 <span className="text-xs font-mono text-indigo-400 break-all select-all font-semibold block">
                   {activeQrKey.subLink}
@@ -1063,14 +1068,14 @@ export default function UserManagement({
                   }}
                   className="flex-1 py-2.5 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-lg text-xs transition cursor-pointer text-center"
                 >
-                  {lang === "fa" ? "کپی مجدد لینک" : "Copy Link"}
+                  {translateText("Copy Link", "کپی مجدد لینک", lang)}
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveQrKey(null)}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded-lg transition cursor-pointer"
                 >
-                  {lang === "fa" ? "بستن" : "Close"}
+                  {translateText("Close", "بستن", lang)}
                 </button>
               </div>
             </div>
@@ -1091,7 +1096,7 @@ export default function UserManagement({
 
             <div className="text-center space-y-1">
               <h3 className="font-display font-medium text-lg text-white">
-                {lang === "fa" ? "🔄 تمدید سرویس کاربر" : "🔄 Renew User Service"}
+                {translateText("🔄 Renew User Service", "🔄 تمدید سرویس کاربر", lang)}
               </h3>
               <p className="text-xs text-emerald-400 font-mono">
                 {renewingKey.planName} ({renewingKey.clientName || "N/A"})
@@ -1101,7 +1106,7 @@ export default function UserManagement({
             <div className="space-y-4 pt-2">
               <div className="space-y-1">
                 <label className="text-xs text-gray-400 block font-medium">
-                  {lang === "fa" ? "حجم ترافیک اضافی (گیگابایت):" : "Additional Traffic Limit (GB):"}
+                  {translateText("Additional Traffic Limit (GB):", "حجم ترافیک اضافی (گیگابایت):", lang)}
                 </label>
                 <input
                   type="number"
@@ -1114,7 +1119,7 @@ export default function UserManagement({
 
               <div className="space-y-1">
                 <label className="text-xs text-gray-400 block font-medium">
-                  {lang === "fa" ? "روزهای اعتبار اضافی:" : "Additional Duration (Days):"}
+                  {translateText("Additional Duration (Days):", "روزهای اعتبار اضافی:", lang)}
                 </label>
                 <input
                   type="number"
@@ -1127,7 +1132,7 @@ export default function UserManagement({
 
               <div className="bg-slate-950 border border-slate-800/60 p-3 rounded-lg text-center space-y-0.5">
                 <span className="text-[10px] text-gray-400 block uppercase tracking-wider">
-                  {lang === "fa" ? "هزینه محاسباتی تمدید" : "Calculated Renewal Cost"}
+                  {translateText("Calculated Renewal Cost", "هزینه محاسباتی تمدید", lang)}
                 </span>
                 <span className="text-base font-bold text-emerald-400 font-mono">
                   {getCalculatedPrice().toLocaleString()} {currency}
@@ -1142,15 +1147,15 @@ export default function UserManagement({
                   className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800/50 text-white font-semibold rounded-lg text-xs transition cursor-pointer text-center"
                 >
                   {isRenewSubmitting
-                    ? (lang === "fa" ? "در حال اعمال..." : "Applying...")
-                    : (lang === "fa" ? "تایید و تمدید" : "Confirm & Renew")}
+                    ? (translateText("Applying...", "در حال اعمال...", lang))
+                    : (translateText("Confirm & Renew", "تایید و تمدید", lang))}
                 </button>
                 <button
                   type="button"
                   onClick={() => setRenewingKey(null)}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 text-xs rounded-lg transition cursor-pointer"
                 >
-                  {lang === "fa" ? "لغو" : "Cancel"}
+                  {translateText("Cancel", "لغو", lang)}
                 </button>
               </div>
             </div>

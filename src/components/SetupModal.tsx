@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Language } from "../locales";
+import { Language } from "../lang/locales";
 import { Bot, UserCog, User, Key, ArrowRight, Info } from "lucide-react";
 import { PanelSettings } from "../types";
 

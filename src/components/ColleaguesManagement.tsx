@@ -1,3 +1,4 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
 import {
   ColleaguePackage,
@@ -32,7 +33,7 @@ interface Props {
   accounts: ColleagueAccount[];
   setPackages: (p: ColleaguePackage[]) => void;
   setAccounts: (a: ColleagueAccount[]) => void;
-  lang: string;
+  lang: Language;
   settings: PanelSettings;
   onSaveSettings: (s: PanelSettings) => void;
   planCategories?: PlanCategory[];
@@ -113,7 +114,7 @@ export default function ColleaguesManagement({
       }
     }
 
-    showToast(lang === "fa" ? `✅ ${label} کپی شد!` : `✅ ${label} copied!`);
+    showToast(translateText("✅ ", "✅ ", lang) + label + translateText(" copied!", " کپی شد!", lang));
   };
 
   // Package Form
@@ -164,7 +165,7 @@ export default function ColleaguesManagement({
       if (data.success) {
         setColleagueCategories?.(data.colleagueCategories);
         showToast(
-          lang === "fa" ? "دسته همکار ذخیره شد." : "Category saved.",
+          translateText("Category saved.", "دسته همکار ذخیره شد.", lang),
           "success",
         );
         setShowAddCategory(false);
@@ -182,9 +183,7 @@ export default function ColleaguesManagement({
   const deleteCategory = async (id: string) => {
     setConfirmAction({
       message:
-        lang === "fa"
-          ? "آیا از حذف این دسته‌بندی اطمینان دارید؟"
-          : "Are you sure you want to delete this category?",
+        translateText("Are you sure you want to delete this category?", "آیا از حذف این دسته‌بندی اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -197,7 +196,7 @@ export default function ColleaguesManagement({
           if (data.success) {
             setColleagueCategories?.(data.colleagueCategories);
             showToast(
-              lang === "fa" ? "دسته حذف شد." : "Category deleted.",
+              translateText("Category deleted.", "دسته حذف شد.", lang),
               "success",
             );
           }
@@ -295,9 +294,7 @@ export default function ColleaguesManagement({
         setPackages(data.colleaguePackages);
         resetPackageForm();
         showToast(
-          lang === "fa"
-            ? "بسته با موفقیت ذخیره شد."
-            : "Package saved successfully.",
+          translateText("Package saved successfully.", "بسته با موفقیت ذخیره شد.", lang),
           "success",
         );
       } else {
@@ -368,9 +365,7 @@ export default function ColleaguesManagement({
   const deletePackage = async (id: string) => {
     setConfirmAction({
       message:
-        lang === "fa"
-          ? "آیا از حذف این بسته اطمینان دارید؟"
-          : "Are you sure you want to delete this package?",
+        translateText("Are you sure you want to delete this package?", "آیا از حذف این بسته اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -383,9 +378,7 @@ export default function ColleaguesManagement({
           if (data.success) {
             setPackages(data.colleaguePackages);
             showToast(
-              lang === "fa"
-                ? "بسته با موفقیت حذف شد."
-                : "Package deleted successfully.",
+              translateText("Package deleted successfully.", "بسته با موفقیت حذف شد.", lang),
               "success",
             );
           } else {
@@ -402,9 +395,7 @@ export default function ColleaguesManagement({
   const deleteAccount = async (id: string) => {
     setConfirmAction({
       message:
-        lang === "fa"
-          ? "آیا از حذف این حساب مستقل همکار اطمینان دارید؟"
-          : "Are you sure you want to delete this colleague account?",
+        translateText("Are you sure you want to delete this colleague account?", "آیا از حذف این حساب مستقل همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -417,9 +408,7 @@ export default function ColleaguesManagement({
           if (data.success) {
             setAccounts(data.colleagueAccounts);
             showToast(
-              lang === "fa"
-                ? "حساب همکار حذف شد."
-                : "Account deleted successfully.",
+              translateText("Account deleted successfully.", "حساب همکار حذف شد.", lang),
               "success",
             );
           } else {
@@ -436,9 +425,7 @@ export default function ColleaguesManagement({
   const resetAccount = async (id: string) => {
     setConfirmAction({
       message:
-        lang === "fa"
-          ? "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟"
-          : "Are you sure you want to reset credentials for this account?",
+        translateText("Are you sure you want to reset credentials for this account?", "آیا از ریست کردن نام کاربری و رمز عبور این حساب همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -451,9 +438,7 @@ export default function ColleaguesManagement({
           if (data.success) {
             setAccounts(data.colleagueAccounts);
             showToast(
-              lang === "fa"
-                ? "مشخصات اتصال نمایندگی با موفقیت ریست شد."
-                : "Credentials reset successfully.",
+              translateText("Credentials reset successfully.", "مشخصات اتصال نمایندگی با موفقیت ریست شد.", lang),
               "success",
             );
           } else {
@@ -484,9 +469,7 @@ export default function ColleaguesManagement({
         setAccounts(data.colleagueAccounts);
         setEditAccountId(null);
         showToast(
-          lang === "fa"
-            ? "تغییرات با موفقیت ذخیره شد."
-            : "Changes saved successfully.",
+          translateText("Changes saved successfully.", "تغییرات با موفقیت ذخیره شد.", lang),
           "success",
         );
       } else {
@@ -502,9 +485,7 @@ export default function ColleaguesManagement({
     if (!editAccountId) return;
     setConfirmAction({
       message:
-        lang === "fa"
-          ? "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟"
-          : "Are you sure you want to reset usage to zero?",
+        translateText("Are you sure you want to reset usage to zero?", "آیا از صفر کردن حجم مصرفی همکار اطمینان دارید؟", lang),
       onConfirm: async () => {
         setLoading(true);
         try {
@@ -518,9 +499,7 @@ export default function ColleaguesManagement({
             setAccounts(data.colleagueAccounts);
             setEditAccountId(null);
             showToast(
-              lang === "fa"
-                ? "حجم مصرفی همکار با موفقیت صفر شد."
-                : "Usage reset successfully.",
+              translateText("Usage reset successfully.", "حجم مصرفی همکار با موفقیت صفر شد.", lang),
               "success",
             );
           } else {
@@ -535,26 +514,26 @@ export default function ColleaguesManagement({
   };
 
   return (
-    <div className="space-y-6" dir={lang === "fa" ? "rtl" : "ltr"}>
+    <div className="space-y-6" dir={translateText("ltr", "rtl", lang)}>
       {/* Tabs */}
       <div className="flex gap-2 p-1 bg-slate-900 border border-slate-800 rounded-xl w-fit">
         <button
           onClick={() => setActiveTab("servers")}
           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "servers" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
         >
-          {lang === "fa" ? "سرورهای همکاران" : "Colleague Servers"}
+          {translateText("Colleague Servers", "سرورهای همکاران", lang)}
         </button>
         <button
           onClick={() => setActiveTab("packages")}
           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "packages" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
         >
-          {lang === "fa" ? "بسته‌های همکاران" : "Colleague Packages"}
+          {translateText("Colleague Packages", "بسته‌های همکاران", lang)}
         </button>
         <button
           onClick={() => setActiveTab("accounts")}
           className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === "accounts" ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-gray-400 hover:text-white"}`}
         >
-          {lang === "fa" ? "حساب‌های صادر شده" : "Issued Accounts"}
+          {translateText("Issued Accounts", "حساب‌های صادر شده", lang)}
         </button>
       </div>
 
@@ -568,7 +547,7 @@ export default function ColleaguesManagement({
                   <Layers className="text-indigo-400 w-4 h-4" />
                 </div>
                 <h4 className="text-white font-bold text-sm">
-                  {lang === "fa" ? "مدیریت دسته‌بندی‌ها" : "Categories"}
+                  {translateText("Categories", "مدیریت دسته‌بندی‌ها", lang)}
                 </h4>
               </div>
               <button
@@ -585,7 +564,7 @@ export default function ColleaguesManagement({
                 ) : (
                   <Plus className="w-3.5 h-3.5" />
                 )}
-                {lang === "fa" ? "تعریف دسته" : "Add Category"}
+                {translateText("Add Category", "تعریف دسته", lang)}
               </button>
             </div>
 
@@ -595,7 +574,7 @@ export default function ColleaguesManagement({
                   <div className="flex-1 min-w-[200px]">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
                       {" "}
-                      {lang === "fa" ? "نام دسته‌بندی" : "Name"}{" "}
+                      {translateText("Name", "نام دسته‌بندی", lang)}{" "}
                     </label>
                     <input
                       type="text"
@@ -607,7 +586,7 @@ export default function ColleaguesManagement({
                   <div className="w-32">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
                       {" "}
-                      {lang === "fa" ? "ایموجی" : "Emoji"}{" "}
+                      {translateText("Emoji", "ایموجی", lang)}{" "}
                     </label>
                     <div className="flex gap-1.5">
                       <input
@@ -635,7 +614,7 @@ export default function ColleaguesManagement({
                       disabled={loading}
                       className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all disabled:opacity-50"
                     >
-                      {loading ? "..." : lang === "fa" ? "ذخیره" : "Save"}
+                      {loading ? "..." : translateText("Save", "ذخیره", lang)}
                     </button>
                   </div>
                 </div>
@@ -652,9 +631,7 @@ export default function ColleaguesManagement({
                   <div className="flex justify-between items-center border-b border-white/5 pb-2 mb-1">
                     <span className="text-[10px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-1.5 py-0.5 rounded border border-white/5">
                       <Layers className="w-2.5 h-2.5 text-indigo-400" />
-                      {lang === "fa"
-                        ? `جایگاه: ${index + 1}`
-                        : `Rank: ${index + 1}`}
+                      {translateText(`Rank: ${index + 1}`, `جایگاه: ${index + 1}`, lang)}
                     </span>
                     <div className="flex items-center gap-1">
                       <button
@@ -662,7 +639,7 @@ export default function ColleaguesManagement({
                         onClick={() => handleMoveColleagueCategory(index, "up")}
                         disabled={index === 0}
                         className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                        title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                        title={translateText("Move Up", "انتقال به بالا", lang)}
                       >
                         <ChevronUp className="w-3.5 h-3.5" />
                       </button>
@@ -673,7 +650,7 @@ export default function ColleaguesManagement({
                         }
                         disabled={index === colleagueCategories.length - 1}
                         className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                        title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                        title={translateText("Move Down", "انتقال به پایین", lang)}
                       >
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
@@ -687,9 +664,7 @@ export default function ColleaguesManagement({
                         }
                         className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
                         title={
-                          lang === "fa"
-                            ? "انتخاب مستقیم جایگاه"
-                            : "Direct Position Selection"
+                          translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)
                         }
                       >
                         {colleagueCategories.map((_, idx) => (
@@ -738,7 +713,7 @@ export default function ColleaguesManagement({
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm flex items-center gap-2"
             >
               <Plus className="w-5 h-5" />
-              {lang === "fa" ? "افزودن پکیج جدید" : "Add New Package"}
+              {translateText("Add New Package", "افزودن پکیج جدید", lang)}
             </button>
           </div>
 
@@ -746,17 +721,13 @@ export default function ColleaguesManagement({
             <div className="bg-slate-800/80 p-4 rounded-xl border border-indigo-500/30">
               <h3 className="text-white font-bold mb-4">
                 {editPackageId
-                  ? lang === "fa"
-                    ? "ویرایش پکیج"
-                    : "Edit Package"
-                  : lang === "fa"
-                    ? "ثبت پکیج جدید"
-                    : "Register New Package"}
+                  ? translateText("Edit Package", "ویرایش پکیج", lang)
+                  : translateText("Register New Package", "ثبت پکیج جدید", lang)}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa" ? "عنوان پکیج" : "Title"}
+                    {translateText("Title", "عنوان پکیج", lang)}
                   </label>
                   <input
                     type="text"
@@ -767,7 +738,7 @@ export default function ColleaguesManagement({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa" ? "قیمت (تومان)" : "Price (IRT)"}
+                    {translateText("Price (IRT)", "قیمت (تومان)", lang)}
                   </label>
                   <input
                     type="number"
@@ -778,7 +749,7 @@ export default function ColleaguesManagement({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa" ? "حجم (گیگابایت)" : "Traffic (GB)"}
+                    {translateText("Traffic (GB)", "حجم (گیگابایت)", lang)}
                   </label>
                   <input
                     type="number"
@@ -789,9 +760,7 @@ export default function ColleaguesManagement({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa"
-                      ? "حداقل حجم ساخت کلاینت"
-                      : "Min GB per Client"}
+                    {translateText("Min GB per Client", "حداقل حجم ساخت کلاینت", lang)}
                   </label>
                   <input
                     type="number"
@@ -803,7 +772,7 @@ export default function ColleaguesManagement({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa" ? "دسته‌بندی" : "Category"}
+                    {translateText("Category", "دسته‌بندی", lang)}
                   </label>
                   <div className="flex gap-2">
                     <select
@@ -812,7 +781,7 @@ export default function ColleaguesManagement({
                       className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
                     >
                       <option value="">
-                        {lang === "fa" ? "بدون دسته‌بندی" : "No Category"}
+                        {translateText("No Category", "بدون دسته‌بندی", lang)}
                       </option>
                       {colleagueCategories.map((cat) => (
                         <option key={cat.id} value={cat.name}>
@@ -822,7 +791,7 @@ export default function ColleaguesManagement({
                     </select>
                     <input
                       type="text"
-                      placeholder={lang === "fa" ? "دستی..." : "Manual..."}
+                      placeholder={translateText("Manual...", "دستی...", lang)}
                       value={pCategory}
                       onChange={(e) => setPCategory(e.target.value)}
                       className="w-24 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-white text-xs"
@@ -831,9 +800,7 @@ export default function ColleaguesManagement({
                 </div>
                 <div className="md:col-span-2 lg:col-span-3">
                   <label className="block text-xs font-bold text-gray-400 mb-1">
-                    {lang === "fa"
-                      ? "توضیحات پکیج (نمایش به کاربر)"
-                      : "Description"}
+                    {translateText("Description", "توضیحات پکیج (نمایش به کاربر)", lang)}
                   </label>
                   <textarea
                     value={pDesc}
@@ -851,15 +818,13 @@ export default function ColleaguesManagement({
                 >
                   {loading
                     ? "..."
-                    : lang === "fa"
-                      ? "ذخیره پکیج"
-                      : "Save Package"}
+                    : translateText("Save Package", "ذخیره پکیج", lang)}
                 </button>
                 <button
                   onClick={resetPackageForm}
                   className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold text-sm"
                 >
-                  {lang === "fa" ? "انصراف" : "Cancel"}
+                  {translateText("Cancel", "انصراف", lang)}
                 </button>
               </div>
             </div>
@@ -877,9 +842,7 @@ export default function ColleaguesManagement({
                     <div className="flex justify-between items-center border-b border-white/5 pb-2.5 mb-3.5">
                       <span className="text-[11px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-2 py-0.5 rounded border border-white/5">
                         <Layers className="w-3 h-3 text-indigo-400" />
-                        {lang === "fa"
-                          ? `جایگاه: ${index + 1}`
-                          : `Rank: ${index + 1}`}
+                        {translateText(`Rank: ${index + 1}`, `جایگاه: ${index + 1}`, lang)}
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -887,7 +850,7 @@ export default function ColleaguesManagement({
                           onClick={() => handleMovePackage(index, "up")}
                           disabled={index === 0}
                           className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                          title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                          title={translateText("Move Up", "انتقال به بالا", lang)}
                         >
                           <ChevronUp className="w-3.5 h-3.5" />
                         </button>
@@ -897,7 +860,7 @@ export default function ColleaguesManagement({
                           disabled={index === packages.length - 1}
                           className="p-1 rounded bg-slate-900 border border-white/5 hover:bg-slate-700 text-gray-300 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
                           title={
-                            lang === "fa" ? "انتقال به پایین" : "Move Down"
+                            translateText("Move Down", "انتقال به پایین", lang)
                           }
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
@@ -912,9 +875,7 @@ export default function ColleaguesManagement({
                           }
                           className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
                           title={
-                            lang === "fa"
-                              ? "انتخاب مستقیم جایگاه"
-                              : "Direct Position Selection"
+                            translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)
                           }
                         >
                           {packages.map((_, idx) => (
@@ -948,7 +909,7 @@ export default function ColleaguesManagement({
                           className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md text-xs font-bold flex items-center gap-1 transition cursor-pointer"
                         >
                           <Pencil className="w-3.5 h-3.5" />
-                          <span>{lang === "fa" ? "ویرایش" : "Edit"}</span>
+                          <span>{translateText("Edit", "ویرایش", lang)}</span>
                         </button>
                         <button
                           onClick={() => deletePackage(p.id)}
@@ -957,7 +918,7 @@ export default function ColleaguesManagement({
                         >
                           <Trash className="w-3.5 h-3.5" />
                           <span className="text-xs font-bold">
-                            {lang === "fa" ? "حذف" : "Delete"}
+                            {translateText("Delete", "حذف", lang)}
                           </span>
                         </button>
                       </div>
@@ -990,9 +951,7 @@ export default function ColleaguesManagement({
               ))}
               {packages.length === 0 && (
                 <div className="col-span-full text-center py-8 text-gray-500">
-                  {lang === "fa"
-                    ? "هیچ پکیجی ثبت نشده است."
-                    : "No packages found."}
+                  {translateText("No packages found.", "هیچ پکیجی ثبت نشده است.", lang)}
                 </div>
               )}
             </div>
@@ -1006,34 +965,34 @@ export default function ColleaguesManagement({
             <thead className="bg-slate-900/60 pb-2">
               <tr>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "مخاطب (آیدی)" : "User ID"}
+                  {translateText("User ID", "مخاطب (آیدی)", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "پکیج" : "Package"}
+                  {translateText("Package", "پکیج", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "پیشوند" : "Prefix"}
+                  {translateText("Prefix", "پیشوند", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "توکن بازیابی" : "Recovery Token"}
+                  {translateText("Recovery Token", "توکن بازیابی", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "یوزرنیم" : "Username"}
+                  {translateText("Username", "یوزرنیم", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "رمز" : "Password"}
+                  {translateText("Password", "رمز", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "کل حجم" : "Total Traffic"}
+                  {translateText("Total Traffic", "کل حجم", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "تخصیص داده شده" : "Allocated"}
+                  {translateText("Allocated", "تخصیص داده شده", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "مجموع مصرف کاربر" : "Real Usage"}
+                  {translateText("Real Usage", "مجموع مصرف کاربر", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs">
-                  {lang === "fa" ? "وضعیت" : "Status"}
+                  {translateText("Status", "وضعیت", lang)}
                 </th>
                 <th className="px-4 py-3 text-gray-400 font-medium text-xs"></th>
               </tr>
@@ -1058,11 +1017,11 @@ export default function ColleaguesManagement({
                           onClick={() =>
                             copyToClipboard(
                               acc.recoveryToken,
-                              lang === "fa" ? "توکن بازیابی" : "Recovery Token",
+                              translateText("Recovery Token", "توکن بازیابی", lang),
                             )
                           }
                           className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
-                          title={lang === "fa" ? "کپی توکن" : "Copy Token"}
+                          title={translateText("Copy Token", "کپی توکن", lang)}
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </button>
@@ -1078,11 +1037,11 @@ export default function ColleaguesManagement({
                         onClick={() =>
                           copyToClipboard(
                             acc.username,
-                            lang === "fa" ? "یوزرنیم" : "Username",
+                            translateText("Username", "یوزرنیم", lang),
                           )
                         }
                         className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
-                        title={lang === "fa" ? "کپی یوزرنیم" : "Copy Username"}
+                        title={translateText("Copy Username", "کپی یوزرنیم", lang)}
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -1095,11 +1054,11 @@ export default function ColleaguesManagement({
                         onClick={() =>
                           copyToClipboard(
                             acc.password,
-                            lang === "fa" ? "رمز عبور" : "Password",
+                            translateText("Password", "رمز عبور", lang),
                           )
                         }
                         className="p-1 hover:bg-white/10 rounded text-gray-400 hover:text-amber-400 transition cursor-pointer"
-                        title={lang === "fa" ? "کپی رمز عبور" : "Copy Password"}
+                        title={translateText("Copy Password", "کپی رمز عبور", lang)}
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </button>
@@ -1117,11 +1076,11 @@ export default function ColleaguesManagement({
                   <td className="px-4 py-3 text-sm">
                     {acc.status === "active" ? (
                       <span className="text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md text-xs">
-                        {lang === "fa" ? "فعال" : "Active"}
+                        {translateText("Active", "فعال", lang)}
                       </span>
                     ) : (
                       <span className="text-rose-400 bg-rose-500/10 px-2 py-1 rounded-md text-xs">
-                        {lang === "fa" ? "منقضی" : "Expired"}
+                        {translateText("Expired", "منقضی", lang)}
                       </span>
                     )}
                   </td>
@@ -1131,9 +1090,7 @@ export default function ColleaguesManagement({
                         onClick={() => resetAccount(acc.id)}
                         disabled={loading}
                         title={
-                          lang === "fa"
-                            ? "ریست نام کاربری و رمز عبور"
-                            : "Reset Credentials"
+                          translateText("Reset Credentials", "ریست نام کاربری و رمز عبور", lang)
                         }
                         className="p-1.5 text-blue-400 hover:bg-blue-500/20 rounded-md"
                       >
@@ -1146,9 +1103,7 @@ export default function ColleaguesManagement({
                         }}
                         disabled={loading}
                         title={
-                          lang === "fa"
-                            ? "ویرایش حجم حساب"
-                            : "Edit Account Traffic"
+                          translateText("Edit Account Traffic", "ویرایش حجم حساب", lang)
                         }
                         className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-md"
                       >
@@ -1168,9 +1123,7 @@ export default function ColleaguesManagement({
               {accounts.length === 0 && (
                 <tr>
                   <td colSpan={11} className="text-center py-8 text-gray-500">
-                    {lang === "fa"
-                      ? "هیچ حسابی صادر نشده است."
-                      : "No accounts found."}
+                    {translateText("No accounts found.", "هیچ حسابی صادر نشده است.", lang)}
                   </td>
                 </tr>
               )}
@@ -1184,15 +1137,13 @@ export default function ColleaguesManagement({
           <div className="bg-slate-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-white/10">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
               <h3 className="text-white font-bold">
-                {lang === "fa"
-                  ? "ویرایش حجم حساب همکار"
-                  : "Edit Account Traffic"}
+                {translateText("Edit Account Traffic", "ویرایش حجم حساب همکار", lang)}
               </h3>
             </div>
             <div className="p-4 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-400 mb-1">
-                  {lang === "fa" ? "کل حجم (گیگابایت)" : "Total Traffic (GB)"}
+                  {translateText("Total Traffic (GB)", "کل حجم (گیگابایت)", lang)}
                 </label>
                 <input
                   type="number"
@@ -1202,9 +1153,7 @@ export default function ColleaguesManagement({
                   dir="ltr"
                 />
                 <p className="text-xs text-gray-400 mt-2">
-                  {lang === "fa"
-                    ? "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد."
-                    : "Increasing this value expands the colleague's limit for creating users."}
+                  {translateText("Increasing this value expands the colleague's limit for creating users.", "با افزایش این عدد، سقف مجاز همکار برای ایجاد کاربر افزایش می‌یابد.", lang)}
                 </p>
               </div>
 
@@ -1216,9 +1165,7 @@ export default function ColleaguesManagement({
                   className="w-full px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg font-bold text-sm transition flex gap-2 items-center justify-center"
                 >
                   <RotateCcw className="w-4 h-4" />
-                  {lang === "fa"
-                    ? "صفر کردن حجم مصرفی همکار"
-                    : "Reset Usage to Zero"}
+                  {translateText("Reset Usage to Zero", "صفر کردن حجم مصرفی همکار", lang)}
                 </button>
               </div>
             </div>
@@ -1227,7 +1174,7 @@ export default function ColleaguesManagement({
                 onClick={() => setEditAccountId(null)}
                 className="px-4 py-2 hover:bg-white/5 rounded-lg text-sm font-bold text-gray-300 transition"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
               <button
                 onClick={saveAccount}
@@ -1236,9 +1183,7 @@ export default function ColleaguesManagement({
               >
                 {loading
                   ? "..."
-                  : lang === "fa"
-                    ? "ذخیره تغییرات"
-                    : "Save Changes"}
+                  : translateText("Save Changes", "ذخیره تغییرات", lang)}
               </button>
             </div>
           </div>
@@ -1278,12 +1223,12 @@ export default function ColleaguesManagement({
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-fade-in font-sans">
           <div
             className="bg-slate-900/80 border border-white/10 backdrop-blur-xl p-6 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.5)] w-full max-w-sm space-y-4"
-            dir={lang === "fa" ? "rtl" : "ltr"}
+            dir={translateText("ltr", "rtl", lang)}
           >
             <div className="flex items-center gap-2 text-amber-400 border-b border-white/5 pb-3">
               <AlertCircle className="w-5 h-5 text-amber-400" />
               <h3 className="text-sm font-bold text-white">
-                {lang === "fa" ? "تایید نهایی عملیات" : "Confirm Operation"}
+                {translateText("Confirm Operation", "تایید نهایی عملیات", lang)}
               </h3>
             </div>
 
@@ -1297,7 +1242,7 @@ export default function ColleaguesManagement({
                 onClick={() => setConfirmAction(null)}
                 className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 backdrop-blur-md text-gray-300 rounded-xl text-sm font-medium transition-all duration-200"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
               <button
                 type="button"
@@ -1307,7 +1252,7 @@ export default function ColleaguesManagement({
                 }}
                 className="flex-1 px-4 py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 backdrop-blur-md text-indigo-300 rounded-xl text-sm font-medium transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.2)] hover:shadow-[0_0_20px_rgba(99,102,241,0.4)]"
               >
-                {lang === "fa" ? "تایید" : "Confirm"}
+                {translateText("Confirm", "تایید", lang)}
               </button>
             </div>
           </div>

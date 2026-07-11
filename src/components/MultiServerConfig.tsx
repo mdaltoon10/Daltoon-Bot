@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
 import { ServerConfig, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage } from "../types";
-import { Language } from "../locales";
 import {
   Cpu,
   RefreshCw,
@@ -149,16 +149,15 @@ export default function MultiServerConfig({
       setTestStatus({
         type: "error",
         message:
-          lang === "fa" ? "نام سرور الزامی است." : "Server name is required.",
+          translateText("Server name is required.", "نام سرور الزامی است.", lang),
       });
       return;
     }
     setTestStatus({
       type: "loading",
-      message:
-        lang === "fa"
-          ? (panelType === "rebecca" ? "در حال اتصال به پنل ربکا..." : "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها...")
-          : "Connecting to panel and retrieving inbounds...",
+      message: panelType === "rebecca"
+        ? translateText("Connecting to Rebecca panel...", "در حال اتصال به پنل ربکا...", lang)
+        : translateText("Connecting to 3x-ui panel and fetching inbounds...", "در حال اتصال به پنل ۳x-ui و دریافت لیست اینباندها...", lang),
     });
     try {
       const response = await fetch("/api/xui/test-connection", {
@@ -189,7 +188,7 @@ export default function MultiServerConfig({
     } catch (err: any) {
       setTestStatus({
         type: "error",
-        message: lang === "fa" ? "خطا در اتصال به سرور." : "Connection failed.",
+        message: translateText("Connection failed.", "خطا در اتصال به سرور.", lang),
       });
     }
   };
@@ -235,14 +234,10 @@ export default function MultiServerConfig({
           </div>
           <div>
             <h3 className="font-display font-bold text-lg text-white">
-              {lang === "fa"
-                ? (isColleague ? "🔌 مدیریت سرورهای همکاران" : "🔌 مدیریت سرورهای X-UI")
-                : (isColleague ? "🔌 Colleague Servers Management" : "🔌 X-UI Servers Management")}
+              {isColleague ? translateText("🔌 Colleague Servers Management", "🔌 مدیریت سرورهای همکاران", lang) : translateText("🔌 X-UI Servers Management", "🔌 مدیریت سرورهای X-UI", lang)}
             </h3>
             <p className="text-xs text-gray-400 mt-0.5">
-              {lang === "fa"
-                ? (isColleague ? "پنل‌های مخصوص همکاران را برای ساخت خودکار اشتراک‌های همکار اضافه کنید." : "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید.")
-                : (isColleague ? "Manage X-UI panels designated for colleague accounts subscription delivery." : "Manage your X-UI panels for automated subscription delivery.")}
+              {isColleague ? translateText("Manage X-UI panels designated for colleague accounts subscription delivery.", "پنل‌های مخصوص همکاران را برای ساخت خودکار اشتراک‌های همکار اضافه کنید.", lang) : translateText("Manage your X-UI panels for automated subscription delivery.", "پنل‌های خود را برای ساخت خودکار اشتراک‌ها اضافه کنید.", lang)}
             </p>
           </div>
         </div>
@@ -251,7 +246,7 @@ export default function MultiServerConfig({
             onClick={startAdd}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold transition active:scale-95"
           >
-            {lang === "fa" ? "افزودن سرور جدید +" : "Add New Server +"}
+            {translateText("Add New Server +", "افزودن سرور جدید +", lang)}
           </button>
         )}
       </div>
@@ -261,12 +256,8 @@ export default function MultiServerConfig({
           <div className="flex justify-between items-center mb-2">
             <h4 className="text-sm font-bold text-white">
               {editingIndex !== null
-                ? lang === "fa"
-                  ? "ویرایش سرور"
-                  : "Edit Server"
-                : lang === "fa"
-                  ? "افزودن اتصال جدید"
-                  : "Add New Connection"}
+                ? translateText("Edit Server", "ویرایش سرور", lang)
+                : translateText("Add New Connection", "افزودن اتصال جدید", lang)}
             </h4>
             <button
               onClick={() => setShowForm(false)}
@@ -278,7 +269,7 @@ export default function MultiServerConfig({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-2">
-                {lang === "fa" ? "نوع پنل" : "Panel Type"}
+                {translateText("Panel Type", "نوع پنل", lang)}
               </label>
               <div className="flex gap-4 mb-4">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -290,7 +281,7 @@ export default function MultiServerConfig({
                     onChange={() => setPanelType("sanaei")}
                     className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "سنایی (Sanaei)" : "Sanaei"}</span>
+                  <span className="text-sm text-gray-300">{translateText("Sanaei", "سنایی (Sanaei)", lang)}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -301,7 +292,7 @@ export default function MultiServerConfig({
                     onChange={() => setPanelType("rebecca")}
                     className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "ربکا (Reebeka)" : "Reebeka"}</span>
+                  <span className="text-sm text-gray-300">{translateText("Reebeka", "ربکا (Reebeka)", lang)}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -312,25 +303,25 @@ export default function MultiServerConfig({
                     onChange={() => setPanelType("pasarguard")}
                     className="text-indigo-500 bg-[#13192e] border-gray-700 focus:ring-indigo-500"
                   />
-                  <span className="text-sm text-gray-300">{lang === "fa" ? "پاسارگارد (Pasarguard)" : "Pasarguard"}</span>
+                  <span className="text-sm text-gray-300">{translateText("Pasarguard", "پاسارگارد (Pasarguard)", lang)}</span>
                 </label>
               </div>
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "نام دلخواه سرور" : "Server Name"}
+                {translateText("Server Name", "نام دلخواه سرور", lang)}
               </label>
               <input
                 type="text"
                 className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
-                placeholder={lang === "fa" ? "مثلا: آلمان ۱" : "e.g. Germany 1"}
+                placeholder={translateText("e.g. Germany 1", "مثلا: آلمان ۱", lang)}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "آدرس پنل (با پورت)" : "Panel URL (with port)"}
+                {translateText("Panel URL (with port)", "آدرس پنل (با پورت)", lang)}
               </label>
               <input
                 type="text"
@@ -342,9 +333,7 @@ export default function MultiServerConfig({
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa"
-                  ? "لینک سابسکریپشن (اختیاری)"
-                  : "Subscription URL (Optional)"}
+                {translateText("Subscription URL (Optional)", "لینک سابسکریپشن (اختیاری)", lang)}
               </label>
               <input
                 type="text"
@@ -356,7 +345,7 @@ export default function MultiServerConfig({
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "نام کاربری پنل" : "Panel Username"}
+                {translateText("Panel Username", "نام کاربری پنل", lang)}
               </label>
               <input
                 type="text"
@@ -367,7 +356,7 @@ export default function MultiServerConfig({
             </div>
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-300 mb-1">
-                {lang === "fa" ? "رمز عبور پنل" : "Panel Password"}
+                {translateText("Panel Password", "رمز عبور پنل", lang)}
               </label>
               <input
                 type="password"
@@ -386,9 +375,7 @@ export default function MultiServerConfig({
               <RefreshCw
                 className={`w-3.5 h-3.5 ${testStatus.type === "loading" ? "animate-spin" : ""}`}
               />
-              {lang === "fa"
-                ? (panelType === "rebecca" ? "تست اتصال به پنل ریبکا" : "تست اتصال و دریافت اینباندها")
-                : (panelType === "rebecca" ? "Test Reebeka Connection" : "Test Connection & Fetch Inbounds")}
+              {panelType === "rebecca" ? translateText("Test Reebeka Connection", "تست اتصال به پنل ریبکا", lang) : translateText("Test Connection & Fetch Inbounds", "تست اتصال و دریافت اینباندها", lang)}
             </button>
           </div>
 
@@ -409,9 +396,7 @@ export default function MultiServerConfig({
           {inbounds.length > 0 && (
             <div className="border border-indigo-500/20 rounded-xl bg-slate-950/40 p-4 mt-4">
               <h4 className="text-xs font-bold text-gray-200 mb-3">
-                {lang === "fa"
-                  ? (panelType === "pasarguard" ? "گروه‌های مجاز برای این سرور:" : (panelType === "rebecca" ? "سرویس‌های مجاز برای این سرور:" : "اینباندهای مجاز برای ساخت اکانت:"))
-                  : (panelType === "pasarguard" ? "Allowed Groups:" : (panelType === "rebecca" ? "Allowed Services:" : "Allowed Inbounds:"))}
+                {panelType === "pasarguard" ? translateText("Allowed Groups:", "گروه‌های مجاز برای این سرور:", lang) : panelType === "rebecca" ? translateText("Allowed Services:", "سرویس‌های مجاز برای این سرور:", lang) : translateText("Allowed Inbounds:", "اینباندهای مجاز برای ساخت اکانت:", lang)}
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[200px] overflow-y-auto pr-1">
                 {inbounds.map((ib) => (
@@ -452,9 +437,7 @@ export default function MultiServerConfig({
             {!isColleague ? (
               <>
                 <h4 className="text-xs font-bold text-gray-200 mb-3">
-                  {lang === "fa"
-                    ? "دسته‌بندی‌های پلن مجاز برای این سرور:"
-                    : "Allowed Plan Categories for this server:"}
+                  {translateText("Allowed Plan Categories for this server:", "دسته‌بندی‌های پلن مجاز برای این سرور:", lang)}
                 </h4>
                 <div className="flex flex-wrap gap-3">
                   {planCategories.map((cat) => (
@@ -482,7 +465,7 @@ export default function MultiServerConfig({
                   ))}
                   {planCategories.length === 0 && (
                     <span className="text-xs text-gray-500">
-                      {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
+                      {translateText("No categories created yet.", "هنوز هیچ دسته‌بندی ایجاد نشده است.", lang)}
                     </span>
                   )}
                 </div>
@@ -491,9 +474,7 @@ export default function MultiServerConfig({
               colleaguePackages && colleaguePackages.length > 0 && (
                 <>
                   <h4 className="text-xs font-bold text-gray-200 mb-3">
-                    {lang === "fa"
-                      ? "بسته‌های مجاز همکاران برای این سرور:"
-                      : "Allowed Colleague Packages for this server:"}
+                    {translateText("Allowed Colleague Packages for this server:", "بسته‌های مجاز همکاران برای این سرور:", lang)}
                   </h4>
                   <div className="flex flex-wrap gap-3">
                     {colleaguePackages.map((pkg) => (
@@ -530,7 +511,7 @@ export default function MultiServerConfig({
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-2"
             >
               <Save className="w-4 h-4" />
-              {lang === "fa" ? "ذخیره سرور" : "Save Server"}
+              {translateText("Save Server", "ذخیره سرور", lang)}
             </button>
           </div>
         </div>
@@ -543,19 +524,19 @@ export default function MultiServerConfig({
             <thead className="bg-[#13192e] text-gray-300 border-b border-gray-800">
               <tr>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
-                  {lang === "fa" ? "نام سرور" : "Server Name"}
+                  {translateText("Server Name", "نام سرور", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
-                  {lang === "fa" ? "آدرس پنل" : "Panel URL"}
+                  {translateText("Panel URL", "آدرس پنل", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
-                  {lang === "fa" ? "اینباندها" : "Inbounds"}
+                  {translateText("Inbounds", "اینباندها", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
-                  {lang === "fa" ? "وضعیت اتصال" : "Connection Status"}
+                  {translateText("Connection Status", "وضعیت اتصال", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
-                  {lang === "fa" ? "عملیات" : "Actions"}
+                  {translateText("Actions", "عملیات", lang)}
                 </th>
               </tr>
             </thead>
@@ -575,9 +556,7 @@ export default function MultiServerConfig({
                       <div
                         className="w-8 h-8 rounded bg-indigo-500/10 flex items-center justify-center text-indigo-400 cursor-move"
                         title={
-                          lang === "fa"
-                            ? "برای جابجایی بکشید"
-                            : "Drag to reorder"
+                          translateText("Drag to reorder", "برای جابجایی بکشید", lang)
                         }
                       >
                         <Server className="w-4 h-4" />
@@ -596,12 +575,12 @@ export default function MultiServerConfig({
                   <td className="py-4 px-6 whitespace-nowrap">
                     <span className="text-gray-300">
                       {srv.activeInboundIds?.length || 0}{" "}
-                      {lang === "fa" ? "اینباند" : "Inbounds"}
+                      {translateText("Inbounds", "اینباند", lang)}
                     </span>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap text-center">
                     <span className="inline-flex items-center justify-center px-2.5 py-1 text-xs rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      {lang === "fa" ? "متصل" : "Connected"}
+                      {translateText("Connected", "متصل", lang)}
                     </span>
                   </td>
                   <td className="py-4 px-6 whitespace-nowrap">
@@ -609,14 +588,14 @@ export default function MultiServerConfig({
                       <button
                         onClick={() => startEdit(index)}
                         className="p-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg transition"
-                        title={lang === "fa" ? "ویرایش" : "Edit"}
+                        title={translateText("Edit", "ویرایش", lang)}
                       >
                         <Edit className="w-4 h-4" />
                       </button>
                       <button
                         onClick={() => handleDelete(index)}
                         className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg transition"
-                        title={lang === "fa" ? "حذف" : "Delete"}
+                        title={translateText("Delete", "حذف", lang)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -631,9 +610,7 @@ export default function MultiServerConfig({
       {!showForm && servers.length === 0 && (
         <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl">
           <p className="text-gray-500 text-sm">
-            {lang === "fa"
-              ? "هیچ سروری اضافه نشده است."
-              : "No servers added yet."}
+            {translateText("No servers added yet.", "هیچ سروری اضافه نشده است.", lang)}
           </p>
         </div>
       )}

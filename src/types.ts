@@ -183,6 +183,8 @@ export interface User {
   walletBalance: number; // in Toman
   activePlansCount: number;
   joinDate: string;
+  referralCount?: number;
+  referralRewards?: number;
   status: "active" | "banned";
 }
 

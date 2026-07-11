@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Cpu, HardDrive, LayoutPanelLeft } from "lucide-react";
-import { Language, translations } from "../locales";
+import { Language, translations } from "../lang/locales";
 
 interface ResourceStat {
   usage: number;
@@ -23,7 +23,7 @@ export default function SystemResourceMonitor({ lang }: { lang: Language }) {
     uptime: "0h 0m"
   });
 
-  const t = translations[lang];
+  const t = { ...translations.en, ...translations[lang] };
 
   useEffect(() => {
     const fetchStatus = async () => {

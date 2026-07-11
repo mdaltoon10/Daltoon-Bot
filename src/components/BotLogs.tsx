@@ -1,7 +1,7 @@
+import { translateText, Language } from "../lang/locales"; 
 import React from "react";
 import { BotActionLog } from "../types";
 import { Clock } from "lucide-react";
-import { Language } from "../locales";
 
 interface Props {
   logs: BotActionLog[];
@@ -15,7 +15,7 @@ export default function BotLogs({ logs, lang }: Props) {
     <div className="space-y-6">
       <div className="flex border-b border-white/10 pb-2 mb-4">
         <h2 className="text-xl font-bold text-white tracking-wide">
-          {lang === "fa" ? "وضعیت ربات (لاگ‌ها)" : "Bot Logs"}
+          {translateText("Bot Logs", "وضعیت ربات (لاگ‌ها)", lang)}
         </h2>
       </div>
 
@@ -23,7 +23,7 @@ export default function BotLogs({ logs, lang }: Props) {
         <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
           <Clock className="w-12 h-12 text-gray-500 mx-auto mb-3 opacity-50" />
           <p className="text-gray-400 font-medium">
-            {lang === "fa" ? "هیچ فعالیتی ثبت نشده است." : "No logs available."}
+            {translateText("No logs available.", "هیچ فعالیتی ثبت نشده است.", lang)}
           </p>
         </div>
       ) : (
@@ -40,7 +40,7 @@ export default function BotLogs({ logs, lang }: Props) {
                   </span>
                 </div>
                 <span className="text-xs text-gray-400 font-mono">
-                  {new Date(log.date).toLocaleString(lang === "fa" ? "fa-IR" : "en-US")}
+                  {new Date(log.date).toLocaleString(translateText("en-US", "fa-IR", lang))}
                 </span>
               </div>
               <p className="text-sm text-gray-300 pr-2 border-r-2 border-indigo-500/30">

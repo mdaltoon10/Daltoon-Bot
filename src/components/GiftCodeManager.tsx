@@ -1,7 +1,7 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from 'react';
 import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock, RefreshCw } from 'lucide-react';
 import { GiftCode, PromoCode, PanelSettings } from '../types';
-import { Language } from '../locales';
 import ConfirmationModal from "./ConfirmationModal";
 
 interface GiftCodeManagerProps {
@@ -159,10 +159,10 @@ export default function GiftCodeManager({
           </div>
           <div>
             <h2 className="text-xl font-bold text-white">
-              {isFa ? '🎟️ مدیریت هوشمند کدهای مالی و معرف' : 'Financial Codes & Referrals Manager'}
+              {translateText('Financial Codes & Referrals Manager', '🎟️ مدیریت هوشمند کدهای مالی و معرف', lang)}
             </h2>
             <p className="text-sm text-gray-400">
-              {isFa ? 'ساخت و ویرایش کدهای افزایش شارژ مستقیم هدیه، درصدهای تخفیف و سیستم معرف' : 'Edit gift balances, percentage discounts, and reward triggers'}
+              {translateText('Edit gift balances, percentage discounts, and reward triggers', 'ساخت و ویرایش کدهای افزایش شارژ مستقیم هدیه، درصدهای تخفیف و سیستم معرف', lang)}
             </p>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function GiftCodeManager({
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {isFa ? '🎁 کدهای هدیه (افزایش اعتبار)' : 'Gift Cards'}
+            {translateText('Gift Cards', '🎁 کدهای هدیه (افزایش اعتبار)', lang)}
           </button>
           <button
             onClick={() => setManagerTab('promo_codes')}
@@ -187,7 +187,7 @@ export default function GiftCodeManager({
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {isFa ? '🎟️ کدهای تخفیف (درصدی و تمدید)' : 'Promo Codes'}
+            {translateText('Promo Codes', '🎟️ کدهای تخفیف (درصدی و تمدید)', lang)}
           </button>
           <button
             onClick={() => setManagerTab('referrals')}
@@ -197,7 +197,7 @@ export default function GiftCodeManager({
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            {isFa ? '👥 سیستم زیرمجموعه‌گیری' : 'Referrals'}
+            {translateText('Referrals', '👥 سیستم زیرمجموعه‌گیری', lang)}
           </button>
         </div>
       </div>
@@ -208,11 +208,11 @@ export default function GiftCodeManager({
           <div className="lg:col-span-1 bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 space-y-6">
             <div className="flex items-center gap-2 border-b border-gray-700 pb-2">
               <Gift className="w-5 h-5 text-purple-400" />
-              <h3 className="text-sm font-semibold text-white">{isFa ? 'افزودن کد هدیه جدید' : 'Add New Gift Code'}</h3>
+              <h3 className="text-sm font-semibold text-white">{translateText('Add New Gift Code', 'افزودن کد هدیه جدید', lang)}</h3>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'کد هدیه' : 'Gift Code'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Gift Code', 'کد هدیه', lang)}</label>
                 <input
                   type="text"
                   value={code}
@@ -223,7 +223,7 @@ export default function GiftCodeManager({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? `مبلغ (${currency})` : `Amount (${currency})`}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText(`Amount (${currency})`, `مبلغ (${currency})`, lang)}</label>
                 <input
                   type="number"
                   value={amount}
@@ -234,7 +234,7 @@ export default function GiftCodeManager({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'تعداد مجاز استفاده' : 'Max Usage'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Max Usage', 'تعداد مجاز استفاده', lang)}</label>
                 <input
                   type="number"
                   value={maxUsage}
@@ -246,7 +246,7 @@ export default function GiftCodeManager({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-300">
-                  {isFa ? 'مدت اعتبار کد (تعداد روز)' : 'Code Validity (Days)'}
+                  {translateText('Code Validity (Days)', 'مدت اعتبار کد (تعداد روز)', lang)}
                 </label>
                 <input
                   type="number"
@@ -258,7 +258,7 @@ export default function GiftCodeManager({
                   required
                 />
                 <p className="text-[10px] text-gray-400">
-                  {isFa ? "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد هدیه منقضی و غیرقابل استفاده می‌شود." : "e.g. 1 day. Expire after 1 day from creation."}
+                  {translateText("e.g. 1 day. Expire after 1 day from creation.", "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد هدیه منقضی و غیرقابل استفاده می‌شود.", lang)}
                 </p>
               </div>
               <div className="flex gap-2 pt-2">
@@ -277,7 +277,7 @@ export default function GiftCodeManager({
                   className={`flex-1 ${editingId ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-purple-500 hover:bg-purple-600'} text-white rounded-xl px-4 py-2.5 font-medium transition-all flex items-center justify-center space-x-2 space-x-reverse cursor-pointer`}
                 >
                   {editingId ? <Check className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                  <span>{editingId ? (isFa ? 'ذخیره تغییرات' : 'Save Changes') : (isFa ? 'ایجاد کد هدیه' : 'Create Code')}</span>
+                  <span>{editingId ? (translateText('Save Changes', 'ذخیره تغییرات', lang)) : (translateText('Create Code', 'ایجاد کد هدیه', lang))}</span>
                 </button>
               </div>
             </form>
@@ -287,7 +287,7 @@ export default function GiftCodeManager({
           <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 flex flex-col h-full">
             <div className="flex items-center gap-2 border-b border-gray-700 pb-3 mb-4">
               <Gift className="w-5 h-5 text-purple-400" />
-              <h3 className="text-sm font-semibold text-white">{isFa ? 'کدهای هدیه فعال ثبت شده' : 'Registered Gift Codes'}</h3>
+              <h3 className="text-sm font-semibold text-white">{translateText('Registered Gift Codes', 'کدهای هدیه فعال ثبت شده', lang)}</h3>
             </div>
             <div className="overflow-x-auto overflow-y-auto max-h-[440px] custom-scrollbar">
               <table className="w-full text-right text-slate-300">
@@ -339,7 +339,7 @@ export default function GiftCodeManager({
                             onClick={() => setDeleteConfirmConfig({
                               isOpen: true,
                               action: () => onDeleteCode(gc.id),
-                              message: lang === "fa" ? "آیا از حذف این کدهدیه اطمینان دارید؟" : "Are you sure you want to delete this gift code?"
+                              message: translateText("Are you sure you want to delete this gift code?", "آیا از حذف این کدهدیه اطمینان دارید؟", lang)
                             })}
                             className="p-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg transition-all"
                             title="حذف کد"
@@ -370,13 +370,13 @@ export default function GiftCodeManager({
           <div className="bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 h-fit space-y-4">
             <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2 border-b border-gray-700 pb-2">
               <Plus className="w-4 h-4 text-indigo-400" />
-              {isFa ? "ثبت کد تخفیف جدید" : "Create New Discount Code"}
+              {translateText("Create New Discount Code", "ثبت کد تخفیف جدید", lang)}
             </h3>
 
             <form onSubmit={handlePromoSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                  {isFa ? "🏷️ کد تخفیف" : "🏷️ Promo Code"}
+                  {translateText("🏷️ Promo Code", "🏷️ کد تخفیف", lang)}
                 </label>
                 <input
                   type="text"
@@ -391,22 +391,22 @@ export default function GiftCodeManager({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                    {isFa ? "⚙️ نوع کد" : "⚙️ Code Type"}
+                    {translateText("⚙️ Code Type", "⚙️ نوع کد", lang)}
                   </label>
                   <select
                     value={promoType}
                     onChange={(e) => setPromoType(e.target.value as "percent" | "extend_days" | "fixed_amount")}
                     className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
                   >
-                    <option value="percent">{isFa ? "درصدی (%)" : "Percentage (%)"}</option>
-                    <option value="fixed_amount">{isFa ? `مبلغی (${currency})` : `Amount (${currency})`}</option>
-                    <option value="extend_days">{isFa ? "تمدید (روز)" : "Extension (Days)"}</option>
+                    <option value="percent">{translateText("Percentage (%)", "درصدی (%)", lang)}</option>
+                    <option value="fixed_amount">{translateText(`Amount (${currency})`, `مبلغی (${currency})`, lang)}</option>
+                    <option value="extend_days">{translateText("Extension (Days)", "تمدید (روز)", lang)}</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                    {promoType === "percent" ? (isFa ? "📈 درصد تخفیف" : "Discount %") : promoType === "fixed_amount" ? (isFa ? "💰 مبلغ تخفیف" : "Discount Amount") : (isFa ? "📅 تعداد روز" : "Extend Days")}
+                    {promoType === "percent" ? (translateText("Discount %", "📈 درصد تخفیف", lang)) : promoType === "fixed_amount" ? (translateText("Discount Amount", "💰 مبلغ تخفیف", lang)) : (translateText("Extend Days", "📅 تعداد روز", lang))}
                   </label>
                   <input
                     type="number"
@@ -426,13 +426,13 @@ export default function GiftCodeManager({
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider flex items-center gap-1">
                       <RefreshCw className="w-3 h-3 animate-spin-slow" />
-                      {isFa ? "🧮 محاسبه‌گر هوشمند ارزش نهایی" : "🧮 Smart Value Calculator"}
+                      {translateText("🧮 Smart Value Calculator", "🧮 محاسبه‌گر هوشمند ارزش نهایی", lang)}
                     </label>
                   </div>
                   
                   <div className="bg-[#090d16] border border-gray-800/80 rounded-xl p-3 space-y-3 shadow-inner">
                     <div>
-                      <span className="block text-[9px] text-gray-500 mb-1">{isFa ? "مبلغ پایه جهت تست محاسبات (تومان):" : "Test Base Amount (TOM):"}</span>
+                      <span className="block text-[9px] text-gray-500 mb-1">{translateText("Test Base Amount (TOM):", "مبلغ پایه جهت تست محاسبات (تومان):", lang)}</span>
                       <input
                         type="text"
                         placeholder="100,000"
@@ -448,7 +448,7 @@ export default function GiftCodeManager({
                     {calcBasePrice && promoValue && (
                       <div className="grid grid-cols-2 gap-2 pt-1">
                         <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-2 flex flex-col items-center">
-                          <span className="text-[9px] text-amber-500 font-medium uppercase tracking-tighter">{isFa ? "سود مشتری" : "Client Profit"}</span>
+                          <span className="text-[9px] text-amber-500 font-medium uppercase tracking-tighter">{translateText("Client Profit", "سود مشتری", lang)}</span>
                           <span className="text-amber-400 font-extrabold text-sm font-mono mt-0.5">
                             {promoType === "percent" 
                               ? Math.round((Number(calcBasePrice) * Number(promoValue)) / 100).toLocaleString()
@@ -457,7 +457,7 @@ export default function GiftCodeManager({
                           </span>
                         </div>
                         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-2 flex flex-col items-center">
-                          <span className="text-[9px] text-emerald-500 font-medium uppercase tracking-tighter">{isFa ? "پرداختی نهایی" : "Final Price"}</span>
+                          <span className="text-[9px] text-emerald-500 font-medium uppercase tracking-tighter">{translateText("Final Price", "پرداختی نهایی", lang)}</span>
                           <span className="text-emerald-400 font-extrabold text-sm font-mono mt-0.5">
                             {promoType === "percent"
                               ? (Number(calcBasePrice) - Math.round((Number(calcBasePrice) * Number(promoValue)) / 100)).toLocaleString()
@@ -473,7 +473,7 @@ export default function GiftCodeManager({
 
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                  {isFa ? "👥 حداکثر استفاده مجاز" : "👥 Limit Users Count"}
+                  {translateText("👥 Limit Users Count", "👥 حداکثر استفاده مجاز", lang)}
                 </label>
                 <input
                   type="number"
@@ -488,7 +488,7 @@ export default function GiftCodeManager({
 
               <div>
                 <label className="block text-xs text-gray-400 font-semibold mb-1.5">
-                  {isFa ? "⏳ مدت اعتبار کد (تعداد روز)" : "⏳ Code Validity (Days)"}
+                  {translateText("⏳ Code Validity (Days)", "⏳ مدت اعتبار کد (تعداد روز)", lang)}
                 </label>
                 <input
                   type="number"
@@ -500,7 +500,7 @@ export default function GiftCodeManager({
                   className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center font-semibold"
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
-                  {isFa ? "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد تخفیف منقضی و غیرقابل استفاده می‌شود." : "e.g. 1 day. Expire after 1 day from creation."}
+                  {translateText("e.g. 1 day. Expire after 1 day from creation.", "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد تخفیف منقضی و غیرقابل استفاده می‌شود.", lang)}
                 </p>
               </div>
 
@@ -510,13 +510,13 @@ export default function GiftCodeManager({
                   className="w-full bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl py-3 text-xs font-bold transition duration-200 cursor-pointer shadow-lg shadow-indigo-600/10 flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  {isFa ? "ایجاد و ذخیره کد تخفیف" : "Generate Promo Code"}
+                  {translateText("Generate Promo Code", "ایجاد و ذخیره کد تخفیف", lang)}
                 </button>
               </div>
 
               {promoSuccess && (
                 <div className="text-center text-xs text-emerald-400 font-bold bg-emerald-500/10 py-2.5 rounded-xl border border-emerald-500/20">
-                  {isFa ? "✅ کد تخفیف با موفقیت ثبت شد!" : "✅ Discount code registered!"}
+                  {translateText("✅ Discount code registered!", "✅ کد تخفیف با موفقیت ثبت شد!", lang)}
                 </div>
               )}
             </form>
@@ -526,12 +526,12 @@ export default function GiftCodeManager({
           <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 flex flex-col h-fit">
             <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 border-b border-gray-700 pb-3">
               <Tag className="w-4 h-4 text-indigo-400" />
-              {isFa ? "لیست کدهای تخفیف و تمدید فعال" : "Active Promo Codes"}
+              {translateText("Active Promo Codes", "لیست کدهای تخفیف و تمدید فعال", lang)}
             </h3>
 
             {!promoCodes || promoCodes.length === 0 ? (
               <div className="text-center py-12 text-gray-500 text-xs">
-                {isFa ? "هیچ کد تخفیف یا تمدیدی در سیستم ثبت نشده است." : "No promo codes active."}
+                {translateText("No promo codes active.", "هیچ کد تخفیف یا تمدیدی در سیستم ثبت نشده است.", lang)}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -549,18 +549,18 @@ export default function GiftCodeManager({
                           {pc.type === "percent" ? (
                             <>
                               <Percent className="w-3.5 h-3.5 text-amber-500" />
-                              <span>{isFa ? `${pc.value}٪ تخفیف` : `${pc.value}% Discount`}</span>
+                              <span>{`${pc.value}` + translateText("% Discount", "٪ تخفیف", lang)}</span>
                             </>
                           ) : pc.type === "fixed_amount" ? (
                             <>
                               <Tag className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{isFa ? `${pc.value.toLocaleString()} ${currency} تخفیف` : `${pc.value.toLocaleString()} ${currency} Discount`}</span>
+                              <span>{`${pc.value.toLocaleString()} ${currency} ` + translateText("Discount", "تخفیف", lang)}</span>
                             </>
                           ) : (
                             <>
                               <Clock className="w-3.5 h-3.5 text-emerald-400" />
                               <span>
-                                {isFa ? `${pc.value} روز تمدید رایگان` : `${pc.value} days extension`}
+                                {`${pc.value} ` + translateText("days extension", "روز تمدید رایگان", lang)}
                               </span>
                             </>
                           )}
@@ -571,10 +571,10 @@ export default function GiftCodeManager({
                         onClick={() => onDeletePromoCode && setDeleteConfirmConfig({
                           isOpen: true,
                           action: () => onDeletePromoCode(pc.id),
-                          message: lang === "fa" ? "آیا از حذف این تخفیف اطمینان دارید؟" : "Are you sure you want to delete this promo code?"
+                          message: translateText("Are you sure you want to delete this promo code?", "آیا از حذف این تخفیف اطمینان دارید؟", lang)
                         })}
                         className="p-1 px-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white transition duration-150 cursor-pointer border border-red-500/20"
-                        title={isFa ? "حذف" : "Delete"}
+                        title={translateText("Delete", "حذف", lang)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -582,13 +582,13 @@ export default function GiftCodeManager({
 
                     <div className="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
                       <div>
-                        {isFa ? "دفعات استفاده:" : "Used:"}{" "}
+                        {translateText("Used:", "دفعات استفاده:", lang)}{" "}
                         <span className="font-semibold text-white font-mono">
                           {pc.totalUsage}
                         </span>{" "}
                         / <span className="text-gray-400">{pc.maxUsage}</span>
                         <div className="text-[10px] text-amber-500 mt-1">
-                          {isFa ? "اعتبار منقضی:" : "Validity:"} {pc.durationDays ? `${pc.durationDays} روز` : 'بدون انقضا'}
+                          {translateText("Validity:", "اعتبار منقضی:", lang)} {pc.durationDays ? `${pc.durationDays} روز` : 'بدون انقضا'}
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
@@ -611,7 +611,7 @@ export default function GiftCodeManager({
           <div className="border-b border-slate-700/50 pb-4">
             <h3 className="text-base font-bold text-white flex items-center gap-2">
               <Users className="w-5 h-5 text-indigo-400" />
-              {isFa ? '👥 تنظیمات اختصاصی سیستم زیرمجموعه‌گیری (سیستم معرف دالتون)' : '👥 Dedicated Referral System'}
+              {isFa ? `👥 تنظیمات اختصاصی سیستم زیرمجموعه‌گیری (سیستم معرف ${settings?.botNickname || 'دالتون'})` : '👥 Dedicated Referral System'}
             </h3>
             <p className="text-xs text-slate-400 mt-1">
               {isFa 
@@ -623,7 +623,7 @@ export default function GiftCodeManager({
           <div className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'آیدی ربات شما (بدون @)' : 'Bot Telegram Username (No @)'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Bot Telegram Username (No @)', 'آیدی ربات شما (بدون @)', lang)}</label>
                 <input
                   type="text"
                   value={botTelegramHandle}
@@ -634,25 +634,25 @@ export default function GiftCodeManager({
               </div>
               
               <div className="space-y-4 pt-2 pb-2 lg:col-span-3">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'زمان پاداش‌دهی (تب انتخاب)' : 'Reward Condition'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Reward Condition', 'زمان پاداش‌دهی (تب انتخاب)', lang)}</label>
                 <div className="flex bg-slate-900/50 p-1 rounded-xl border border-slate-700 w-full overflow-hidden">
                   <button
                     onClick={() => setReferralRewardCondition('invite')}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'invite' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    {isFa ? 'فقط هنگام ورود (Invite)' : 'On Invite Only'}
+                    {translateText('On Invite Only', 'فقط هنگام ورود (Invite)', lang)}
                   </button>
                   <button
                     onClick={() => setReferralRewardCondition('purchase')}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'purchase' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    {isFa ? 'فقط هنگام خرید (Purchase)' : 'On Purchase Only'}
+                    {translateText('On Purchase Only', 'فقط هنگام خرید (Purchase)', lang)}
                   </button>
                   <button
                     onClick={() => setReferralRewardCondition('both')}
                     className={`flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all ${referralRewardCondition === 'both' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
                   >
-                    {isFa ? 'هر دو (هم ورود هم خرید)' : 'Both'}
+                    {translateText('Both', 'هر دو (هم ورود هم خرید)', lang)}
                   </button>
                 </div>
               </div>
@@ -660,7 +660,7 @@ export default function GiftCodeManager({
               <div className="space-y-4">
                 {(referralRewardCondition === 'invite' || referralRewardCondition === 'both') && (
                   <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300">{isFa ? 'درصد پاداش به ازای دعوت (%)' : 'Reward Percentage per Invite'}</label>
+                    <label className="text-sm font-medium text-gray-300">{translateText('Reward Percentage per Invite', 'درصد پاداش به ازای دعوت (%)', lang)}</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -678,7 +678,7 @@ export default function GiftCodeManager({
                 
                 {(referralRewardCondition === 'purchase' || referralRewardCondition === 'both') && (
                   <div className="space-y-2 bg-indigo-950/20 p-4 rounded-xl border border-indigo-500/20">
-                    <label className="text-sm font-medium text-indigo-300">{isFa ? 'درصد پاداش به ازای خرید زیرمجموعه (%)' : 'Reward Percentage per Purchase'}</label>
+                    <label className="text-sm font-medium text-indigo-300">{translateText('Reward Percentage per Purchase', 'درصد پاداش به ازای خرید زیرمجموعه (%)', lang)}</label>
                     <div className="relative">
                       <input
                         type="number"
@@ -696,7 +696,7 @@ export default function GiftCodeManager({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-amber-300">{isFa ? 'درصد پاداش لایه دوم (تیم)' : 'Level 2 Reward Percentage'}</label>
+                <label className="text-sm font-medium text-amber-300">{translateText('Level 2 Reward Percentage', 'درصد پاداش لایه دوم (تیم)', lang)}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -712,7 +712,7 @@ export default function GiftCodeManager({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-blue-300">{isFa ? 'درصد پاداش لایه سوم (تیم)' : 'Level 3 Reward Percentage'}</label>
+                <label className="text-sm font-medium text-blue-300">{translateText('Level 3 Reward Percentage', 'درصد پاداش لایه سوم (تیم)', lang)}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -728,7 +728,7 @@ export default function GiftCodeManager({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-purple-300">{isFa ? 'درصد پاداش لایه چهارم (تیم)' : 'Level 4 Reward Percentage'}</label>
+                <label className="text-sm font-medium text-purple-300">{translateText('Level 4 Reward Percentage', 'درصد پاداش لایه چهارم (تیم)', lang)}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -745,7 +745,7 @@ export default function GiftCodeManager({
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'مبلغ پایه محاسبه (تومان)' : 'Base Calculation Amount'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Base Calculation Amount', 'مبلغ پایه محاسبه (تومان)', lang)}</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -763,13 +763,13 @@ export default function GiftCodeManager({
             <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-4 flex items-center justify-between">
               <div>
                 <p className="text-xs text-gray-400 mb-1">
-                  {isFa ? 'محاسبه پاداش مشتری به ازای هر دعوت جدید:' : 'Reward per Invite:'}
+                  {translateText('Reward per Invite:', 'محاسبه پاداش مشتری به ازای هر دعوت جدید:', lang)}
                 </p>
                 <p className="text-xs text-emerald-400 font-semibold flex items-center gap-1.5">
                   <span className="bg-emerald-500/10 px-2 py-1 rounded text-emerald-300 font-mono text-xs">
                     {Math.max(0, Math.round(((calculationAmount || 0) as number * ((referralRewardPercent || 0) as number)) / 100)).toLocaleString()} 
                   </span>
-                  <span>{isFa ? `${currency} پاداش` : `${currency}`}</span>
+                  <span>{translateText(`${currency}`, `${currency} پاداش`, lang)}</span>
                 </p>
               </div>
               <div className="text-xs text-gray-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono">
@@ -779,9 +779,9 @@ export default function GiftCodeManager({
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-300">{isFa ? 'متن پیام مجموعه گیری اختصاصی کاربر' : 'Referral Message Content'}</label>
+                <label className="text-sm font-medium text-gray-300">{translateText('Referral Message Content', 'متن پیام مجموعه گیری اختصاصی کاربر', lang)}</label>
                 <span className="text-[10px] text-gray-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">
-                  {isFa ? 'متغیرها: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}' : 'Vars: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}'}
+                  {translateText('Vars: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}, {invited}, {total_earned}', 'متغیرها: {uid}, {link}, {amount}, {percent}, {purchase_percent}, {reward}, {invited}, {total_earned}', lang)}
                 </span>
               </div>
               <textarea
@@ -789,14 +789,14 @@ export default function GiftCodeManager({
                 onChange={(e) => setReferralMessage(e.target.value)}
                 className="w-full bg-slate-900/50 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-indigo-500 transition-all text-sm leading-relaxed text-right font-sans"
                 rows={8}
-                placeholder={isFa ? 'متن خود را اینجا وارد کنید...' : 'Enter your text here...'}
+                placeholder={translateText('Enter your text here...', 'متن خود را اینجا وارد کنید...', lang)}
                 dir="rtl"
               />
             </div>
 
             <div className="pt-2 flex items-center justify-between">
               <div className="text-xs text-emerald-400 font-semibold h-4 font-sans">
-                {savedSettings && (isFa ? '✅ تغییرات سیستم معرف با موفقیت ذخیره شد!' : '✅ Referral settings saved!')}
+                {savedSettings && (translateText('✅ Referral settings saved!', '✅ تغییرات سیستم معرف با موفقیت ذخیره شد!', lang))}
               </div>
               <button
                 type="button"
@@ -804,7 +804,7 @@ export default function GiftCodeManager({
                 className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 py-3 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-indigo-600/20"
               >
                 <Save className="w-4 h-4" />
-                {isFa ? 'ذخیره تنظیمات معرف دالتون' : 'Save Referral Settings'}
+                {isFa ? `ذخیره تنظیمات معرف ${settings?.botNickname || 'دالتون'}` : 'Save Referral Settings'}
               </button>
             </div>
           </div>

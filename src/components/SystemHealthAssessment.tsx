@@ -11,7 +11,7 @@ import {
   Cpu,
   Server
 } from "lucide-react";
-import { Language } from "../locales";
+import { Language } from "../lang/locales";
 
 interface SystemHealthAssessmentProps {
   lang: Language;

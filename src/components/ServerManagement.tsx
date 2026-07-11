@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useRef, useEffect } from "react";
 import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage, CustomPricingBox } from "../types";
-import { Language } from "../locales";
 import MultiServerConfig from "./MultiServerConfig";
 import { 
   Server, 
@@ -45,7 +45,7 @@ export default function ServerManagement({
   inbounds,
   setInbounds
 }: ServerManagementProps) {
-  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
@@ -351,13 +351,13 @@ export default function ServerManagement({
     setFormSuccess(false);
 
     if (!planName.trim()) {
-      setFormError(lang === "fa" ? "نام بسته نمی‌تواند خالی باشد." : "Plan name is required.");
+      setFormError(translateText("Plan name is required.", "نام بسته نمی‌تواند خالی باشد.", lang));
       return;
     }
 
     const priceNum = Number(planPrice);
     if (isNaN(priceNum) || priceNum < 0) {
-      setFormError(lang === "fa" ? "مبلغ معتبر وارد کنید." : "Invalid pricing value.");
+      setFormError(translateText("Invalid pricing value.", "مبلغ معتبر وارد کنید.", lang));
       return;
     }
 
@@ -388,10 +388,10 @@ export default function ServerManagement({
           setShowAddForm(false);
         }, 1500);
       } else {
-        setFormError(lang === "fa" ? "خطا در ثبت اطلاعات بسته در پایگاه داده." : "Error writing backend state.");
+        setFormError(translateText("Error writing backend state.", "خطا در ثبت اطلاعات بسته در پایگاه داده.", lang));
       }
     } catch (err) {
-      setFormError(lang === "fa" ? "خطا در انتقال اطلاعات با سرور." : "Communication lost with backend container.");
+      setFormError(translateText("Communication lost with backend container.", "خطا در انتقال اطلاعات با سرور.", lang));
     }
   };
 
@@ -414,7 +414,7 @@ export default function ServerManagement({
 
   const handleSaveCategory = async () => {
     if (!catName.trim()) {
-      setCatError(lang === "fa" ? "نام دسته‌بندی اجباری است" : "Category name is required");
+      setCatError(translateText("Category name is required", "نام دسته‌بندی اجباری است", lang));
       return;
     }
     setCatError("");
@@ -470,13 +470,13 @@ export default function ServerManagement({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="space-y-1">
             <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "کل بسته‌های خرید تعریف شده" : "Total Active Packages"}
+              {translateText("Total Active Packages", "کل بسته‌های خرید تعریف شده", lang)}
             </span>
             <h3 className="text-2xl font-bold font-mono text-white mt-1">
               {vpnPlans.length}
             </h3>
             <p className="text-[11px] text-indigo-400 font-medium font-sans">
-              {lang === "fa" ? "بسته‌های فعال و هوشمند تلگرام" : "Active plans for customer purchase"}
+              {translateText("Active plans for customer purchase", "بسته‌های فعال و هوشمند تلگرام", lang)}
             </p>
           </div>
           <div className="p-3 bg-indigo-500/10 text-indigo-400 rounded-xl">
@@ -487,13 +487,13 @@ export default function ServerManagement({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="space-y-1">
             <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "تعداد سرورهای فعال" : "Active Servers"}
+              {translateText("Active Servers", "تعداد سرورهای فعال", lang)}
             </span>
             <h3 className="text-2xl font-bold font-mono text-emerald-400 mt-1">
               {(Array.isArray(settings.servers) ? settings.servers : []).filter(s => s.status !== 'inactive').length}
             </h3>
             <p className="text-[11px] text-emerald-400/80 font-sans">
-              {lang === "fa" ? "سرورهای متصل جهت ارائه اشتراک" : "Connected servers for subscriptions"}
+              {translateText("Connected servers for subscriptions", "سرورهای متصل جهت ارائه اشتراک", lang)}
             </p>
           </div>
           <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-xl">
@@ -504,13 +504,13 @@ export default function ServerManagement({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl flex items-center justify-between shadow-sm">
           <div className="space-y-1">
             <span className="text-[11px] text-gray-400 font-mono uppercase tracking-wider">
-              {lang === "fa" ? "تعداد دسته‌بندی‌ها" : "Plan Categories"}
+              {translateText("Plan Categories", "تعداد دسته‌بندی‌ها", lang)}
             </span>
             <h3 className="text-2xl font-bold font-mono text-purple-400 mt-1">
               {planCategories.length}
             </h3>
             <p className="text-[11px] text-purple-400/80 font-sans">
-              {lang === "fa" ? "گروه‌های VIP، معمولی و ..." : "Groups like VIP, Standard, etc."}
+              {translateText("Groups like VIP, Standard, etc.", "گروه‌های VIP، معمولی و ...", lang)}
             </p>
           </div>
           <div className="p-3 bg-purple-500/10 text-purple-400 rounded-xl">
@@ -529,20 +529,18 @@ export default function ServerManagement({
             <Sparkles className="w-4 h-4 text-indigo-400" />
           </div>
           <h4 className="font-semibold text-white text-sm">
-            {lang === "fa" ? "تنظیمات اختصاصی تست رایگان" : "Free Test Settings"}
+            {translateText("Free Test Settings", "تنظیمات اختصاصی تست رایگان", lang)}
           </h4>
         </div>
 
         <p className="text-xs text-gray-400 leading-relaxed font-medium">
-          {lang === "fa" 
-            ? "در این بخش می‌توانید سرور مورد نظر خود را برای ساخت و تحویل کانفیگ‌های تست رایگان کاربران انتخاب کنید. ربات تلگرام اکانت‌های تست رایگان را مستقیماً از روی این سرور ایجاد خواهد کرد."
-            : "Define the specific server dedicated to handling free test requests. The Telegram bot will automatically create and issue free tests from this selected server."}
+          {translateText("Define the specific server dedicated to handling free test requests. The Telegram bot will automatically create and issue free tests from this selected server.", "در این بخش می‌توانید سرور مورد نظر خود را برای ساخت و تحویل کانفیگ‌های تست رایگان کاربران انتخاب کنید. ربات تلگرام اکانت‌های تست رایگان را مستقیماً از روی این سرور ایجاد خواهد کرد.", lang)}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
-              {lang === "fa" ? "انتخاب سرور تست رایگان" : "Select Free Test Server"}
+              {translateText("Select Free Test Server", "انتخاب سرور تست رایگان", lang)}
             </label>
             <select
               value={localFreeTestServerId}
@@ -552,7 +550,7 @@ export default function ServerManagement({
               className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none cursor-pointer"
             >
               <option value="">
-                {lang === "fa" ? "نخستین سرور فعال سیستم (پیش‌فرض)" : "First Active Server (Default)"}
+                {translateText("First Active Server (Default)", "نخستین سرور فعال سیستم (پیش‌فرض)", lang)}
               </option>
               {(Array.isArray(settings.servers) ? settings.servers : []).map((srv) => (
                 <option key={srv.id} value={srv.id}>
@@ -564,7 +562,7 @@ export default function ServerManagement({
 
           <div>
             <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
-              {lang === "fa" ? "وضعیت سرویس تست رایگان" : "Free Test Status"}
+              {translateText("Free Test Status", "وضعیت سرویس تست رایگان", lang)}
             </label>
             <div className="flex items-center gap-2 h-[38px]">
               <button
@@ -579,8 +577,8 @@ export default function ServerManagement({
                 }`}
               >
                 {localIsFreeTestActive
-                  ? (lang === "fa" ? "✅ فعال" : "✅ Enabled")
-                  : (lang === "fa" ? "❌ غیرفعال" : "❌ Disabled")}
+                  ? (translateText("✅ Enabled", "✅ فعال", lang))
+                  : (translateText("❌ Disabled", "❌ غیرفعال", lang))}
               </button>
             </div>
           </div>
@@ -588,7 +586,7 @@ export default function ServerManagement({
 
         <div>
           <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
-            {lang === "fa" ? "پیام خطا زمان غیرفعال بودن تست رایگان" : "Free Test Disabled Message"}
+            {translateText("Free Test Disabled Message", "پیام خطا زمان غیرفعال بودن تست رایگان", lang)}
           </label>
           <input
             type="text"
@@ -596,7 +594,7 @@ export default function ServerManagement({
             onChange={(e) => {
               setLocalFreeTestDisabledMessage(e.target.value);
             }}
-            placeholder={lang === "fa" ? "مثلا: اکانت تست رایگان فعلا موجود نیست." : "e.g., Free test accounts are temporarily unavailable."}
+            placeholder={translateText("e.g., Free test accounts are temporarily unavailable.", "مثلا: اکانت تست رایگان فعلا موجود نیست.", lang)}
             className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
           />
         </div>
@@ -604,7 +602,7 @@ export default function ServerManagement({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
-              {lang === "fa" ? "حجم اکانت تست (گیگابایت - پشتیبانی از مگابایت با عدد اعشاری)" : "Free Test Volume (GB - supports decimals)"}
+              {translateText("Free Test Volume (GB - supports decimals)", "حجم اکانت تست (گیگابایت - پشتیبانی از مگابایت با عدد اعشاری)", lang)}
             </label>
             <input
               type="text"
@@ -619,7 +617,7 @@ export default function ServerManagement({
 
           <div>
             <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
-              {lang === "fa" ? "مدت زمان تست (روز)" : "Free Test Duration (Days)"}
+              {translateText("Free Test Duration (Days)", "مدت زمان تست (روز)", lang)}
             </label>
             <input
               type="text"
@@ -637,7 +635,7 @@ export default function ServerManagement({
           {freeTestSuccess ? (
             <span className="text-xs text-emerald-400 font-bold flex items-center gap-1.5 animate-pulse">
               <Check className="w-4 h-4" />
-              {lang === "fa" ? "تنظیمات تست رایگان با موفقیت ذخیره شد!" : "Free test settings saved successfully!"}
+              {translateText("Free test settings saved successfully!", "تنظیمات تست رایگان با موفقیت ذخیره شد!", lang)}
             </span>
           ) : (
             <div></div>
@@ -648,7 +646,7 @@ export default function ServerManagement({
             className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer shadow-md"
           >
             <Save className="w-4 h-4" />
-            <span>{lang === "fa" ? "ذخیره تنظیمات تست رایگان" : "Save Free Test Settings"}</span>
+            <span>{translateText("Save Free Test Settings", "ذخیره تنظیمات تست رایگان", lang)}</span>
           </button>
         </div>
       </div>
@@ -661,7 +659,7 @@ export default function ServerManagement({
               <Sparkles className="w-4 h-4" />
             </div>
             <h4 className="font-semibold text-white text-sm">
-              {lang === "fa" ? "تنظیم قیمت حجم و روز دلخواه (محاسبه هوشمند ربات)" : "Custom Volume & Days Pricing Rules"}
+              {translateText("Custom Volume & Days Pricing Rules", "تنظیم قیمت حجم و روز دلخواه (محاسبه هوشمند ربات)", lang)}
             </h4>
           </div>
           <button
@@ -669,20 +667,18 @@ export default function ServerManagement({
             className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>{lang === "fa" ? "افزودن کادر جدید" : "Add New Rule"}</span>
+            <span>{translateText("Add New Rule", "افزودن کادر جدید", lang)}</span>
           </button>
         </div>
 
         <p className="text-xs text-gray-400 leading-relaxed font-medium">
-          {lang === "fa" 
-            ? "در این بخش می‌توانید قیمت هر گیگابایت ترافیک و هر روز اعتبار را به تفکیک سرورها مشخص کنید. ربات تلگرام در بخش خرید با حجم دلخواه و همچنین در فرآیند تمدید، قیمت نهایی را به صورت هوشمند بر اساس قوانین این کادرها محاسبه می‌کند." 
-            : "Define price per GB and price per Day for different servers. The bot will automatically calculate final prices for custom subscriptions and renewals based on these boxes."}
+          {translateText("Define price per GB and price per Day for different servers. The bot will automatically calculate final prices for custom subscriptions and renewals based on these boxes.", "در این بخش می‌توانید قیمت هر گیگابایت ترافیک و هر روز اعتبار را به تفکیک سرورها مشخص کنید. ربات تلگرام در بخش خرید با حجم دلخواه و همچنین در فرآیند تمدید، قیمت نهایی را به صورت هوشمند بر اساس قوانین این کادرها محاسبه می‌کند.", lang)}
         </p>
 
         {pricingBoxes.length === 0 ? (
           <div className="text-center py-8 bg-slate-950/40 rounded-xl border border-dashed border-gray-800">
             <p className="text-xs text-gray-500">
-              {lang === "fa" ? "هیچ قانون قیمت‌گذاری تعریف نشده است. (ربات از مقادیر پیش‌فرض استفاده خواهد کرد: هر گیگ ۳,۰۰۰ و هر روز ۲,۰۰۰ تومان)" : "No rules defined. Bot will use default prices: 3,000 per GB and 2,000 per Day."}
+              {translateText("No rules defined. Bot will use default prices: 3,000 per GB and 2,000 per Day.", "هیچ قانون قیمت‌گذاری تعریف نشده است. (ربات از مقادیر پیش‌فرض استفاده خواهد کرد: هر گیگ ۳,۰۰۰ و هر روز ۲,۰۰۰ تومان)", lang)}
             </p>
           </div>
         ) : (
@@ -709,17 +705,15 @@ export default function ServerManagement({
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                            {lang === "fa" ? `کادر شماره ${idx + 1}` : `Rule #${idx + 1}`}
+                            {translateText("Rule #", "کادر شماره ", lang) + (idx + 1)}
                           </span>
                           <span className="text-[11px] text-gray-400 font-mono">
-                            {lang === "fa" 
-                              ? `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان | حداقل: ${box.minGb || 1} گیگ و ${box.minDays || 1} روز` 
-                              : `GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T | Min: ${box.minGb || 1}GB & ${box.minDays || 1} Days`}
+                            {translateText(`GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T | Min: ${box.minGb || 1}GB & ${box.minDays || 1} Days`, `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان | حداقل: ${box.minGb || 1} گیگ و ${box.minDays || 1} روز`, lang)}
                           </span>
                         </div>
                         <div className="flex flex-wrap gap-1.5 items-center">
                           <span className="text-[10px] text-gray-500 font-medium">
-                            {lang === "fa" ? "سرورهای اعمال‌شده:" : "Applied Servers:"}
+                            {translateText("Applied Servers:", "سرورهای اعمال‌شده:", lang)}
                           </span>
                           {selectedServersNames.length > 0 ? (
                             selectedServersNames.map((name, sIdx) => (
@@ -729,7 +723,7 @@ export default function ServerManagement({
                             ))
                           ) : (
                             <span className="text-[10px] text-rose-400/80 bg-rose-500/5 px-1.5 py-0.2 rounded font-semibold">
-                              {lang === "fa" ? "بدون سرور (اعمال نشده)" : "No servers selected"}
+                              {translateText("No servers selected", "بدون سرور (اعمال نشده)", lang)}
                             </span>
                           )}
                         </div>
@@ -741,12 +735,12 @@ export default function ServerManagement({
                           className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 rounded-lg text-xs font-semibold transition active:scale-95 cursor-pointer"
                         >
                           <Edit className="w-3.5 h-3.5" />
-                          <span>{lang === "fa" ? "ویرایش و تنظیم" : "Edit Rule"}</span>
+                          <span>{translateText("Edit Rule", "ویرایش و تنظیم", lang)}</span>
                         </button>
                         <button
                           onClick={() => handleDeletePricingBox(box.id)}
                           className="p-2 text-rose-400/80 hover:text-white hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
-                          title={lang === "fa" ? "حذف کادر" : "Delete box"}
+                          title={translateText("Delete box", "حذف کادر", lang)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -758,13 +752,13 @@ export default function ServerManagement({
                        <div className="flex justify-between items-center pb-2 border-b border-gray-900">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                            {lang === "fa" ? `✍️ ویرایش تنظیمات کادر شماره ${idx + 1}` : `✍️ Editing Rule #${idx + 1}`}
+                            {translateText("✍️ Editing Rule #", "✍️ ویرایش تنظیمات کادر شماره ", lang) + (idx + 1)}
                           </span>
                         </div>
                         <button
                           onClick={() => handleDeletePricingBox(box.id)}
                           className="p-1 text-rose-400 hover:text-white hover:bg-rose-950/40 rounded transition cursor-pointer"
-                          title={lang === "fa" ? "حذف کادر" : "Delete box"}
+                          title={translateText("Delete box", "حذف کادر", lang)}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -773,7 +767,7 @@ export default function ServerManagement({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? `قیمت به ازای هر گیگابایت (${currency})` : `Price per GB (${currency})`}
+                            {translateText("Price per GB ", "قیمت به ازای هر گیگابایت ", lang) + `(${currency})`}
                           </label>
                           <input
                             type="number"
@@ -785,7 +779,7 @@ export default function ServerManagement({
                         </div>
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? `قیمت به ازای هر روز (${currency})` : `Price per Day (${currency})`}
+                            {translateText("Price per Day ", "قیمت به ازای هر روز ", lang) + `(${currency})`}
                           </label>
                           <input
                             type="number"
@@ -798,7 +792,7 @@ export default function ServerManagement({
 
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? "حداقل حجم ساخت (گیگابایت)" : "Minimum GB Limit"}
+                            {translateText("Minimum GB Limit", "حداقل حجم ساخت (گیگابایت)", lang)}
                           </label>
                           <input
                             type="number"
@@ -811,7 +805,7 @@ export default function ServerManagement({
                         </div>
                         <div>
                           <label className="block text-[10px] text-gray-400 uppercase mb-1 font-bold">
-                            {lang === "fa" ? "حداقل روز ساخت (روز)" : "Minimum Days Limit"}
+                            {translateText("Minimum Days Limit", "حداقل روز ساخت (روز)", lang)}
                           </label>
                           <input
                             type="number"
@@ -826,7 +820,7 @@ export default function ServerManagement({
 
                       <div className="space-y-1.5">
                         <span className="block text-[10px] text-gray-400 uppercase font-bold">
-                          {lang === "fa" ? "انتخاب سرورهای تیک‌خورده برای اعمال این قانون:" : "Select servers for this rule:"}
+                          {translateText("Select servers for this rule:", "انتخاب سرورهای تیک‌خورده برای اعمال این قانون:", lang)}
                         </span>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 bg-[#111827]/40 p-3 rounded-lg border border-gray-900">
                           {Array.isArray(settings.servers) && settings.servers.length > 0 ? (
@@ -846,7 +840,7 @@ export default function ServerManagement({
                             })
                           ) : (
                             <span className="text-[10px] text-gray-500 col-span-full">
-                              {lang === "fa" ? "هیچ سروری تعریف نشده است." : "No servers available."}
+                              {translateText("No servers available.", "هیچ سروری تعریف نشده است.", lang)}
                             </span>
                           )}
                         </div>
@@ -859,7 +853,7 @@ export default function ServerManagement({
                           className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>{lang === "fa" ? "ذخیره و بستن کادر" : "Save and Close Box"}</span>
+                          <span>{translateText("Save and Close Box", "ذخیره و بستن کادر", lang)}</span>
                         </button>
                       </div>
                     </>
@@ -876,7 +870,7 @@ export default function ServerManagement({
             className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
           >
             <Check className="w-4 h-4" />
-            <span>{lang === "fa" ? "ذخیره تنظیمات قیمت‌گذاری" : "Save Pricing Rules"}</span>
+            <span>{translateText("Save Pricing Rules", "ذخیره تنظیمات قیمت‌گذاری", lang)}</span>
           </button>
         </div>
       </div>
@@ -889,7 +883,7 @@ export default function ServerManagement({
               <Layers className="w-4 h-4" />
             </div>
             <h4 className="font-semibold text-white text-sm">
-              {lang === "fa" ? "مدیریت دسته‌بندی پلن‌ها" : "Plan Categories Management"}
+              {translateText("Plan Categories Management", "مدیریت دسته‌بندی پلن‌ها", lang)}
             </h4>
           </div>
           <button
@@ -909,17 +903,17 @@ export default function ServerManagement({
           <div className="bg-[#1a2234] p-4 rounded-xl space-y-3 border border-purple-500/20 animate-in fade-in slide-in-from-top-1">
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-[10px] text-gray-400 uppercase mb-1">{lang === "fa" ? "نام دسته" : "Category Name"}</label>
+                <label className="block text-[10px] text-gray-400 uppercase mb-1">{translateText("Category Name", "نام دسته", lang)}</label>
                 <input
                   type="text"
                   value={catName}
                   onChange={e => setCatName(e.target.value)}
                   className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-xs text-white focus:border-purple-500 outline-none"
-                  placeholder={lang === "fa" ? "مثلا: VIP" : "e.g. VIP"}
+                  placeholder={translateText("e.g. VIP", "مثلا: VIP", lang)}
                 />
               </div>
               <div className="sm:col-span-1">
-                <label className="block text-[10px] text-gray-400 uppercase mb-1">{lang === "fa" ? "ایموجی" : "Emoji"}</label>
+                <label className="block text-[10px] text-gray-400 uppercase mb-1">{translateText("Emoji", "ایموجی", lang)}</label>
                 <input
                   type="text"
                   value={catEmoji}
@@ -956,7 +950,7 @@ export default function ServerManagement({
               <div className="flex justify-between items-center border-b border-gray-800 pb-2 mb-1">
                 <span className="text-[10px] font-mono text-gray-400 font-semibold flex items-center gap-1 bg-slate-900/60 px-1.5 py-0.5 rounded border border-gray-800">
                   <Layers className="w-2.5 h-2.5 text-indigo-400" />
-                  {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                  {translateText("Rank: ", "جایگاه: ", lang) + (index + 1)}
                 </span>
                 <div className="flex items-center gap-1">
                   <button
@@ -964,7 +958,7 @@ export default function ServerManagement({
                     onClick={() => handleMovePlanCategory(index, "up")}
                     disabled={index === 0}
                     className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                    title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                    title={translateText("Move Up", "انتقال به بالا", lang)}
                   >
                     <ChevronUp className="w-3 h-3" />
                   </button>
@@ -973,7 +967,7 @@ export default function ServerManagement({
                     onClick={() => handleMovePlanCategory(index, "down")}
                     disabled={index === planCategories.length - 1}
                     className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                    title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                    title={translateText("Move Down", "انتقال به پایین", lang)}
                   >
                     <ChevronDown className="w-3 h-3" />
                   </button>
@@ -981,7 +975,7 @@ export default function ServerManagement({
                     value={index}
                     onChange={(e) => handleSetPlanCategoryPosition(index, Number(e.target.value))}
                     className="bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                    title={translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)}
                   >
                     {planCategories.map((_, idx) => (
                       <option key={idx} value={idx}>
@@ -1006,7 +1000,7 @@ export default function ServerManagement({
                       setIsAddingCat(false);
                     }}
                     className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg hover:bg-indigo-500/20 transition-colors"
-                    title={lang === "fa" ? "ویرایش" : "Edit"}
+                    title={translateText("Edit", "ویرایش", lang)}
                   >
                     <Edit className="w-3.5 h-3.5" />
                   </button>
@@ -1015,7 +1009,7 @@ export default function ServerManagement({
                       handleDeleteCategory(cat.id);
                     }}
                     className="p-1.5 bg-rose-500/10 text-rose-400 rounded-lg hover:bg-rose-500/20 transition-colors"
-                    title={lang === "fa" ? "حذف" : "Delete"}
+                    title={translateText("Delete", "حذف", lang)}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1026,7 +1020,7 @@ export default function ServerManagement({
           {planCategories.length === 0 && (
             <div className="col-span-full py-8 text-center bg-[#1c253b]/50 border border-dashed border-gray-800 rounded-xl">
               <p className="text-xs text-gray-500">
-                {lang === "fa" ? "هنوز هیچ دسته‌بندی ایجاد نشده است." : "No categories created yet."}
+                {translateText("No categories created yet.", "هنوز هیچ دسته‌بندی ایجاد نشده است.", lang)}
               </p>
             </div>
           )}
@@ -1041,10 +1035,10 @@ export default function ServerManagement({
           <div className="bg-[#111827] border border-[#1f2937] p-4 rounded-2xl flex sm:flex-row flex-col gap-3 justify-between items-start sm:items-center">
             <div>
               <h4 className="font-semibold text-white text-sm">
-                {lang === "fa" ? "بسته‌های اشتراکی تلگرام و قیمت فروشگاه" : "Subscription Packages & Selling Matrix"}
+                {translateText("Subscription Packages & Selling Matrix", "بسته‌های اشتراکی تلگرام و قیمت فروشگاه", lang)}
               </h4>
               <p className="text-xs text-gray-400 mt-0.5">
-                {lang === "fa" ? "این بسته‌ها درون ربات تلگرام با شارژ کیف پول تایید شده اتوماتیک ارائه می‌گردند." : "These packages are pulled dynamically by the Telegram bot."}
+                {translateText("These packages are pulled dynamically by the Telegram bot.", "این بسته‌ها درون ربات تلگرام با شارژ کیف پول تایید شده اتوماتیک ارائه می‌گردند.", lang)}
               </p>
             </div>
             <button
@@ -1053,7 +1047,7 @@ export default function ServerManagement({
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow transition active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
-              {lang === "fa" ? "تعریف بسته جدید" : "Create New VPN Plan"}
+              {translateText("Create New VPN Plan", "تعریف بسته جدید", lang)}
             </button>
           </div>
         )}
@@ -1068,8 +1062,8 @@ export default function ServerManagement({
                 </div>
                 <h4 className="font-semibold text-white text-md">
                   {editingPlanId 
-                    ? (lang === "fa" ? "✏️ ویرایش مشخصات بسته اشتراکی" : "✏️ Edit VPN Package specifications") 
-                    : (lang === "fa" ? "➕ جزئیات و ساخت بسته جدید اشتراکی" : "➕ Spec out New Subscription Package")}
+                    ? (translateText("✏️ Edit VPN Package specifications", "✏️ ویرایش مشخصات بسته اشتراکی", lang)) 
+                    : (translateText("➕ Spec out New Subscription Package", "➕ جزئیات و ساخت بسته جدید اشتراکی", lang))}
                 </h4>
               </div>
               <button
@@ -1084,26 +1078,26 @@ export default function ServerManagement({
             <form onSubmit={handleSavePlan} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "نام بسته (برنزی، VIP طلایی، گیمینگ)" : "Display Name"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Display Name", "نام بسته (برنزی، VIP طلایی، گیمینگ)", lang)}</label>
                   <input
                     type="text"
                     required
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
                     value={planName}
-                    placeholder={lang === "fa" ? "مثال: استاندارد ۱ ماهه ۵۰ گیگابایت" : "Standard Promo Pack 50GB"}
+                    placeholder={translateText("Standard Promo Pack 50GB", "مثال: استاندارد ۱ ماهه ۵۰ گیگابایت", lang)}
                     onChange={(e) => setPlanName(e.target.value)}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "دسته‌بندی پنل (نام گروه)" : "Category / Group Name"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Category / Group Name", "دسته‌بندی پنل (نام گروه)", lang)}</label>
                   <select
                     required
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none"
                     value={planCategory}
                     onChange={(e) => setPlanCategory(e.target.value)}
                   >
-                    <option value="">{lang === "fa" ? "انتخاب دسته‌بندی..." : "Select Category..."}</option>
+                    <option value="">{translateText("Select Category...", "انتخاب دسته‌بندی...", lang)}</option>
                     {planCategories.map(cat => (
                       <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
                     ))}
@@ -1130,7 +1124,7 @@ export default function ServerManagement({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "حجم (گیگابایت)" : "Volume Size (GB)"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Volume Size (GB)", "حجم (گیگابایت)", lang)}</label>
                   <input
                     type="number"
                     required
@@ -1142,7 +1136,7 @@ export default function ServerManagement({
                 </div>
                 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? "مدت زمان (به روز)" : "Duration (Days)"}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Duration (Days)", "مدت زمان (به روز)", lang)}</label>
                   <input
                     type="number"
                     required
@@ -1154,7 +1148,7 @@ export default function ServerManagement({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{lang === "fa" ? `قیمت مصرف کننده (${currency})` : `Selling Price (${currency})`}</label>
+                  <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Selling Price ", "قیمت مصرف کننده ", lang) + `(${currency})`}</label>
                   <input
                     type="number"
                     required
@@ -1175,7 +1169,7 @@ export default function ServerManagement({
               {formSuccess && (
                 <div className="p-3 bg-emerald-950/20 border border-emerald-900/50 rounded-lg text-emerald-400 text-xs font-semibold flex items-center gap-1.5">
                   <Check className="w-4 h-4 text-emerald-400" />
-                  {lang === "fa" ? "اطلاعات بسته با موفقیت با هسته تلگرام مجیک همگام شد!" : "VPN subscription details stored and synchronized!"}
+                  {translateText("VPN subscription details stored and synchronized!", "اطلاعات بسته با موفقیت با هسته تلگرام مجیک همگام شد!", lang)}
                 </div>
               )}
 
@@ -1185,14 +1179,14 @@ export default function ServerManagement({
                   className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg active:scale-95 transition"
                 >
                   <Save className="w-4 h-4" />
-                  {editingPlanId ? (lang === "fa" ? "ثبت نهایی تغییرات بسته" : "Save Changes") : (lang === "fa" ? "ایجاد و ذخیره نهایی بسته" : "Generate & Launch Package")}
+                  {editingPlanId ? (translateText("Save Changes", "ثبت نهایی تغییرات بسته", lang)) : (translateText("Generate & Launch Package", "ایجاد و ذخیره نهایی بسته", lang))}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
                   className="px-5 py-3 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-xl text-xs font-semibold cursor-pointer active:scale-95 transition"
                 >
-                  {lang === "fa" ? "انصراف" : "Cancel"}
+                  {translateText("Cancel", "انصراف", lang)}
                 </button>
               </div>
             </form>
@@ -1202,7 +1196,7 @@ export default function ServerManagement({
         {/* List of active subscription plans */}
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4">
           <h4 className="text-xs uppercase font-mono tracking-wider text-gray-400 font-semibold flex justify-between items-center border-b border-gray-800 pb-2">
-            <span>{lang === "fa" ? "بسته‌های فعال و مشخصات سابسکریپشن سیستم:" : "Active Subscription specifications & prices:"}</span>
+            <span>{translateText("Active Subscription specifications & prices:", "بسته‌های فعال و مشخصات سابسکریپشن سیستم:", lang)}</span>
             <span className="bg-[#1f2937] text-indigo-400 px-2.5 py-0.5 rounded text-[11px] font-mono font-semibold">{vpnPlans.length}</span>
           </h4>
 
@@ -1210,13 +1204,13 @@ export default function ServerManagement({
             <div className="text-center py-12 bg-slate-950/40 rounded-xl space-y-2 border border-dashed border-gray-800">
               <Layers className="w-10 h-10 text-gray-600 mx-auto" />
               <p className="text-gray-400 text-sm font-semibold">
-                {lang === "fa" ? "هیچ بسته‌ای در پایگاه اتصال تعریف نشده است." : "No packages listed inside the sqlite database pool."}
+                {translateText("No packages listed inside the sqlite database pool.", "هیچ بسته‌ای در پایگاه اتصال تعریف نشده است.", lang)}
               </p>
               <button
                 onClick={startCreateNewPlan}
                 className="mt-2 text-indigo-400 text-xs font-bold hover:underline"
               >
-                {lang === "fa" ? "تعریف اولین پلن VPN" : "Define your first VPN plan spec"}
+                {translateText("Define your first VPN plan spec", "تعریف اولین پلن VPN", lang)}
               </button>
             </div>
           ) : (
@@ -1232,7 +1226,7 @@ export default function ServerManagement({
                     <div className="flex justify-between items-center border-b border-slate-900 pb-2.5 mb-3.5">
                       <span className="text-[11px] font-mono text-gray-500 font-semibold flex items-center gap-1 bg-slate-900/40 px-2 py-0.5 rounded-md border border-slate-900/60">
                         <Layers className="w-3 h-3 text-indigo-400" />
-                        {lang === "fa" ? `جایگاه: ${index + 1}` : `Rank: ${index + 1}`}
+                        {translateText(`Rank: ${index + 1}`, `جایگاه: ${index + 1}`, lang)}
                       </span>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -1240,7 +1234,7 @@ export default function ServerManagement({
                           onClick={() => handleMovePlan(index, "up")}
                           disabled={index === 0}
                           className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                          title={lang === "fa" ? "انتقال به بالا" : "Move Up"}
+                          title={translateText("Move Up", "انتقال به بالا", lang)}
                         >
                           <ChevronUp className="w-3.5 h-3.5" />
                         </button>
@@ -1249,7 +1243,7 @@ export default function ServerManagement({
                           onClick={() => handleMovePlan(index, "down")}
                           disabled={index === vpnPlans.length - 1}
                           className="p-1 rounded bg-slate-900 border border-slate-800 hover:bg-slate-800 hover:border-slate-700 text-gray-400 hover:text-white transition disabled:opacity-25 disabled:pointer-events-none cursor-pointer active:scale-95"
-                          title={lang === "fa" ? "انتقال به پایین" : "Move Down"}
+                          title={translateText("Move Down", "انتقال به پایین", lang)}
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
@@ -1257,7 +1251,7 @@ export default function ServerManagement({
                           value={index}
                           onChange={(e) => handleSetPlanPosition(index, Number(e.target.value))}
                           className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                          title={lang === "fa" ? "انتخاب مستقیم جایگاه" : "Direct Position Selection"}
+                          title={translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)}
                         >
                           {vpnPlans.map((_, idx) => (
                             <option key={idx} value={idx}>
@@ -1278,12 +1272,12 @@ export default function ServerManagement({
                           </span>
                         </div>
                         <span className="text-xs text-amber-400 font-bold font-mono bg-amber-400/5 border border-amber-400/10 px-2 py-1 rounded-lg">
-                          {plan.durationDays} {lang === "fa" ? "روز" : "Days"} / {plan.trafficGb}GB
+                          {plan.durationDays} {translateText("Days", "روز", lang)} / {plan.trafficGb}GB
                         </span>
                       </div>
 
                       <div className="text-sm text-gray-300 bg-[#111827]/40 border border-[#1f2937]/30 p-3 rounded-xl flex justify-between items-center">
-                        <span className="text-xs text-gray-400">{lang === "fa" ? "قیمت فروش ربات:" : "Bot Price:"}</span>
+                        <span className="text-xs text-gray-400">{translateText("Bot Price:", "قیمت فروش ربات:", lang)}</span>
                         <div className="font-mono text-white text-md font-bold">
                           <span className="text-yellow-400">{plan.price.toLocaleString()}</span>
                           <span className="text-[11px] text-gray-500 font-sans font-medium"> {currency}</span>
@@ -1296,7 +1290,7 @@ export default function ServerManagement({
                       {isConfirmDeleting ? (
                         <div className="flex items-center gap-2 bg-rose-950/40 border border-rose-900/50 p-1 rounded-lg w-full justify-between">
                           <span className="text-[11px] text-rose-300 font-medium px-1">
-                            {lang === "fa" ? "حذف کامل بسته؟" : "Confirm delete?"}
+                            {translateText("Confirm delete?", "حذف کامل بسته؟", lang)}
                           </span>
                           <div className="flex gap-1.5">
                             <button
@@ -1304,14 +1298,14 @@ export default function ServerManagement({
                               onClick={() => handleDeletePlanConfirm(plan.id)}
                               className="px-2.5 py-1 bg-red-650 hover:bg-red-500 text-white rounded text-[11px] font-medium cursor-pointer"
                             >
-                              {lang === "fa" ? "بله" : "Yes"}
+                              {translateText("Yes", "بله", lang)}
                             </button>
                             <button
                               type="button"
                               onClick={() => setConfirmDeletingId(null)}
                               className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded text-[11px] cursor-pointer"
                             >
-                              {lang === "fa" ? "خیر" : "No"}
+                              {translateText("No", "خیر", lang)}
                             </button>
                           </div>
                         </div>
@@ -1324,7 +1318,7 @@ export default function ServerManagement({
                             title="Edit specifications"
                           >
                             <Edit className="w-3.5 h-3.5" />
-                            <span>{lang === "fa" ? "ویرایش پلن" : "Edit Plan"}</span>
+                            <span>{translateText("Edit Plan", "ویرایش پلن", lang)}</span>
                           </button>
                           <button
                             type="button"
@@ -1333,7 +1327,7 @@ export default function ServerManagement({
                             title="Delete package spec"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>{lang === "fa" ? "حذف" : "Delete"}</span>
+                            <span>{translateText("Delete", "حذف", lang)}</span>
                           </button>
                         </div>
                       )}

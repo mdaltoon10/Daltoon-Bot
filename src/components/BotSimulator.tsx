@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales"; 
 import React, { useState, useEffect, useRef } from "react";
 import { User, VpnPlan, Transaction, SubscriptionKey, CustomButton, PanelSettings, Ticket, PlanCategory } from "../types";
-import { Language, translations } from "../locales";
 import { copyTextToClipboard } from "../utils/clipboard";
 import { 
   Send, 
@@ -17,6 +17,7 @@ import {
 
 const ConfigGlassButton: React.FC<{ link: string; lang: Language }> = ({ link, lang }) => {
   const [copied, setCopied] = useState(false);
+  const t = { ...translations.en, ...translations[lang] };
 
   const handleCopy = () => {
     copyTextToClipboard(link);
@@ -106,11 +107,11 @@ export default function BotSimulator({
   settings,
   planCategories = []
 }: BotSimulatorProps) {
-  const t = translations[lang];
+  const t = { ...translations.en, ...translations[lang] };
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
-  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<VpnPlan | null>(null);
   const [purchaseStep, setPurchaseStep] = useState<"idle" | "confirm_plan" | "ask_client_name" | "sending">("idle");
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false);
@@ -155,7 +156,7 @@ export default function BotSimulator({
   const [renewDaysVal, setRenewDaysVal] = useState<number>(30);
 
   useEffect(() => {
-    setInvoiceDesc(lang === "fa" ? "واریز کارت به کارت" : "Card-to-Card Transfer");
+    setInvoiceDesc(translateText("Card-to-Card Transfer", "واریز کارت به کارت", lang));
   }, [lang]);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -265,10 +266,8 @@ export default function BotSimulator({
         
         if ((remainingGb <= 1 && remainingGb > 0) || (remainingDays <= 1 && remainingDays > 0)) {
            setTimeout(() => {
-             addBotReply(lang === "fa" 
-               ? `⚠️ <b>اخطار رسمی اتمام سرویس:</b>\n\nمشترک گرامی، سرویس <b>${k.planName}</b> شما رو به اتمام است.\n\nباقیمانده حجم: ${remainingGb.toFixed(2)} گیگابایت\nباقیمانده زمان: ${remainingDays} روز\n\nجهت جلوگیری از قطع شدن دسترسی، لطفاً هرچه سریع‌تر از منوی مدیریت اشتراک‌ها اقدام به تمدید نمایید.` 
-               : `⚠️ <b>Official Expiry Warning:</b>\n\nYour service <b>${k.planName}</b> is about to expire.\n\nRemaining: ${remainingGb.toFixed(2)} GB / ${remainingDays} Days.\n\nPlease renew to avoid interruption.`, 
-               1500, undefined, [[{ text: lang === "fa" ? "💳 تمدید این سرویس" : "💳 Renew Now", action: `manage_sub_${k.id}` }]]);
+             addBotReply(translateText(`⚠️ <b>Official Expiry Warning:</b>\n\nYour service <b>${k.planName}</b> is about to expire.\n\nRemaining: ${remainingGb.toFixed(2)} GB / ${remainingDays} Days.\n\nPlease renew to avoid interruption.`, `⚠️ <b>اخطار رسمی اتمام سرویس:</b>\n\nمشترک گرامی، سرویس <b>${k.planName}</b> شما رو به اتمام است.\n\nباقیمانده حجم: ${remainingGb.toFixed(2)} گیگابایت\nباقیمانده زمان: ${remainingDays} روز\n\nجهت جلوگیری از قطع شدن دسترسی، لطفاً هرچه سریع‌تر از منوی مدیریت اشتراک‌ها اقدام به تمدید نمایید.`, lang), 
+               1500, undefined, [[{ text: translateText("💳 Renew Now", "💳 تمدید این سرویس", lang), action: `manage_sub_${k.id}` }]]);
            }, 2000);
         }
       });
@@ -345,9 +344,7 @@ export default function BotSimulator({
         const safeNameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
         if (!safeNameRegex.test(input)) {
           addBotReply(
-            lang === "fa"
-              ? "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد و خط تیره بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:"
-              : "⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens and be between 3 and 15 chars (no spaces).\n\nPlease write a valid English name:",
+            translateText("⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens and be between 3 and 15 chars (no spaces).\n\nPlease write a valid English name:", "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد و خط تیره بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:", lang),
             500,
             [[t.btnCancel]]
           );
@@ -356,9 +353,7 @@ export default function BotSimulator({
         setCustomVolUsername(input);
         setCustomVolStep("ask_gb");
         addBotReply(
-          lang === "fa"
-            ? `👤 نام کاربری: <code>${input}</code>\n\n🔻 لطفاً ترافیک مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)`
-            : `👤 Username: <code>${input}</code>\n\n🔻 Please enter traffic limit in <b>GB</b> (e.g. <code>30</code>):`,
+          translateText(`👤 Username: <code>${input}</code>\n\n🔻 Please enter traffic limit in <b>GB</b> (e.g. <code>30</code>):`, `👤 نام کاربری: <code>${input}</code>\n\n🔻 لطفاً ترافیک مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)`, lang),
           500,
           [[t.btnCancel]]
         );
@@ -369,9 +364,7 @@ export default function BotSimulator({
         const gb = parseInt(input);
         if (isNaN(gb) || gb <= 0 || gb > 1000) {
           addBotReply(
-            lang === "fa"
-              ? "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:"
-              : "❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):",
+            translateText("❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):", "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:", lang),
             500,
             [[t.btnCancel]]
           );
@@ -398,9 +391,7 @@ export default function BotSimulator({
         const days = parseInt(input);
         if (isNaN(days) || days <= 0 || days > 365) {
           addBotReply(
-            lang === "fa"
-              ? "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:"
-              : "❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):",
+            translateText("❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):", "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:", lang),
             500,
             [[t.btnCancel]]
           );
@@ -452,8 +443,8 @@ export default function BotSimulator({
           undefined,
           [
             [
-              { text: lang === "fa" ? "✅ تایید و پرداخت از کیف پول" : "✅ Confirm & Pay", action: `confirm_buy_cust_val:${customVolServerId}:${customVolUsername}:${customVolGb}:${days}:${totalPrice}` },
-              { text: lang === "fa" ? "❌ لغو" : "❌ Cancel", action: "btn_back_home" }
+              { text: translateText("✅ Confirm & Pay", "✅ تایید و پرداخت از کیف پول", lang), action: `confirm_buy_cust_val:${customVolServerId}:${customVolUsername}:${customVolGb}:${days}:${totalPrice}` },
+              { text: translateText("❌ Cancel", "❌ لغو", lang), action: "btn_back_home" }
             ]
           ]
         );
@@ -467,7 +458,7 @@ export default function BotSimulator({
       if (input.includes("انصراف") || input.includes("Cancel") || input.includes("بازگشت") || input.includes("منوی اصلی")) {
         setRenewStep("idle");
         setRenewingSubId(null);
-        addBotReply(lang === "fa" ? "❌ عملیات تمدید لغو شد." : "❌ Renewal cancelled.", 500, getKeyboard());
+        addBotReply(translateText("❌ Renewal cancelled.", "❌ عملیات تمدید لغو شد.", lang), 500, getKeyboard());
         return;
       }
 
@@ -475,9 +466,7 @@ export default function BotSimulator({
         const gb = parseInt(input);
         if (isNaN(gb) || gb <= 0 || gb > 1000) {
           addBotReply(
-            lang === "fa"
-              ? "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:"
-              : "❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):",
+            translateText("❌ <b>Error: Invalid traffic limit!</b>\n\nPlease enter a valid integer (between 1 and 1000):", "❌ <b>خطا: ترافیک نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۱۰۰۰) وارد کنید:", lang),
             500,
             [[t.btnCancel]]
           );
@@ -486,9 +475,7 @@ export default function BotSimulator({
         setRenewGbVal(gb);
         setRenewStep("ask_days");
         addBotReply(
-          lang === "fa"
-            ? "⏳ <b>انتخاب مدت زمان تمدید:</b>\n\nلطفاً تعداد روزهای اضافی جهت تمدید اشتراک را به <b>روز (Days)</b> وارد کنید (مثلاً <code>30</code>):"
-            : "⏳ <b>Select Renewal Duration:</b>\n\nPlease enter additional days (e.g. <code>30</code>):",
+          translateText("⏳ <b>Select Renewal Duration:</b>\n\nPlease enter additional days (e.g. <code>30</code>):", "⏳ <b>انتخاب مدت زمان تمدید:</b>\n\nلطفاً تعداد روزهای اضافی جهت تمدید اشتراک را به <b>روز (Days)</b> وارد کنید (مثلاً <code>30</code>):", lang),
           500,
           [[t.btnCancel]]
         );
@@ -499,9 +486,7 @@ export default function BotSimulator({
         const days = parseInt(input);
         if (isNaN(days) || days <= 0 || days > 365) {
           addBotReply(
-            lang === "fa"
-              ? "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:"
-              : "❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):",
+            translateText("❌ <b>Error: Invalid duration!</b>\n\nPlease enter a valid integer (between 1 and 365):", "❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\nلطفاً یک عدد صحیح بزرگتر از صفر (بین ۱ تا ۳۶۵) وارد کنید:", lang),
             500,
             [[t.btnCancel]]
           );
@@ -553,11 +538,11 @@ export default function BotSimulator({
           undefined,
           [
             [
-              { text: lang === "fa" ? "✅ پرداخت از کیف پول" : "✅ Pay from Wallet", action: `confirm_renew_cust_val:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` },
-              { text: lang === "fa" ? "💳 کارت به کارت مستقیم" : "💳 Card-to-Card Pay", action: `renew_direct_card:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` }
+              { text: translateText("✅ Pay from Wallet", "✅ پرداخت از کیف پول", lang), action: `confirm_renew_cust_val:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` },
+              { text: translateText("💳 Card-to-Card Pay", "💳 کارت به کارت مستقیم", lang), action: `renew_direct_card:${renewingSubId}:${renewGbVal}:${days}:${totalPrice}` }
             ],
             [
-              { text: lang === "fa" ? "❌ لغو" : "❌ Cancel", action: `manage_sub_${renewingSubId}` }
+              { text: translateText("❌ Cancel", "❌ لغو", lang), action: `manage_sub_${renewingSubId}` }
             ]
           ]
         );
@@ -570,18 +555,16 @@ export default function BotSimulator({
       const subject = text.trim();
       if (subject.includes("انصراف") || subject.includes("Cancel") || subject.includes("بازگشت") || subject.includes("منوی اصلی")) {
         setSupportStep("idle");
-        addBotReply(lang === "fa" ? "❌ فرآیند ثبت تیکت لغو شد." : "❌ Ticket filing cancelled.", 500, getKeyboard());
+        addBotReply(translateText("❌ Ticket filing cancelled.", "❌ فرآیند ثبت تیکت لغو شد.", lang), 500, getKeyboard());
         return;
       }
       setTicketSubject(subject);
       setSupportStep("ask_message");
       addBotReply(
-        lang === "fa"
-          ? `📝 <b>موضوع تیکت شما:</b> "${subject}"\n\nحالا لطفاً پیام خود را همراه جزئیات شرح دهید تا به واحد فنی ارسال گردد:`
-          : `📝 <b>Subject:</b> "${subject}"\n\nNow description of your issue. Please type your detailed message here:`,
+        translateText(`📝 <b>Subject:</b> "${subject}"\n\nNow description of your issue. Please type your detailed message here:`, `📝 <b>موضوع تیکت شما:</b> "${subject}"\n\nحالا لطفاً پیام خود را همراه جزئیات شرح دهید تا به واحد فنی ارسال گردد:`, lang),
         600,
         [
-          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+          [translateText("❌ Cancel Ticket", "❌ انصراف از ثبت تیکت", lang)]
         ]
       );
       return;
@@ -592,11 +575,11 @@ export default function BotSimulator({
       const message = text.trim();
       if (message.includes("انصراف") || message.includes("Cancel") || message.includes("بازگشت") || message.includes("منوی اصلی")) {
         setSupportStep("idle");
-        addBotReply(lang === "fa" ? "❌ فرآیند ثبت تیکت لغو شد." : "❌ Ticket filing cancelled.", 500, getKeyboard());
+        addBotReply(translateText("❌ Ticket filing cancelled.", "❌ فرآیند ثبت تیکت لغو شد.", lang), 500, getKeyboard());
         return;
       }
       setSupportStep("idle");
-      addBotReply(lang === "fa" ? "⏳ در حال فرستادن اطلاعات تیکت و ثبت در سامانه پرونده‌ها..." : "⏳ Submitting ticket to dashboard agents...", 500);
+      addBotReply(translateText("⏳ Submitting ticket to dashboard agents...", "⏳ در حال فرستادن اطلاعات تیکت و ثبت در سامانه پرونده‌ها...", lang), 500);
 
       // Call API to create a live, real ticket
       fetch("/api/tickets/create", {
@@ -616,9 +599,7 @@ export default function BotSimulator({
             setTickets(data.tickets);
           }
           addBotReply(
-            lang === "fa"
-              ? `✅ <b>تیکت شما با موفقیت در سامانه پیگیری ثبت گردید!</b>\n\n🎟️ <b>شناسه پرونده:</b> <code>${data.ticket.id}</code>\n📂 <b>موضوع:</b> ${data.ticket.subject}\n\nپیام شما برای بخش پشتیبانی دالتون ارسال شد. پاسخ کارشناس به زودی در همین ربات ظاهر خواهد شد.`
-              : `✅ <b>Ticket filed successfully!</b>\n\n🎟️ <b>Ticket ID:</b> <code>${data.ticket.id}</code>\n📂 <b>Subject:</b> ${data.ticket.subject}\n\nOur service agents will review and reply swiftly.`,
+            translateText(`✅ <b>Ticket filed successfully!</b>\n\n🎟️ <b>Ticket ID:</b> <code>${data.ticket.id}</code>\n📂 <b>Subject:</b> ${data.ticket.subject}\n\nOur service agents will review and reply swiftly.`, `✅ <b>تیکت شما با موفقیت در سامانه پیگیری ثبت گردید!</b>\n\n🎟️ <b>شناسه پرونده:</b> <code>${data.ticket.id}</code>\n📂 <b>موضوع:</b> ${data.ticket.subject}\n\nپیام شما برای بخش پشتیبانی ${settings?.botNickname || 'دالتون'} ارسال شد. پاسخ کارشناس به زودی در همین ربات ظاهر خواهد شد.`, lang),
             800,
             getKeyboard()
           );
@@ -631,14 +612,14 @@ export default function BotSimulator({
           });
         } else {
           addBotReply(
-            lang === "fa" ? `❌ خطا در ثبت تیکت: ${data.error}` : `❌ Failed to submit ticket: ${data.error}`,
+            translateText("❌ Failed to submit ticket: ", "❌ خطا در ثبت تیکت: ", lang) + data.error,
             600,
             getKeyboard()
           );
         }
       })
       .catch(() => {
-        addBotReply(lang === "fa" ? "❌ خطایی در اتصال به سامانه رخ داد." : "❌ Network error registering ticket.", 500, getKeyboard());
+        addBotReply(translateText("❌ Network error registering ticket.", "❌ خطایی در اتصال به سامانه رخ داد.", lang), 500, getKeyboard());
       });
       return;
     }
@@ -650,18 +631,16 @@ export default function BotSimulator({
       setTransferringKeyId(null);
 
       if (targetUser.includes("انصراف") || targetUser.includes("Cancel") || targetUser.includes("بازگشت") || targetUser.includes("منوی اصلی")) {
-        addBotReply(lang === "fa" ? "❌ عملیات انتقال مالکیت لغو شد." : "❌ Ownership transfer cancelled.", 500, getKeyboard());
+        addBotReply(translateText("❌ Ownership transfer cancelled.", "❌ عملیات انتقال مالکیت لغو شد.", lang), 500, getKeyboard());
         return;
       }
 
-      addBotReply(lang === "fa" ? "⏳ در حال اعتبارسنجی کاربر مقصد و انتقال مالکیت..." : "⏳ Initiating ownership transfer...", 500);
+      addBotReply(translateText("⏳ Initiating ownership transfer...", "⏳ در حال اعتبارسنجی کاربر مقصد و انتقال مالکیت...", lang), 500);
 
       setTimeout(() => {
         setSimulatedKeys(prev => prev.filter(k => k.id !== subId));
         addBotReply(
-          lang === "fa"
-            ? `🎉 <b>انتقال با موفقیت انجام شد! (شبیه‌ساز آموزشی ✨)</b>\n\nسرویس شما به عنوان هدیه با موفقیت به پنل کاربر <b>@${targetUser}</b> منتقل شد و از حساب شما کسر گردید.\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: اطلاعات دیتابیس بدون تغییر باقی مانده است.</i>`
-            : `🎉 <b>Transfer Complete! (Educational Simulator ✨)</b>\n\nThis subscription has been successfully gifted to @${targetUser}.\n\n⚠️ <i>Sandbox Mode: Real database users and wallets remain untouched.</i>`,
+          translateText(`🎉 <b>Transfer Complete! (Educational Simulator ✨)</b>\n\nThis subscription has been successfully gifted to @${targetUser}.\n\n⚠️ <i>Sandbox Mode: Real database users and wallets remain untouched.</i>`, `🎉 <b>انتقال با موفقیت انجام شد! (شبیه‌ساز آموزشی ✨)</b>\n\nسرویس شما به عنوان هدیه با موفقیت به پنل کاربر <b>@${targetUser}</b> منتقل شد و از حساب شما کسر گردید.\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: اطلاعات دیتابیس بدون تغییر باقی مانده است.</i>`, lang),
           800,
           getKeyboard()
         );
@@ -685,11 +664,9 @@ export default function BotSimulator({
       const safeNameRegex = /^[a-zA-Z0-9_-]{3,15}$/;
       if (!safeNameRegex.test(clientNameInput)) {
         addBotReply(
-          lang === "fa"
-            ? "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله یا حروف فارسی).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:"
-            : "⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens, and be between 3 and 15 characters long (no spaces/Persian).\n\nPlease write a valid English name:",
+          translateText("⚠️ <b>Invalid Username!</b>\n\nUsername must contain English letters, numbers, hyphens, and be between 3 and 15 characters long (no spaces/Persian).\n\nPlease write a valid English name:", "⚠️ <b>نام وارد شده نامعتبر است!</b>\n\nنام کاربری باید فقط شامل حروف انگلیسی، اعداد، خط تیره و بین ۳ تا ۱۵ کاراکتر باشد (بدون فاصله یا حروف فارسی).\n\nلطفاً یک نام انگلیسی معتبر بنویسید:", lang),
           500,
-          [[lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]]
+          [[translateText("🏠 Main Menu", "🏠 بازگشت به منوی اصلی", lang)]]
         );
         return;
       }
@@ -705,9 +682,7 @@ export default function BotSimulator({
 
       setPurchaseStep("sending");
       addBotReply(
-        lang === "fa"
-          ? "⏳ در حال ساخت کانفیگ اختصاصی شما روی پروتکل‌های فعال چندگانه در هسته ۳x-ui و ثبت سابسکریپشن..."
-          : "⏳ Generating your dedicated configurations on multiple active inbounds in the 3x-ui core...",
+        translateText("⏳ Generating your dedicated configurations on multiple active inbounds in the 3x-ui core...", "⏳ در حال ساخت کانفیگ اختصاصی شما روی پروتکل‌های فعال چندگانه در هسته ۳x-ui و ثبت سابسکریپشن...", lang),
         500,
         []
       );
@@ -721,9 +696,7 @@ export default function BotSimulator({
           setSelectedPlanToBuy(null);
           setPurchaseStep("idle");
           addBotReply(
-            lang === "fa"
-              ? "❌ موجودی کیف پول شبیه‌ساز شما کافی نیست. لطفاً ابتدا کیف پول خود را شارژ آزمایشی کرده و مجدداً امتحان کنید."
-              : "❌ Insufficient sandbox balance. Please recharge your test wallet first.",
+            translateText("❌ Insufficient sandbox balance. Please recharge your test wallet first.", "❌ موجودی کیف پول شبیه‌ساز شما کافی نیست. لطفاً ابتدا کیف پول خود را شارژ آزمایشی کرده و مجدداً امتحان کنید.", lang),
             500,
             getKeyboard()
           );
@@ -786,8 +759,8 @@ export default function BotSimulator({
               keyboard: getKeyboard(),
               inlineButtons: [
                 [
-                  { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
-                  { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+                  { text: translateText("🔗 Get Sub Link", "🔗 دریافت لینک ساب", lang), action: `get_sub_link_${randomSubId}` },
+                  { text: translateText("🔗 Vless Links", "🔗 لینک‌های vless", lang), action: `get_vless_links_${randomSubId}` }
                 ]
               ],
               imageUrl: qrUrl
@@ -814,14 +787,12 @@ export default function BotSimulator({
           ]));
           
           inlineServers.push([
-            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: translateText("🔙 Back", "🔙 بازگشت", lang), action: "btn_back_home" },
             { text: t.btnBackHome, action: "btn_back_home" }
           ]);
           
           addBotReply(
-            lang === "fa" 
-              ? "🌐 لطفا سرور مورد نظر خود را انتخاب کنید:" 
-              : "🌐 Please select your preferred server:",
+            translateText("🌐 Please select your preferred server:", "🌐 لطفا سرور مورد نظر خود را انتخاب کنید:", lang),
             800,
             undefined,
             inlineServers
@@ -829,7 +800,7 @@ export default function BotSimulator({
         } else {
           // Fallback to categories directly if no servers
           const cats = new Set<string>();
-          plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
+          plans.forEach(p => cats.add(p.category || (translateText("Others", "سایر", lang))));
           const definedCats = planCategories || [];
           
           const inlineCats: any[] = [];
@@ -844,14 +815,12 @@ export default function BotSimulator({
           });
 
           inlineCats.push([
-            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: translateText("🔙 Back", "🔙 بازگشت", lang), action: "btn_back_home" },
             { text: t.btnBackHome, action: "btn_back_home" }
           ]);
 
           addBotReply(
-            lang === "fa" 
-              ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
-              : "Please select one of the following categories to view plans:",
+            translateText("Please select one of the following categories to view plans:", "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:", lang),
             800,
             undefined,
             inlineCats
@@ -875,15 +844,13 @@ export default function BotSimulator({
 
       // Profile Info (without active plans details string, we'll keep it simple profile)
       addBotReply(
-        lang === "fa"
-          ? `📄 <b>اطلاعات حساب کاربری شما:</b>\n\n💰 موجودی: ${(currentUser.walletBalance || 0).toLocaleString()} تومان\n👤 آیدی عددی: <code>${currentUser.userId}</code>\n📦 تعداد سرویس ها: ${activeUserKeys.length}\n🗓 تاریخ ورود به بات: ${faJoinDate}\n\n🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید.`
-          : `📄 <b>My Account Profile:</b>\n\n💰 Balance: ${(currentUser.walletBalance || 0).toLocaleString()} T\n👤 User ID: <code>${currentUser.userId}</code>\n📦 Active Services: ${activeUserKeys.length}\n🗓 Join Date: ${enJoinDate}\n\n🔹 To recharge your wallet, please refer to the Wallet section in the main menu.`,
+        translateText(`📄 <b>My Account Profile:</b>\n\n💰 Balance: ${(currentUser.walletBalance || 0).toLocaleString()} T\n👤 User ID: <code>${currentUser.userId}</code>\n📦 Active Services: ${activeUserKeys.length}\n🗓 Join Date: ${enJoinDate}\n\n🔹 To recharge your wallet, please refer to the Wallet section in the main menu.`, `📄 <b>اطلاعات حساب کاربری شما:</b>\n\n💰 موجودی: ${(currentUser.walletBalance || 0).toLocaleString()} تومان\n👤 آیدی عددی: <code>${currentUser.userId}</code>\n📦 تعداد سرویس ها: ${activeUserKeys.length}\n🗓 تاریخ ورود به بات: ${faJoinDate}\n\n🔹 جهت شارژ کیف پول خود، می‌توانید به بخش مربوطه در منوی اصلی ربات مراجعه فرمایید.`, lang),
         600,
         undefined,
         [
-          { text: lang === "fa" ? "🎁 اعمال کد هدیه" : "🎁 Redeem Code", action: "btn_gift_code" },
+          { text: translateText("🎁 Redeem Code", "🎁 اعمال کد هدیه", lang), action: "btn_gift_code" },
           [
-            { text: lang === "fa" ? "🔙 بازگشت" : "🔙 Back", action: "btn_back_home" },
+            { text: translateText("🔙 Back", "🔙 بازگشت", lang), action: "btn_back_home" },
             { text: t.btnBackHome, action: "btn_back_home" }
           ]
         ]
@@ -893,34 +860,30 @@ export default function BotSimulator({
       const activeUserKeys = simulatedKeys.filter(k => k.userId === currentUser.userId);
       if (activeUserKeys.length > 0) {
         const inlineSubsButtons = activeUserKeys.map((k, idx) => [
-          { text: lang === "fa" ? `⚙️ مدیریت: ${k.planName} (${idx + 1})` : `⚙️ Manage: ${k.planName} (${idx + 1})`, action: `manage_sub_${k.id}` }
+          { text: translateText("⚙️ Manage: ", "⚙️ مدیریت: ", lang) + `${k.planName} (${idx + 1})`, action: `manage_sub_${k.id}` }
         ]);
         addBotReply(
-          lang === "fa"
-            ? `🗂 <b>تعداد اشتراک‌های فعال شما: ${activeUserKeys.length} سرویس</b>\n\nجهت تمدید ساب، ابطال و تغییر کلید خصوصی (Reset UUID)، یا انتقال مالکیت به دوست روی دکمه مدیریت آن ضربه بزنید:`
-            : `🗂 <b>You have ${activeUserKeys.length} active subscription(s):</b>\n\nClick a subscription to manage, reset its UUID, or transfer ownership to a companion:`,
+          translateText(`🗂 <b>You have ${activeUserKeys.length} active subscription(s):</b>\n\nClick a subscription to manage, reset its UUID, or transfer ownership to a companion:`, `🗂 <b>تعداد اشتراک‌های فعال شما: ${activeUserKeys.length} سرویس</b>\n\nجهت تمدید ساب، ابطال و تغییر کلید خصوصی (Reset UUID)، یا انتقال مالکیت به دوست روی دکمه مدیریت آن ضربه بزنید:`, lang),
           600,
           undefined,
           inlineSubsButtons
         );
       } else {
         addBotReply(
-          lang === "fa"
-            ? "❌ شما تا کنون هیچ سرویس اشتراکی در حساب خود دریافت نکرده‌اید."
-            : "❌ You have no active subscriptions registered." ,
+          translateText("❌ You have no active subscriptions registered.", "❌ شما تا کنون هیچ سرویس اشتراکی در حساب خود دریافت نکرده‌اید.", lang) ,
           600
         );
       }
     }
     else if (text === (settings?.btnTextFreeTest || t.btnFreeTest) || text.includes("🎁") || text.includes("رایگان") || text.includes("Free")) {
         if (settings?.isFreeTestActive === false) {
-           addBotReply(settings?.freeTestDisabledMessage || (lang === "fa" ? "اکانت تست رایگان فعلا موجود نیست." : "Free test is not available right now."), 500);
+           addBotReply(settings?.freeTestDisabledMessage || (translateText("Free test is not available right now.", "اکانت تست رایگان فعلا موجود نیست.", lang)), 500);
         } else {
            const freeGb = settings?.freeTestGb !== undefined ? settings?.freeTestGb : 0.1;
           const freeDays = settings?.freeTestDays !== undefined ? settings?.freeTestDays : 1;
           const freeGbStr = freeGb < 1 ? `${Math.round(freeGb * 1024)} مگابایت` : `${freeGb} گیگابایت`;
           const freeDaysStr = `${freeDays} روزه`;
-          addBotReply(lang === "fa" ? `⏳ در حال ساخت اکانت تست رایگان ${freeDaysStr} (${freeGbStr})...` : `⏳ Generating ${freeDaysStr} (${freeGbStr}) test account...`, 500, []);
+          addBotReply(translateText("⏳ Generating ", "⏳ در حال ساخت اکانت تست رایگان ", lang) + `${freeDaysStr} (${freeGbStr})` + translateText(" test account...", "...", lang), 500, []);
            
            setTimeout(() => {
              const randomSubId = "TEST-" + Math.floor(Math.random() * 9000 + 1000);
@@ -958,23 +921,21 @@ export default function BotSimulator({
      
              addBotReply(confirmMsg, 1000, getKeyboard(), [
                [
-                 { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
-                 { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+                 { text: translateText("🔗 Get Sub Link", "🔗 دریافت لینک ساب", lang), action: `get_sub_link_${randomSubId}` },
+                 { text: translateText("🔗 Vless Links", "🔗 لینک‌های vless", lang), action: `get_vless_links_${randomSubId}` }
                ]
              ]);
            }, 1500);
         }
     }
     else if (text === (settings?.btnTextInstantSupport || t.btnInstantSupport) || text.includes("🤖")) {
-        addBotReply(lang === "fa" ? "🤖 پاسخگوی خودکار غیرفعال است. لطفا به پشتیبانی انسانی پیام دهید." : "Instant support AI offline.", 500);
+        addBotReply(translateText("Instant support AI offline.", "🤖 پاسخگوی خودکار غیرفعال است. لطفا به پشتیبانی انسانی پیام دهید.", lang), 500);
     }
     else if (text === (settings?.btnTextFeedback || t.btnFeedback) || text.includes("💌") || text.includes("Feedback")) {
-        addBotReply(lang === "fa" ? "💌 با تشکر از بازخورد شما. نظرات شما ثبت خواهد شد." : "Thank you for your feedback.", 500);
+        addBotReply(translateText("Thank you for your feedback.", "💌 با تشکر از بازخورد شما. نظرات شما ثبت خواهد شد.", lang), 500);
     }
     else if (text === (settings?.btnTextGuides || t.btnGuides) || text.includes("💡") || text.includes("آموزش")) {
-        const defaultGuideText = lang === "fa" 
-          ? "🌐 <b>راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)</b>\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت بروز هرگونه مشکل با دکمه پشتیبانی در تماس باشید."
-          : "Tutorials coming soon.";
+        const defaultGuideText = translateText("Tutorials coming soon.", "🌐 <b>راهنمای فعال‌سازی و اتصال به سرویس (لینک سابسکریپشن)</b>\n\nکاربر گرامی، ضمن تشکر از انتخاب و اعتماد شما، روش فعال‌سازی و راه‌اندازی سرویس به شرح زیر می‌باشد:\n\n۱. نرم‌افزار متناسب با سیستم‌عامل خود را دانلود و نصب کنید:\n• اندروید: v2rayNG\n• آیفون (iOS): V2box یا Streisand\n• ویندوز: Nekoray یا v2rayN\n\n۲. لینک اشتراک (سابسکریپشن) دریافتی از ربات را کپی نمایید.\n\n۳. وارد نرم‌افزار شده و پیوند کپی شده را اضافه نمایید (معمولاً دکمه + و انتخاب گزینه Import from clipboard یا Add Subscription).\n\n۴. روی گزینه Update Subscription کلیک کنید تا تمام سرورها بارگذاری شوند.\n\n۵. یکی از سرورها را انتخاب کرده و اتصال را برقرار نمایید. در صورت بروز هرگونه مشکل با دکمه پشتیبانی در تماس باشید.", lang);
         addBotReply(settings?.guidesText || defaultGuideText, 400);
     }
     else if (text === (settings?.btnTextReferral || t.btnReferral) || text.includes("👥") || text.includes("زیرمجموعه")) {
@@ -990,16 +951,16 @@ export default function BotSimulator({
           `{link}\n\n` +
           `🎁 با دعوت از هر دوست، {reward} تومان (معادل {percent}% مبلغ پایه) پاداش دریافت می‌کنید.\n\n` + 
           `📊 آمار دعوت شما\n` + 
-          `• افراد وارد شده با لینک: 0\n` + 
-          `• پاداش دریافت شده: 0 تومان`;
+          `• افراد وارد شده با لینک: {invited}\n` + 
+          `• پاداش دریافت شده: {total_earned} تومان`;
           
       let defaultMsgEn = `To earn rewards, invite your friends with your dedicated link 👥\n\n` +
           `Your Referral ID is {uid}.\n\n` +
           `{link}\n\n` +
           `🎁 For every successful invite, you get {reward} Toman (equivalent to {percent}% of base amount).\n\n` +
           `📊 Referral Stats:\n` +
-          `• Invited Users: 0\n` +
-          `• Total Rewards: 0`;
+          `• Invited Users: {invited}\n` +
+          `• Total Rewards: {total_earned}`;
 
       let rawTemplate = settings?.referralMessage || (lang === "fa" ? defaultMsgFa : defaultMsgEn);
       
@@ -1011,7 +972,9 @@ export default function BotSimulator({
         .replace(/{percent}/g, percent.toString())
         .replace(/{purchase_percent}/g, purchasePercent.toString())
         .replace(/{amount}/g, amount.toLocaleString())
-        .replace(/{reward}/g, calculatedReward.toLocaleString());
+        .replace(/{reward}/g, calculatedReward.toLocaleString())
+        .replace(/{invited}/g, (currentUser.referralCount || 0).toString())
+        .replace(/{total_earned}/g, (currentUser.referralRewards || 0).toLocaleString());
 
       addBotReply(replyText, 600);
     }
@@ -1065,26 +1028,22 @@ export default function BotSimulator({
     else if (text === (settings?.btnTextTicketSupport || t.btnTicketSupport)) {
       setSupportStep("ask_subject");
       addBotReply(
-        lang === "fa"
-          ? "🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی دالتون ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:"
-          : "🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):",
+        translateText("🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):", `🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی ${settings?.botNickname || 'دالتون'} ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:`, lang),
         500,
         [
-          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+          [translateText("❌ Cancel Ticket", "❌ انصراف از ثبت تیکت", lang)]
         ]
       );
     }
     else if (text.includes("📞") || text.includes("پشتیبانی") || text.includes("Support") || text.includes("support") || text.includes("🎧") || text.includes("تیکت") || text.includes("Ticket")) {
       addBotReply(
-        lang === "fa" 
-          ? "🎧 <b>مرکز پشتیبانی و تیکتینگ هوشمند دالتون:</b>\n\nهم‌اکنون پشتیبانی ما به صورت ۲۴ ساعته فعال است. شما می‌توانید مستقیماً با تیم پشتیبانی چت کنید یا یک تیکت رسمی ثبت نمایید تا به طور دقیق پرونده شما بررسی شود.\n\nلطفاً یکی از گزینه‌های زیر را انتخاب نمایید:"
-          : "🎧 <b>DalToon Support & Ticketing Center:</b>\n\nOur support operations are live 24/7. You can contact support directly or register an official ticket trace.\n\nPlease choose one of the options below:",
+        translateText(`🎧 <b>${settings?.botNickname || 'Daltoon'} Support & Ticketing Center:</b>\n\nOur support operations are live 24/7. You can contact support directly or register an official ticket trace.\n\nPlease choose one of the options below:`, `🎧 <b>مرکز پشتیبانی و تیکتینگ هوشمند ${settings?.botNickname || 'Daltoon'}:</b>\n\nهم‌اکنون پشتیبانی ما به صورت ۲۴ ساعته فعال است. شما می‌توانید مستقیماً با تیم پشتیبانی چت کنید یا یک تیکت رسمی ثبت نمایید تا به طور دقیق پرونده شما بررسی شود.\n\nلطفاً یکی از گزینه‌های زیر را انتخاب نمایید:`, lang),
         500,
         undefined,
         [
           [
-            { text: lang === "fa" ? "🎟️ ثبت تیکت دیجیتال" : "🎟️ File Support Ticket", action: "btn_create_ticket" },
-            { text: lang === "fa" ? "💬 پشتیبانی مستقیم تلگرام" : "💬 Chat with Support Agent", action: "btn_direct_support" }
+            { text: translateText("🎟️ File Support Ticket", "🎟️ ثبت تیکت دیجیتال", lang), action: "btn_create_ticket" },
+            { text: translateText("💬 Chat with Support Agent", "💬 پشتیبانی مستقیم تلگرام", lang), action: "btn_direct_support" }
           ],
           [
             { text: t.btnBackHome, action: "btn_back_home" }
@@ -1096,9 +1055,7 @@ export default function BotSimulator({
     else {
       // General fallbacks
       addBotReply(
-        lang === "fa"
-          ? "دستور ارسال شده متوجه نشدم. لطفا از دکمه‌های منوی زیر استفاده کنید. 👇"
-          : "Command not recognized. Please use one of the action buttons on the visual keyboard panel below. 👇",
+        translateText("Command not recognized. Please use one of the action buttons on the visual keyboard panel below. 👇", "دستور ارسال شده متوجه نشدم. لطفا از دکمه‌های منوی زیر استفاده کنید. 👇", lang),
         500,
         [
           [t.btnBuyPlan, t.btnMyAccount],
@@ -1111,7 +1068,7 @@ export default function BotSimulator({
   const handleInlineClick = (action: string) => {
     // Mimic clicking standard inline telegram button
     if (action === "btn_back_home") {
-      addBotReply(lang === "fa" ? "✔️ شما به منوی اصلی بازگشتید." : "Returned to main menu.", 500, getKeyboard());
+      addBotReply(translateText("Returned to main menu.", "✔️ شما به منوی اصلی بازگشتید.", lang), 500, getKeyboard());
       return;
     }
 
@@ -1119,7 +1076,7 @@ export default function BotSimulator({
       const serverId = action.replace("srvsel_", "");
       
       const cats = new Set<string>();
-      plans.forEach(p => cats.add(p.category || (lang === "fa" ? "سایر" : "Others")));
+      plans.forEach(p => cats.add(p.category || (translateText("Others", "سایر", lang))));
       const definedCats = planCategories || [];
       
       const inlineCats: any[] = [];
@@ -1135,7 +1092,7 @@ export default function BotSimulator({
 
       if (serverId) {
         inlineCats.push([
-          { text: lang === "fa" ? "✨ ساخت کانفیگ با حجم دلخواه" : "✨ Create Custom Volume Config", action: `custom_vol_${serverId}` }
+          { text: translateText("✨ Create Custom Volume Config", "✨ ساخت کانفیگ با حجم دلخواه", lang), action: `custom_vol_${serverId}` }
         ]);
       }
 
@@ -1145,9 +1102,7 @@ export default function BotSimulator({
       ]);
 
       addBotReply(
-        lang === "fa" 
-          ? "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:" 
-          : "Please select one of the following categories to view plans:",
+        translateText("Please select one of the following categories to view plans:", "لطفا یکی از دسته‌بندی‌های زیر را برای مشاهده طرح‌ها انتخاب کنید:", lang),
         800,
         undefined,
         inlineCats
@@ -1186,16 +1141,16 @@ export default function BotSimulator({
         }
       }
       
-      const filteredPlans = plans.filter(p => (p.category || (lang === "fa" ? "سایر" : "Others")).toLowerCase() === catName.toLowerCase());
+      const filteredPlans = plans.filter(p => (p.category || (translateText("Others", "سایر", lang))).toLowerCase() === catName.toLowerCase());
       
       const inlinePlans: any[] = filteredPlans.map(p => ({
-        text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${lang === "fa" ? "تومان" : "Toman"}`,
+        text: `⚡ ${p.name} - ${p.price.toLocaleString()} ${translateText("Toman", "تومان", lang)}`,
         action: serverId ? `buy_${serverId}_${p.id}` : `buy_${p.id}`
       }));
       
       if (serverId) {
         inlinePlans.push([
-          { text: lang === "fa" ? "✨ ساخت کانفیگ با حجم دلخواه" : "✨ Create Custom Volume Config", action: `custom_vol_${serverId}` }
+          { text: translateText("✨ Create Custom Volume Config", "✨ ساخت کانفیگ با حجم دلخواه", lang), action: `custom_vol_${serverId}` }
         ]);
       }
 
@@ -1205,9 +1160,7 @@ export default function BotSimulator({
       ]);
       
       addBotReply(
-        lang === "fa"
-          ? `⚡️ <b>پلن‌های بخش ${catName}</b>\n\nلطفاً یکی از تعرفه‌های معتبر زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:`
-          : `⚡️ <b>${catName} Plans</b>\n\nPlease select one of the following premium plans:`,
+        translateText(`⚡️ <b>${catName} Plans</b>\n\nPlease select one of the following premium plans:`, `⚡️ <b>پلن‌های بخش ${catName}</b>\n\nلطفاً یکی از تعرفه‌های معتبر زیر را انتخاب کنید تا فرآیند فعال‌سازی فوری آغاز شود:`, lang),
         800,
         undefined,
         inlinePlans
@@ -1221,9 +1174,7 @@ export default function BotSimulator({
       const link = k ? k.subLink : `https://tr.sub-daltoon.ir:2096/sub/simulated_${subId}`;
       
       addBotReply(
-        lang === "fa" 
-          ? `🔗 <b>لینک اتصال و اشتراک اختصاصی شما:</b>\n\n👇 <b>جهت کپی کردن، روی باکس زیر کلیک یا لمس کنید:</b>\n\n<code>${link}</code>\n\n💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG) وارد نمایید.`
-          : `🔗 <b>Your Subscription Link:</b>\n\n👇 <b>Click the block below to copy:</b>\n\n<code>${link}</code>\n\n💡 Paste this link into your client application (e.g. v2rayNG).`,
+        translateText(`🔗 <b>Your Subscription Link:</b>\n\n👇 <b>Click the block below to copy:</b>\n\n<code>${link}</code>\n\n💡 Paste this link into your client application (e.g. v2rayNG).`, `🔗 <b>لینک اتصال و اشتراک اختصاصی شما:</b>\n\n👇 <b>جهت کپی کردن، روی باکس زیر کلیک یا لمس کنید:</b>\n\n<code>${link}</code>\n\n💡 این لینک را کپی کرده و در برنامه مورد نظر خود (مانند v2rayNG) وارد نمایید.`, lang),
         300
       );
       return;
@@ -1236,12 +1187,12 @@ export default function BotSimulator({
       addBotReply(
         lang === "fa"
           ? `🔗 <b>لینک اتصال و اشتراک اختصاصی سرویس شما:</b>\n\n` +
-            `👤 نام سرویس: <code>${k?.clientName || "DaltoonService"}</code>\n\n` +
+            `👤 نام سرویس: <code>${k?.clientName || "Service"}</code>\n\n` +
             `👇 <b>لینک سابسکریپشن شما (جهت کپی لمس کنید):</b>\n\n` +
             `<code>${link}</code>\n\n` +
             `💡 این لینک را کپی کرده و در نرم‌افزارهای خود (v2rayNG، V2box، Happ و...) وارد نمایید تا کانفیگ‌ها به طور خودکار بارگذاری شوند.`
           : `🔗 <b>Your Exclusive Subscription Link:</b>\n\n` +
-            `👤 Service: <code>${k?.clientName || "DaltoonService"}</code>\n\n` +
+            `👤 Service: <code>${k?.clientName || "Service"}</code>\n\n` +
             `👇 <b>Your Subscription URL (tap to copy):</b>\n\n` +
             `<code>${link}</code>\n\n` +
             `💡 Copy this link and import it into v2rayNG, V2box, Happ, etc.`,
@@ -1249,8 +1200,8 @@ export default function BotSimulator({
         undefined,
         [
           [
-            { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${subId}` },
-            { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+            { text: translateText("🔗 Vless Links", "🔗 لینک‌های vless", lang), action: `get_vless_links_${subId}` },
+            { text: translateText("🔙 Back to Manage", "🔙 بازگشت به مدیریت", lang), action: `manage_sub_${subId}` }
           ]
         ]
       );
@@ -1261,7 +1212,7 @@ export default function BotSimulator({
       const subId = action.substring(16);
       const k = simulatedKeys.find(item => item.id === subId);
       const uuid = k?.clientUuid || "f39281a1-9b1d-4050-b498-3882aef1277a";
-      const name = k?.clientName || "DaltoonService";
+      const name = k?.clientName || "Service";
       
       const vlinks = [
         `vless://${uuid}@m.daltoon-server.ir:2053?security=tls&type=ws&path=%2F#Vless-Irancell-${name}-⚡`,
@@ -1285,8 +1236,8 @@ export default function BotSimulator({
         undefined,
         [
           [
-            { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${subId}` },
-            { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+            { text: translateText("🔗 Get Sub Link", "🔗 دریافت لینک ساب", lang), action: `get_sub_link_${subId}` },
+            { text: translateText("🔙 Back to Manage", "🔙 بازگشت به مدیریت", lang), action: `manage_sub_${subId}` }
           ]
         ]
       );
@@ -1304,15 +1255,13 @@ export default function BotSimulator({
     }
 
     if (action === "btn_gift_code") {
-      addBotReply(lang === "fa" ? "🎁 قابلیت اعمال کد هدیه در شبیه‌ساز غیرفعال است." : "Gift codes not available in demo.", 500);
+      addBotReply(translateText("Gift codes not available in demo.", "🎁 قابلیت اعمال کد هدیه در شبیه‌ساز غیرفعال است.", lang), 500);
       return;
     }
 
     if (action === "btn_direct_support") {
       addBotReply(
-        lang === "fa"
-          ? "💬 جهت گفتگوی مستقیم تلگرام به آیدی <b>@daltoon_support</b> پیام دهید. تیم ما پس از بررسی پیام شما، فوراً گفتگو را آغاز خواهد کرد."
-          : "💬 Send a message to <b>@daltoon_support</b> on Telegram for direct support assistance.",
+        translateText("💬 Send a message to <b>@daltoon_support</b> on Telegram for direct support assistance.", "💬 جهت گفتگوی مستقیم تلگرام به آیدی <b>@daltoon_support</b> پیام دهید. تیم ما پس از بررسی پیام شما، فوراً گفتگو را آغاز خواهد کرد.", lang),
         500,
         getKeyboard()
       );
@@ -1322,12 +1271,10 @@ export default function BotSimulator({
     if (action === "btn_create_ticket") {
       setSupportStep("ask_subject");
       addBotReply(
-        lang === "fa"
-          ? "🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی دالتون ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:"
-          : "🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):",
+        translateText("🎟️ <b>File Support Ticket:</b>\n\nPlease type the <b>Subject</b> of your support request (e.g. Server down, subscription issue, etc.):", `🎟️ <b>ثبت تیکت دیجیتال پشتیبانی:</b>\n\nدر این بخش شما یک پرونده الکترونیکی با دپارتمان پشتیبانی ${settings?.botNickname || 'دالتون'} ایجاد می‌کنید.\n\nلطفاً <b>موضوع تیکت خود</b> (به عنوان مثال: قطع بودن سرور، عدم تمدید، شارژ نادرست کیف پول و...) را وارد کنید:`, lang),
         500,
         [
-          [lang === "fa" ? "❌ انصراف از ثبت تیکت" : "❌ Cancel Ticket"]
+          [translateText("❌ Cancel Ticket", "❌ انصراف از ثبت تیکت", lang)]
         ]
       );
       return;
@@ -1374,18 +1321,18 @@ export default function BotSimulator({
           undefined,
           [
             [
-              { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${k.id}` },
-              { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${k.id}` }
+              { text: translateText("🔗 Get Sub Link", "🔗 دریافت لینک ساب", lang), action: `get_sub_link_${k.id}` },
+              { text: translateText("🔗 Vless Links", "🔗 لینک‌های vless", lang), action: `get_vless_links_${k.id}` }
             ],
             [
-              { text: lang === "fa" ? "🔄 تغییر کلید (Reset UUID)" : "🔄 Reset UUID", action: `warn_regen_${k.id}` },
-              { text: lang === "fa" ? "🎁 انتقال مالکیت به دوست" : "🎁 Transfer Owner", action: `warn_transfer_${k.id}` }
+              { text: translateText("🔄 Reset UUID", "🔄 تغییر کلید (Reset UUID)", lang), action: `warn_regen_${k.id}` },
+              { text: translateText("🎁 Transfer Owner", "🎁 انتقال مالکیت به دوست", lang), action: `warn_transfer_${k.id}` }
             ],
             [
-              { text: lang === "fa" ? "💳 تمدید با حجم و روز دلخواه" : "💳 Custom Renewal", action: `warn_renew_${k.id}` }
+              { text: translateText("💳 Custom Renewal", "💳 تمدید با حجم و روز دلخواه", lang), action: `warn_renew_${k.id}` }
             ],
             [
-              { text: lang === "fa" ? "🔙 برگشت به منوی کل" : "🔙 Core Menu", action: "btn_back_home" }
+              { text: translateText("🔙 Core Menu", "🔙 برگشت به منوی کل", lang), action: "btn_back_home" }
             ]
           ]
         );
@@ -1398,9 +1345,7 @@ export default function BotSimulator({
       setCustomVolServerId(serverId);
       setCustomVolStep("ask_username");
       addBotReply(
-        lang === "fa"
-          ? "✨ <b>فرآیند ساخت کانفیگ با مشخصات دلخواه</b>\n\nلطفاً <b>نام کاربری (Username)</b> انگلیسی مورد نظر خود را بنویسید:\n⚠️ نام کاربری فقط شامل حروف انگلیسی، اعداد و خط تیره باشد (بدون فاصله):"
-          : "✨ <b>Create Custom Configuration</b>\n\nPlease type your desired English <b>Username</b> (English letters, numbers, hyphens, no spaces):",
+        translateText("✨ <b>Create Custom Configuration</b>\n\nPlease type your desired English <b>Username</b> (English letters, numbers, hyphens, no spaces):", "✨ <b>فرآیند ساخت کانفیگ با مشخصات دلخواه</b>\n\nلطفاً <b>نام کاربری (Username)</b> انگلیسی مورد نظر خود را بنویسید:\n⚠️ نام کاربری فقط شامل حروف انگلیسی، اعداد و خط تیره باشد (بدون فاصله):", lang),
         500,
         [[t.btnCancel]]
       );
@@ -1417,7 +1362,7 @@ export default function BotSimulator({
 
       setCustomVolStep("idle");
       setCustomVolServerId(null);
-      addBotReply(lang === "fa" ? "⏳ در حال ساخت اکانت دلخواه شما و ارتباط با پنل..." : "⏳ Provisioning your custom client on 3x-ui panel...", 500);
+      addBotReply(translateText("⏳ Provisioning your custom client on 3x-ui panel...", "⏳ در حال ساخت اکانت دلخواه شما و ارتباط با پنل...", lang), 500);
 
       setTimeout(() => {
         const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
@@ -1426,9 +1371,7 @@ export default function BotSimulator({
 
         if (newBal < 0) {
           addBotReply(
-            lang === "fa"
-              ? "❌ موجودی کیف پول شما برای خرید کافی نیست."
-              : "❌ Insufficient funds in your simulated wallet.",
+            translateText("❌ Insufficient funds in your simulated wallet.", "❌ موجودی کیف پول شما برای خرید کافی نیست.", lang),
             500,
             getKeyboard()
           );
@@ -1441,7 +1384,7 @@ export default function BotSimulator({
           id: randomSubId,
           userId: currentUser.userId,
           planId: "custom_vol",
-          planName: lang === "fa" ? `کانفیگ دلخواه (${gb}GB)` : `Custom Config (${gb}GB)`,
+          planName: translateText("Custom Config ", "کانفیگ دلخواه ", lang) + `(${gb}GB)`,
           clientName: username,
           subLink: `vless://mock_vless_uuid_${randomSubId}@server.example.com:2052?security=reality&sni=google.com&fp=chrome#Mock_${username}`,
           expireDate,
@@ -1464,15 +1407,13 @@ export default function BotSimulator({
             {
               id: Math.random().toString(),
               sender: "bot",
-              text: lang === "fa"
-                ? `🎉 <b>خرید آزمایشی کانفیگ دلخواه با موفقیت انجام شد!</b>\n\n👤 نام کاربری: <code>${username}</code>\n💬 حجم: <b>${gb} گیگابایت</b>\n⏳ مدت زمان: <b>${days} روز</b>\n💳 هزینه: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\n🔑 <b>لینک سابسکریپشن:</b>\n<code>${mockSub.subLink}</code>\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: تراکنش واقعی اعمال نشده است.</i>`
-                : `🎉 <b>Custom subscription purchased!</b>\n\n👤 Username: <code>${username}</code>\n💬 Traffic: <b>${gb} GB</b>\n⏳ Duration: <b>${days} Days</b>\n💰 Total Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman\n\n🔑 <b>Subscription link:</b>\n<code>${mockSub.subLink}</code>`,
+              text: translateText(`🎉 <b>Custom subscription purchased!</b>\n\n👤 Username: <code>${username}</code>\n💬 Traffic: <b>${gb} GB</b>\n⏳ Duration: <b>${days} Days</b>\n💰 Total Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman\n\n🔑 <b>Subscription link:</b>\n<code>${mockSub.subLink}</code>`, `🎉 <b>خرید آزمایشی کانفیگ دلخواه با موفقیت انجام شد!</b>\n\n👤 نام کاربری: <code>${username}</code>\n💬 حجم: <b>${gb} گیگابایت</b>\n⏳ مدت زمان: <b>${days} روز</b>\n💳 هزینه: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\n🔑 <b>لینک سابسکریپشن:</b>\n<code>${mockSub.subLink}</code>\n\n⚠️ <i>محیط آزمایشی شبیه‌ساز: تراکنش واقعی اعمال نشده است.</i>`, lang),
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               keyboard: getKeyboard(),
               inlineButtons: [
                 [
-                  { text: lang === "fa" ? "🔗 دریافت لینک ساب" : "🔗 Get Sub Link", action: `get_sub_link_${randomSubId}` },
-                  { text: lang === "fa" ? "🔗 لینک‌های vless" : "🔗 Vless Links", action: `get_vless_links_${randomSubId}` }
+                  { text: translateText("🔗 Get Sub Link", "🔗 دریافت لینک ساب", lang), action: `get_sub_link_${randomSubId}` },
+                  { text: translateText("🔗 Vless Links", "🔗 لینک‌های vless", lang), action: `get_vless_links_${randomSubId}` }
                 ]
               ],
               imageUrl: qrUrl
@@ -1488,9 +1429,7 @@ export default function BotSimulator({
       setRenewingSubId(subId);
       setRenewStep("ask_gb");
       addBotReply(
-        lang === "fa"
-          ? "🔄 <b>تمدید اشتراک با ترافیک و روز دلخواه:</b>\n\n🔻 لطفاً مقدار ترافیک اضافی مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)"
-          : "🔄 <b>Renew Subscription with Custom Volume and Duration:</b>\n\n🔻 Please enter extra traffic limit in <b>GB</b> (e.g. <code>30</code>):",
+        translateText("🔄 <b>Renew Subscription with Custom Volume and Duration:</b>\n\n🔻 Please enter extra traffic limit in <b>GB</b> (e.g. <code>30</code>):", "🔄 <b>تمدید اشتراک با ترافیک و روز دلخواه:</b>\n\n🔻 لطفاً مقدار ترافیک اضافی مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)", lang),
         500,
         [[t.btnCancel]]
       );
@@ -1526,7 +1465,7 @@ export default function BotSimulator({
         ).join("\n\n");
       } else {
         const cardNo = settings?.cardNumber || "۶۲۷۳-۸۱۱۰-۱۲۳۴-۵۶۷۸";
-        const cardName = settings?.cardHolder || "مدیریت دالتون";
+        const cardName = settings?.cardHolder || `مدیریت ${settings?.botNickname || 'دالتون'}`;
         bankDetailsFa = `💳 شماره کارت: <code>${cardNo}</code>\n👤 نام صاحب حساب: <b>${cardName}</b>`;
         bankDetailsEn = `💳 Card: <code>${cardNo}</code>\n👤 Owner: <b>${cardName}</b>`;
       }
@@ -1557,10 +1496,10 @@ export default function BotSimulator({
         undefined,
         [
           [
-            { text: lang === "fa" ? "📸 ارسال فیش واریز" : "📸 Send Receipt", action: `renew_manual_slip:${subId}:${gb}:${days}:${price}` }
+            { text: translateText("📸 Send Receipt", "📸 ارسال فیش واریز", lang), action: `renew_manual_slip:${subId}:${gb}:${days}:${price}` }
           ],
           [
-            { text: lang === "fa" ? "🔙 برگشت" : "🔙 Back", action: `manage_sub_${subId}` }
+            { text: translateText("🔙 Back", "🔙 برگشت", lang), action: `manage_sub_${subId}` }
           ]
         ]
       );
@@ -1579,9 +1518,7 @@ export default function BotSimulator({
 
       setInvoiceAmount(price);
       setInvoiceDesc(
-        lang === "fa"
-          ? `تمدید مستقیم ساب ${subName} (${gb}گیگابایت - ${days}روز)`
-          : `Direct Renewal for sub ${subName} (${gb}GB - ${days}days)`
+        translateText(`Direct Renewal for sub ${subName} (${gb}GB - ${days}days)`, `تمدید مستقیم ساب ${subName} (${gb}گیگابایت - ${days}روز)`, lang)
       );
       setShowInvoiceUpload(true);
       return;
@@ -1596,7 +1533,7 @@ export default function BotSimulator({
 
       setRenewStep("idle");
       setRenewingSubId(null);
-      addBotReply(lang === "fa" ? "⏳ در حال اعمال تمدید و به‌روزرسانی سرویس شما..." : "⏳ Applying renewal and updating your service...", 500);
+      addBotReply(translateText("⏳ Applying renewal and updating your service...", "⏳ در حال اعمال تمدید و به‌روزرسانی سرویس شما...", lang), 500);
 
       setTimeout(() => {
         const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
@@ -1605,9 +1542,7 @@ export default function BotSimulator({
 
         if (newBal < 0) {
           addBotReply(
-            lang === "fa"
-              ? "❌ موجودی کیف پول شما برای تمدید کافی نیست."
-              : "❌ Insufficient funds in your simulated wallet.",
+            translateText("❌ Insufficient funds in your simulated wallet.", "❌ موجودی کیف پول شما برای تمدید کافی نیست.", lang),
             500,
             getKeyboard()
           );
@@ -1669,14 +1604,12 @@ export default function BotSimulator({
             {
               id: Math.random().toString(),
               sender: "bot",
-              text: lang === "fa"
-                ? `🎉 <b>سرویس آزمایشی شما با موفقیت تمدید شد! ✨</b>\n\n💬 ترافیک اضافه شده: <b>${gb} گیگابایت</b>\n⏳ روز اضافه شده: <b>${days} روز</b>\n💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\nسرویس شما با موفقیت ارتقا و در سرور تمدید شد. کانکشن‌های قبلی همچنان فعال هستند.`
-                : `🎉 <b>Service successfully renewed! ✨</b>\n\n💬 Added Traffic: <b>${gb} GB</b>\n⏳ Added Duration: <b>${days} Days</b>\n💰 Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman`,
+              text: translateText(`🎉 <b>Service successfully renewed! ✨</b>\n\n💬 Added Traffic: <b>${gb} GB</b>\n⏳ Added Duration: <b>${days} Days</b>\n💰 Price: ${price.toLocaleString()} Toman\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman`, `🎉 <b>سرویس آزمایشی شما با موفقیت تمدید شد! ✨</b>\n\n💬 ترافیک اضافه شده: <b>${gb} گیگابایت</b>\n⏳ روز اضافه شده: <b>${days} روز</b>\n💳 هزینه کسر شده: ${isUserAdminOrOwner ? "۰ تومان (ویژه ادمین 👑)" : price.toLocaleString() + " تومان"}\n💰 موجودی کیف پول: ${newBal.toLocaleString()} تومان\n\nسرویس شما با موفقیت ارتقا و در سرور تمدید شد. کانکشن‌های قبلی همچنان فعال هستند.`, lang),
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               keyboard: getKeyboard(),
               inlineButtons: [
                 [
-                  { text: lang === "fa" ? "🔙 بازگشت به مدیریت" : "🔙 Back to Manage", action: `manage_sub_${subId}` }
+                  { text: translateText("🔙 Back to Manage", "🔙 بازگشت به مدیریت", lang), action: `manage_sub_${subId}` }
                 ]
               ]
             }
@@ -1689,14 +1622,12 @@ export default function BotSimulator({
     if (action.startsWith("warn_regen_")) {
       const subId = action.substring(11);
       addBotReply(
-        lang === "fa"
-          ? "⚠️ <b>هشدار تعویض شناسه اتصال (Reset UUID)</b>\n\nبا تغییر شناسه، اتصال روی تمام برنامه‌های کلاینت قبلی شما باطل شده و فوراً قطع می‌گردد.\nآیا مایل به تولید لینک اتصال جدید هستید؟"
-          : "⚠️ <b>Change UUID Warning</b>\n\nDoing this invalidates the old config URL globally. Are you sure you wish to rotate?",
+        translateText("⚠️ <b>Change UUID Warning</b>\n\nDoing this invalidates the old config URL globally. Are you sure you wish to rotate?", "⚠️ <b>هشدار تعویض شناسه اتصال (Reset UUID)</b>\n\nبا تغییر شناسه، اتصال روی تمام برنامه‌های کلاینت قبلی شما باطل شده و فوراً قطع می‌گردد.\nآیا مایل به تولید لینک اتصال جدید هستید؟", lang),
         500,
         undefined,
         [
           [
-            { text: lang === "fa" ? "✅ بله، کلید جدید صادر شود" : "✅ Yes, issue new UUID", action: `confirm_regen_${subId}` },
+            { text: translateText("✅ Yes, issue new UUID", "✅ بله، کلید جدید صادر شود", lang), action: `confirm_regen_${subId}` },
             { text: t.btnCancel, action: `manage_sub_${subId}` }
           ]
         ]
@@ -1706,7 +1637,7 @@ export default function BotSimulator({
 
     if (action.startsWith("confirm_regen_")) {
       const subId = action.substring(14);
-      addBotReply(lang === "fa" ? "⏳ در حال باطل ساختن لایسنس قبلی و تخصیص شناسه اتصال جدید..." : "⏳ Rotating encryption credentials...", 500);
+      addBotReply(translateText("⏳ Rotating encryption credentials...", "⏳ در حال باطل ساختن لایسنس قبلی و تخصیص شناسه اتصال جدید...", lang), 500);
       
       setTimeout(() => {
         const fakeUuid = "mock-uuid-" + Math.floor(Math.random() * 100000);
@@ -1723,9 +1654,7 @@ export default function BotSimulator({
             {
               id: Math.random().toString(),
               sender: "bot",
-              text: lang === "fa"
-                ? `🎉 <b>کلید اتصال شما بازنشانی شد! (شبیه‌ساز آموزشی ✨)</b>\n\n🔑 آدرس سابسکریپشن نوین شما:\n\n<code>${nextSubLink}</code>\n\n⚠️ لینک قبلی دیگر متصل نخواهد شد. لطفاً پیوند بالا را کپی و در نرم‌افزار ایمپورت کنید.\n\n⚠️ <i>توجه: کلید جدید تفریحی بوده و تأثیری بر کلید اشتراک دیتابیس واقعی ندارد.</i>`
-                : `🎉 <b>Subscription Key Generated! (Sandbox Mode ✨)</b>\n\nNew URL:\n\n<code>${nextSubLink}</code>\n\n⚠️ <i>Notice: This educational sandbox does not alter credentials in the persistent database.</i>`,
+              text: translateText(`🎉 <b>Subscription Key Generated! (Sandbox Mode ✨)</b>\n\nNew URL:\n\n<code>${nextSubLink}</code>\n\n⚠️ <i>Notice: This educational sandbox does not alter credentials in the persistent database.</i>`, `🎉 <b>کلید اتصال شما بازنشانی شد! (شبیه‌ساز آموزشی ✨)</b>\n\n🔑 آدرس سابسکریپشن نوین شما:\n\n<code>${nextSubLink}</code>\n\n⚠️ لینک قبلی دیگر متصل نخواهد شد. لطفاً پیوند بالا را کپی و در نرم‌افزار ایمپورت کنید.\n\n⚠️ <i>توجه: کلید جدید تفریحی بوده و تأثیری بر کلید اشتراک دیتابیس واقعی ندارد.</i>`, lang),
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               keyboard: getKeyboard(),
               imageUrl: qrUrl
@@ -1740,12 +1669,10 @@ export default function BotSimulator({
       const subId = action.substring(14);
       setTransferringKeyId(subId);
       addBotReply(
-        lang === "fa"
-          ? "🎁 <b>مراحل هدیه دادن و انتقال مالکیت لایسنس سرویس</b>\n\nلطفاً <b>آیدی عددی تلگرام</b> یا <b>آیدی تلگرامی</b> کاربر مقصد را (به انگلیسی، بدون علامت @) در همین چت ارسال کنید:\n\nمثال: <code>6536288293</code> یا <code>reza_vpn</code>\n\n⚠️ توجه: پس از انتقال مالکیت، این کانفیگ و حجم و روزهایش متعلق به آیدی مقصد شده و از دسترسی شما خارج می‌شود."
-          : "🎁 <b>Gift Subscription Transfer</b>\n\nPlease enter the destination <b>Telegram User ID</b> or <b>Username</b> (no @) into this chat:",
+        translateText("🎁 <b>Gift Subscription Transfer</b>\n\nPlease enter the destination <b>Telegram User ID</b> or <b>Username</b> (no @) into this chat:", "🎁 <b>مراحل هدیه دادن و انتقال مالکیت لایسنس سرویس</b>\n\nلطفاً <b>آیدی عددی تلگرام</b> یا <b>آیدی تلگرامی</b> کاربر مقصد را (به انگلیسی، بدون علامت @) در همین چت ارسال کنید:\n\nمثال: <code>6536288293</code> یا <code>reza_vpn</code>\n\n⚠️ توجه: پس از انتقال مالکیت، این کانفیگ و حجم و روزهایش متعلق به آیدی مقصد شده و از دسترسی شما خارج می‌شود.", lang),
         500,
         [
-          [lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]
+          [translateText("🏠 Main Menu", "🏠 بازگشت به منوی اصلی", lang)]
         ]
       );
       return;
@@ -1755,9 +1682,7 @@ export default function BotSimulator({
     if (action.startsWith("charge_")) {
       const amount = parseInt(action.substring(7));
       addBotReply(
-        lang === "fa"
-          ? `💳 <b>فاکتور شارژ کیف پول - مبلغ ${amount.toLocaleString()} تومان</b>\n\nلطفاً جهت پرداخت آنی و شارژ کاملاً خودکار، یکی از درگاه‌های الکترونیکی یا روش انتقال دستی زیر را انتخاب کنید:`
-          : `💳 <b>Top-up Invoice - ${amount.toLocaleString()} Toman</b>\n\nPlease choose an instant payment gateway below for automatic real-time account delivery:`,
+        translateText(`💳 <b>Top-up Invoice - ${amount.toLocaleString()} Toman</b>\n\nPlease choose an instant payment gateway below for automatic real-time account delivery:`, `💳 <b>فاکتور شارژ کیف پول - مبلغ ${amount.toLocaleString()} تومان</b>\n\nلطفاً جهت پرداخت آنی و شارژ کاملاً خودکار، یکی از درگاه‌های الکترونیکی یا روش انتقال دستی زیر را انتخاب کنید:`, lang),
         600,
         undefined,
         [
@@ -1794,9 +1719,7 @@ export default function BotSimulator({
       const amount = action.substring(14);
       const starsCost = Math.max(1, Math.round(parseInt(amount) / 1500));
       addBotReply(
-        lang === "fa"
-          ? `⭐️ <b>شارژ آنلاین با ستاره‌های تلگرام (Telegram Stars)</b>\n\n💵 مبلغ شارژ: ${parseInt(amount).toLocaleString()} تومان\n💎 تعرفه: <b>${starsCost} ستاره تلگرام ⭐️</b>\n\n👇 جهت پرداخت و افزایش اعتبار آنی حساب خود روی دکمه پرداخت زیر ضربه بزنید:`
-          : `⭐️ <b>Telegram Stars Payment Gateway</b>\n\n💵 Amount: ${parseInt(amount).toLocaleString()} T\n💎 Cost: <b>${starsCost} Stars (⭐️)</b>\n\n👇 Complete payment instantly via stars below:`,
+        translateText(`⭐️ <b>Telegram Stars Payment Gateway</b>\n\n💵 Amount: ${parseInt(amount).toLocaleString()} T\n💎 Cost: <b>${starsCost} Stars (⭐️)</b>\n\n👇 Complete payment instantly via stars below:`, `⭐️ <b>شارژ آنلاین با ستاره‌های تلگرام (Telegram Stars)</b>\n\n💵 مبلغ شارژ: ${parseInt(amount).toLocaleString()} تومان\n💎 تعرفه: <b>${starsCost} ستاره تلگرام ⭐️</b>\n\n👇 جهت پرداخت و افزایش اعتبار آنی حساب خود روی دکمه پرداخت زیر ضربه بزنید:`, lang),
         500,
         undefined,
         [
@@ -1832,9 +1755,7 @@ export default function BotSimulator({
       const actionName = `pay_crypto_success_${gatewayName.toLowerCase()}_${amountStr}`;
 
       addBotReply(
-        lang === "fa"
-          ? `🌐 <b>درگاه مستقیم ارزی مدرن (${gatewayName})</b>\n\n💵 مبلغ سفارش: ${parsedAmount.toLocaleString()} تومان\n💰 ارزش تتر: <b>${usdtCost} USDT</b>\n\n👇 روی دکمه زیر کلیک کرده تا وارد فاکتور سیستم ${gatewayName} شوید:`
-          : `🌐 <b>${gatewayName} Instant Terminal</b>\n\n💵 Price: ${parsedAmount.toLocaleString()} T\n💰 Cost: <b>${usdtCost} USDT</b>\n\n👇 Complete the checkout below via ${gatewayName}:`,
+        translateText(`🌐 <b>${gatewayName} Instant Terminal</b>\n\n💵 Price: ${parsedAmount.toLocaleString()} T\n💰 Cost: <b>${usdtCost} USDT</b>\n\n👇 Complete the checkout below via ${gatewayName}:`, `🌐 <b>درگاه مستقیم ارزی مدرن (${gatewayName})</b>\n\n💵 مبلغ سفارش: ${parsedAmount.toLocaleString()} تومان\n💰 ارزش تتر: <b>${usdtCost} USDT</b>\n\n👇 روی دکمه زیر کلیک کرده تا وارد فاکتور سیستم ${gatewayName} شوید:`, lang),
         500,
         undefined,
         [
@@ -1866,7 +1787,7 @@ export default function BotSimulator({
       }
       
       const amount = parseInt(amountStr);
-      addBotReply(lang === "fa" ? "⏳ در حال استعلام وضعیت پرداخت از بستر بلاک‌چین..." : "⏳ Confirming receipt state...", 500);
+      addBotReply(translateText("⏳ Confirming receipt state...", "⏳ در حال استعلام وضعیت پرداخت از بستر بلاک‌چین...", lang), 500);
 
       setTimeout(() => {
         const newBal = currentUser.walletBalance + amount;
@@ -1882,9 +1803,7 @@ export default function BotSimulator({
             {
               id: Math.random().toString(),
               sender: "bot",
-              text: lang === "fa"
-                ? `🎉 <b>پرداخت آزمایشی شبیه‌ساز با موفقیت تایید شد! ✨</b>\n\n💰 اعتبار آزمایشی کیف پول شما به صورت <b>آنی و کاملاً خودکار</b> به مبلغ <b>${amount.toLocaleString()} تومان</b> از طریق <b>${gatewayName}</b> افزایش یافت.\n\n💵 موجودی فعلی (محلی): ${newBal.toLocaleString()} تومان\n\n⚠️ <i>توجه: کل فرآیند تراکنش صرفاً شبیه‌ساز آموزشی است و تغییری در حساب‌های دیتابیس واقعی ادمین یا کاربر ایجاد نکرده است.</i>`
-                : `🎉 <b>Sandbox Recharge Approved Successfully! ✨</b>\n\nYour simulated balance is credited with <b>${amount.toLocaleString()} Toman</b> via <b>${gatewayName}</b>.\n\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman.\n\n⚠️ <i>Educational Sandbox Note: Real persistent database wallets remain completely clean and untouched.</i>`,
+              text: translateText(`🎉 <b>Sandbox Recharge Approved Successfully! ✨</b>\n\nYour simulated balance is credited with <b>${amount.toLocaleString()} Toman</b> via <b>${gatewayName}</b>.\n\n💰 Simulated Balance: ${newBal.toLocaleString()} Toman.\n\n⚠️ <i>Educational Sandbox Note: Real persistent database wallets remain completely clean and untouched.</i>`, `🎉 <b>پرداخت آزمایشی شبیه‌ساز با موفقیت تایید شد! ✨</b>\n\n💰 اعتبار آزمایشی کیف پول شما به صورت <b>آنی و کاملاً خودکار</b> به مبلغ <b>${amount.toLocaleString()} تومان</b> از طریق <b>${gatewayName}</b> افزایش یافت.\n\n💵 موجودی فعلی (محلی): ${newBal.toLocaleString()} تومان\n\n⚠️ <i>توجه: کل فرآیند تراکنش صرفاً شبیه‌ساز آموزشی است و تغییری در حساب‌های دیتابیس واقعی ادمین یا کاربر ایجاد نکرده است.</i>`, lang),
               timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
               keyboard: getKeyboard()
             }
@@ -1928,14 +1847,12 @@ export default function BotSimulator({
                 : `🛒 Confirm Purchase Order:\n\nSelected Config: ${matchedPlan.name}\nPrice: ${matchedPlan.price.toLocaleString()} Toman\n\nYour wallet balance is sufficient (${currentUser.walletBalance.toLocaleString()} Toman).\nProceed to checkout using your balance?`,
             600,
             [
-              [lang === "fa" ? "✅ بله، خرید نهایی شود" : "Yes, complete buy", lang === "fa" ? "❌ انصراف و برگشت به منو" : "Cancel and back"]
+              [translateText("Yes, complete buy", "✅ بله، خرید نهایی شود", lang), translateText("Cancel and back", "❌ انصراف و برگشت به منو", lang)]
             ]
           );
         } else {
           addBotReply(
-            lang === "fa"
-              ? `❌ عدم موجودی کافی!\n\nکانفیگ انتخابی: ${matchedPlan.name}\nقیمت: ${matchedPlan.price.toLocaleString()} تومان\nموجودی فعلی شما: ${currentUser.walletBalance.toLocaleString()} تومان\n\nبرای تکمیل خرید، لطفا ابتدا کیف پول خود را شارژ کنید.`
-              : `❌ Insufficient Funds!\n\nSelected Config: ${matchedPlan.name}\nPrice: ${matchedPlan.price.toLocaleString()} Toman\nYour wallet balance: ${currentUser.walletBalance.toLocaleString()} Toman\n\nPlease top up your wallet first to purchase this plan.`,
+            translateText(`❌ Insufficient Funds!\n\nSelected Config: ${matchedPlan.name}\nPrice: ${matchedPlan.price.toLocaleString()} Toman\nYour wallet balance: ${currentUser.walletBalance.toLocaleString()} Toman\n\nPlease top up your wallet first to purchase this plan.`, `❌ عدم موجودی کافی!\n\nکانفیگ انتخابی: ${matchedPlan.name}\nقیمت: ${matchedPlan.price.toLocaleString()} تومان\nموجودی فعلی شما: ${currentUser.walletBalance.toLocaleString()} تومان\n\nبرای تکمیل خرید، لطفا ابتدا کیف پول خود را شارژ کنید.`, lang),
             600,
             [
               [t.btnTopUp, t.buyCancel]
@@ -1966,7 +1883,7 @@ export default function BotSimulator({
           `2. Do not use space or special signs.`;
 
       addBotReply(paymentMsg, 500, [
-        [lang === "fa" ? "🏠 بازگشت به منوی اصلی" : "🏠 Main Menu"]
+        [translateText("🏠 Main Menu", "🏠 بازگشت به منوی اصلی", lang)]
       ]);
       return;
     }
@@ -1978,7 +1895,7 @@ export default function BotSimulator({
     e.preventDefault();
     const amountNum = parseInt(invoiceAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      console.warn(lang === "fa" ? "لطفا مبلغ معتبری وارد کنید." : "Please enter a valid amount.");
+      console.warn(translateText("Please enter a valid amount.", "لطفا مبلغ معتبری وارد کنید.", lang));
       return;
     }
 
@@ -2009,18 +1926,14 @@ export default function BotSimulator({
     const msg: ChatMessage = {
       id: Math.random().toString(),
       sender: "user",
-      text: lang === "fa" 
-        ? `💸 ارسال فیش واریز کارت به کارت\n💵 مبلغ: ${amountNum.toLocaleString()} تومان\n📝 توضیحات: ${invoiceDesc}`
-        : `💸 Card-to-card slip uploaded\n💵 Price: ${amountNum.toLocaleString()} Toman\n📝 Detail: ${invoiceDesc}`,
+      text: translateText(`💸 Card-to-card slip uploaded\n💵 Price: ${amountNum.toLocaleString()} Toman\n📝 Detail: ${invoiceDesc}`, `💸 ارسال فیش واریز کارت به کارت\n💵 مبلغ: ${amountNum.toLocaleString()} تومان\n📝 توضیحات: ${invoiceDesc}`, lang),
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
     setMessages(prev => [...prev, msg]);
 
     // Bot responds
     addBotReply(
-      lang === "fa"
-        ? `✅ فیش شما دریافت شد!\n\nکد رهگیری تراکنش: ${newTx.id}\nمبلغ: ${amountNum.toLocaleString()} تومان\n\nپشتیبانی دالتون فیش شما را تایید خواهد کرد. به محض تایید، کیف پول شما شارژ شده و اطلاع‌رسانی می‌شود. سپاس از شکیبایی شما 🙏`
-        : `✅ Receipt uploaded successfully!\n\nReference Code: ${newTx.id}\nAmount: ${amountNum.toLocaleString()} Toman\n\nAdmins will inspect your bank slip. As soon as it is approved, your balance is credited and we will notify you. Thank you!`,
+      translateText(`✅ Receipt uploaded successfully!\n\nReference Code: ${newTx.id}\nAmount: ${amountNum.toLocaleString()} Toman\n\nAdmins will inspect your bank slip. As soon as it is approved, your balance is credited and we will notify you. Thank you!`, `✅ فیش شما دریافت شد!\n\nکد رهگیری تراکنش: ${newTx.id}\nمبلغ: ${amountNum.toLocaleString()} تومان\n\nپشتیبانی ${settings?.botNickname || 'دالتون'} فیش شما را تایید خواهد کرد. به محض تایید، کیف پول شما شارژ شده و اطلاع‌رسانی می‌شود. سپاس از شکیبایی شما 🙏`, lang),
       1000,
       [
         [t.btnBuyPlan, t.btnMyAccount],
@@ -2064,8 +1977,8 @@ export default function BotSimulator({
                 </div>
 
                 <div className="text-right text-[10px]">
-                  <span className="block font-semibold text-emerald-400 font-display">{u.walletBalance.toLocaleString()} {lang === "fa" ? "ت" : "T"}</span>
-                  <span className="text-slate-500">{u.status === "active" ? (lang === "fa" ? "فعال" : "active") : (lang === "fa" ? "مسدود" : "banned")}</span>
+                  <span className="block font-semibold text-emerald-400 font-display">{u.walletBalance.toLocaleString()} {translateText("T", "ت", lang)}</span>
+                  <span className="text-slate-500">{u.status === "active" ? (translateText("active", "فعال", lang)) : (translateText("banned", "مسدود", lang))}</span>
                 </div>
               </button>
             ))}
@@ -2103,16 +2016,16 @@ export default function BotSimulator({
                 DL
               </div>
               <div>
-                <h4 className="text-[11px] font-bold text-white leading-tight whitespace-nowrap">{lang === "fa" ? "ربات تلگرام دالتون بات 🤖" : "Daltoon Bot 🤖"}</h4>
+                <h4 className="text-[11px] font-bold text-white leading-tight whitespace-nowrap">{translateText("Daltoon Bot 🤖", "ربات تلگرام دالتون بات 🤖", lang)}</h4>
                 <p className="text-[9px] text-emerald-400 flex items-center gap-1 leading-none mt-0.5">
                   <span className="h-1 w-1 bg-emerald-500 rounded-full inline-block animate-pulse"></span>
-                  {lang === "fa" ? "ربات فعال است" : "Bot active"}
+                  {translateText("Bot active", "ربات فعال است", lang)}
                 </p>
               </div>
             </div>
 
             <span className="text-[9px] font-mono font-medium py-0.5 px-1.5 bg-slate-800 text-slate-400 rounded">
-              {lang === "fa" ? "سازنده: @mDaltoon" : "Creator: @mDaltoon"}
+              {translateText("Creator: @mDaltoon", "سازنده: @mDaltoon", lang)}
             </span>
           </div>
 
@@ -2190,7 +2103,7 @@ export default function BotSimulator({
                           className="w-40 h-40 object-contain" 
                         />
                         <span className="text-[9px] text-slate-500 font-sans mt-1">
-                          {lang === "fa" ? "📷 برای اتصال اسکن نمایید" : "📷 Scan to connect"}
+                          {translateText("📷 Scan to connect", "📷 برای اتصال اسکن نمایید", lang)}
                         </span>
                       </div>
                     )}
@@ -2257,7 +2170,7 @@ export default function BotSimulator({
               <div className="flex justify-between items-center border-b border-[#2d3748] pb-2">
                 <span className="font-semibold text-xs text-white flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-emerald-400" />
-                  {lang === "fa" ? "اطلاعات حواله واریز کارت به کارت" : "Card-to-Card Receipt Details"}
+                  {translateText("Card-to-Card Receipt Details", "اطلاعات حواله واریز کارت به کارت", lang)}
                 </span>
                 <button 
                   onClick={() => setShowInvoiceUpload(false)}

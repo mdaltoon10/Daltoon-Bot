@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { MessageSquare, Check, X, Send, Search, Clock, Shield, AlertCircle, Trash2, ArrowRight } from "lucide-react";
 import { Ticket } from "../types";
-import { Language } from "../locales";
+import { Language } from "../lang/locales";
 
 interface TicketManagerProps {
   tickets: Ticket[];
@@ -63,7 +63,7 @@ export default function TicketManager({
         </div>
         <div>
           <h2 className="text-xl font-bold text-white">
-            {isFa ? "🎟️ سیستم تخصصی تیکت و پشتیبانی" : "Professional Ticketing & Support"}
+            {translateText("Professional Ticketing & Support", "🎟️ سیستم تخصصی تیکت و پشتیبانی", lang)}
           </h2>
           <p className="text-sm text-gray-400">
             {isFa
@@ -78,7 +78,7 @@ export default function TicketManager({
         <div className={`${selectedTicketId ? "hidden lg:flex" : "flex"} lg:col-span-1 bg-[#0f1626] border border-gray-800/80 rounded-2xl p-5 flex flex-col h-[650px]`}>
           <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-rose-400" />
-            {isFa ? "لیست تیکت‌های دریافتی" : "Inbound Support Tickets"}
+            {translateText("Inbound Support Tickets", "لیست تیکت‌های دریافتی", lang)}
           </h3>
 
           {/* Search Table */}
@@ -87,7 +87,7 @@ export default function TicketManager({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={isFa ? "جستجو در شناسه، کاربر، موضوع..." : "Search user, subject, ID..."}
+              placeholder={translateText("Search user, subject, ID...", "جستجو در شناسه، کاربر، موضوع...", lang)}
               className="w-full bg-[#161c2a] border border-gray-700/80 rounded-xl p-2.5 pl-9 pr-4 text-xs text-white focus:outline-none focus:ring-1 focus:ring-rose-500"
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -106,12 +106,12 @@ export default function TicketManager({
                 }`}
               >
                 {status === "all"
-                  ? isFa ? "همه" : "All"
+                  ? translateText("All", "همه", lang)
                   : status === "open"
-                  ? isFa ? "باز" : "Open"
+                  ? translateText("Open", "باز", lang)
                   : status === "answered"
-                  ? isFa ? "پاسخ" : "Reply"
-                  : isFa ? "بسته" : "Closed"}
+                  ? translateText("Reply", "پاسخ", lang)
+                  : translateText("Closed", "بسته", lang)}
               </button>
             ))}
           </div>
@@ -122,7 +122,7 @@ export default function TicketManager({
               <div className="h-full flex flex-col items-center justify-center text-center py-10">
                 <MessageSquare className="w-8 h-8 text-gray-700 mb-2" />
                 <p className="text-xs text-gray-500">
-                  {isFa ? "هیچ تیکتی پیدا نشد." : "No support tickets found."}
+                  {translateText("No support tickets found.", "هیچ تیکتی پیدا نشد.", lang)}
                 </p>
               </div>
             ) : (
@@ -151,10 +151,10 @@ export default function TicketManager({
                         }`}
                       >
                         {t.status === "open"
-                          ? isFa ? "در انتظار پاسخ" : "Pending Answer"
+                          ? translateText("Pending Answer", "در انتظار پاسخ", lang)
                           : t.status === "answered"
-                          ? isFa ? "پاسخ داده شده" : "Answered"
-                          : isFa ? "بسته شده" : "Closed"}
+                          ? translateText("Answered", "پاسخ داده شده", lang)
+                          : translateText("Closed", "بسته شده", lang)}
                       </span>
                       {onDeleteTicket && (
                         <button
@@ -164,7 +164,7 @@ export default function TicketManager({
                             setTicketToDelete(t.id);
                           }}
                           className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition cursor-pointer flex items-center justify-center shrink-0"
-                          title={isFa ? "حذف تیکت" : "Delete Ticket"}
+                          title={translateText("Delete Ticket", "حذف تیکت", lang)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -178,7 +178,7 @@ export default function TicketManager({
 
                   <div className="flex items-center justify-between text-[10px] text-gray-400 mt-1">
                     <span>
-                      {isFa ? "کاربر:" : "User:"} <strong className="text-gray-300 font-medium">@{t.username}</strong>
+                      {translateText("User:", "کاربر:", lang)} <strong className="text-gray-300 font-medium">@{t.username}</strong>
                     </span>
                     <span className="font-mono text-[9px] text-gray-500">
                       {t.updatedAt.split("T")[0]}
@@ -201,13 +201,13 @@ export default function TicketManager({
                     type="button"
                     onClick={() => setSelectedTicketId(null)}
                     className="lg:hidden p-2 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition cursor-pointer flex items-center justify-center shrink-0"
-                    title={isFa ? "بازگشت به لیست" : "Back to List"}
+                    title={translateText("Back to List", "بازگشت به لیست", lang)}
                   >
                     <ArrowRight className="w-4 h-4" />
                   </button>
                   <div className="text-right" dir="rtl">
                     <h3 className="text-xs text-rose-400 font-bold mb-0.5">
-                      {isFa ? `پرونده تیکت ${selectedTicket.id}` : `Ticket ${selectedTicket.id}`}
+                      {translateText("Ticket ", "پرونده تیکت ", lang) + selectedTicket.id}
                     </h3>
                     <h2 className="text-sm font-semibold text-white truncate max-w-[140px] sm:max-w-[280px]">
                       {selectedTicket.subject}
@@ -222,7 +222,7 @@ export default function TicketManager({
                     className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-emerald-600/15 border border-transparent hover:border-emerald-500/20 text-gray-300 hover:text-emerald-400 text-[11px] font-semibold cursor-pointer transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Check className="w-3.5 h-3.5" />
-                    {isFa ? "بستن پرونده تیکت" : "Close Ticket Chain"}
+                    {translateText("Close Ticket Chain", "بستن پرونده تیکت", lang)}
                   </button>
 
                   {onDeleteTicket && (
@@ -232,10 +232,10 @@ export default function TicketManager({
                         setTicketToDelete(selectedTicket.id);
                       }}
                       className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 text-[11px] font-semibold cursor-pointer transition flex items-center gap-1"
-                      title={isFa ? "حذف تیکت" : "Delete Ticket"}
+                      title={translateText("Delete Ticket", "حذف تیکت", lang)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {isFa ? "حذف پرونده" : "Delete"}
+                      {translateText("Delete", "حذف پرونده", lang)}
                     </button>
                   )}
                 </div>
@@ -248,7 +248,7 @@ export default function TicketManager({
                   <div className="flex items-center gap-2" dir="rtl">
                     <Shield className="w-3.5 h-3.5 text-zinc-400" />
                     <span>
-                      {isFa ? "فرستنده تیکت:" : "Author Info:"}{" "}
+                      {translateText("Author Info:", "فرستنده تیکت:", lang)}{" "}
                       <strong className="text-gray-200">
                         {selectedTicket.username} ({selectedTicket.userId})
                       </strong>
@@ -257,7 +257,7 @@ export default function TicketManager({
                   <div className="flex items-center gap-2" dir="rtl">
                     <Clock className="w-3.5 h-3.5 text-zinc-400" />
                     <span>
-                      {isFa ? "تاریخ ثبت اولیه:" : "Registered At:"}{" "}
+                      {translateText("Registered At:", "تاریخ ثبت اولیه:", lang)}{" "}
                       <strong className="text-gray-200">
                         {new Date(selectedTicket.createdAt).toLocaleString("fa-IR")}
                       </strong>
@@ -276,7 +276,7 @@ export default function TicketManager({
                       }`}
                     >
                       <span className="text-[9px] text-gray-500 mb-1 px-1">
-                        {isAdmin ? (isFa ? "👨‍💼 مدیریت" : "Support") : (isFa ? "👤 کاربر" : "Customer")}
+                        {isAdmin ? (translateText("Support", "👨‍💼 مدیریت", lang)) : (translateText("Customer", "👤 کاربر", lang))}
                       </span>
                       <div
                         className={`p-3 rounded-2xl text-xs leading-relaxed ${
@@ -310,7 +310,7 @@ export default function TicketManager({
                     <textarea
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
-                      placeholder={isFa ? "پاسخ مدیریت را اینجا بنویسید..." : "Type support reply text here..."}
+                      placeholder={translateText("Type support reply text here...", "پاسخ مدیریت را اینجا بنویسید...", lang)}
                       className="flex-1 bg-[#161c2a] border border-gray-700/80 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-rose-500 resize-none h-[64px]"
                       dir="rtl"
                     />
@@ -320,7 +320,7 @@ export default function TicketManager({
                       className="px-5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 disabled:opacity-40 disabled:hover:bg-rose-600 text-white rounded-xl shadow-lg shadow-rose-600/10 cursor-pointer text-xs font-semibold flex flex-col justify-center items-center gap-1.5 transition"
                     >
                       <Send className="w-4 h-4 scale-x-[-1]" />
-                      <span>{isFa ? "ارسال" : "Send"}</span>
+                      <span>{translateText("Send", "ارسال", lang)}</span>
                     </button>
                   </form>
                 )}
@@ -330,7 +330,7 @@ export default function TicketManager({
             <div className="flex-1 flex flex-col items-center justify-center text-center p-12">
               <MessageSquare className="w-12 h-12 text-gray-700 mb-3 animate-pulse" />
               <h3 className="text-sm font-semibold text-white mb-1">
-                {isFa ? "مکاتبات پشتیبانی" : "Select Support Chain"}
+                {translateText("Select Support Chain", "مکاتبات پشتیبانی", lang)}
               </h3>
               <p className="text-xs text-gray-500 max-w-sm">
                 {isFa
@@ -349,7 +349,7 @@ export default function TicketManager({
             <div className="flex items-center gap-3 text-rose-400 border-b border-gray-800 pb-3">
               <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
               <h3 className="text-base font-bold text-white">
-                {isFa ? "تایید حذف نهایی تیکت" : "Confirm Ticket Deletion"}
+                {translateText("Confirm Ticket Deletion", "تایید حذف نهایی تیکت", lang)}
               </h3>
             </div>
             
@@ -365,7 +365,7 @@ export default function TicketManager({
                 onClick={() => setTicketToDelete(null)}
                 className="px-4 py-2 rounded-xl bg-gray-850 hover:bg-gray-800 text-gray-300 text-xs font-semibold cursor-pointer transition font-sans border border-gray-800"
               >
-                {isFa ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
               <button
                 type="button"
@@ -381,7 +381,7 @@ export default function TicketManager({
                 className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white text-xs font-semibold cursor-pointer transition flex items-center gap-1.5 font-sans shadow-lg shadow-red-600/10"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                {isFa ? "بله، حذف شود" : "Yes, Delete"}
+                {translateText("Yes, Delete", "بله، حذف شود", lang)}
               </button>
             </div>
           </div>

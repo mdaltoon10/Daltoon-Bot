@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
 import { Transaction, PanelSettings } from "../types";
-import { Language, translations } from "../locales";
 import { 
   Check, 
   X, 
@@ -32,8 +32,8 @@ export default function TransactionApproval({
   lang,
   settings
 }: TransactionApprovalProps) {
-  const t = translations[lang];
-  const currency = settings?.currency || (lang === "fa" ? "تومان" : "Toman");
+  const t = { ...translations.en, ...translations[lang] };
+  const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -96,16 +96,14 @@ export default function TransactionApproval({
           <button
             onClick={() => setDeleteConfirm({
               type: "all",
-              title: lang === "fa" ? "تایید حذف تاریخچه" : "Clear Receipts History",
-              message: lang === "fa"
-                ? "آیا از حذف کامل کل تاریخچه فیش‌های بارگذاری شده (شامل فیش‌های تایید شده، رد شده و معلق) از پایگاه داده دالتون بات اطمینان دارید؟ این عمل غیرقابل بازگشت است."
-                : "Are you sure you want to completely delete all transaction receipts (including approved, rejected, and pending logs) from Daltoon Bot database? This cannot be undone."
+              title: translateText("Clear Receipts History", "تایید حذف تاریخچه", lang),
+              message: translateText("Are you sure you want to completely delete all transaction receipts (including approved, rejected, and pending logs) from Daltoon Bot database? This cannot be undone.", "آیا از حذف کامل کل تاریخچه فیش‌های بارگذاری شده (شامل فیش‌های تایید شده، رد شده و معلق) از پایگاه داده دالتون بات اطمینان دارید؟ این عمل غیرقابل بازگشت است.", lang)
             })}
             className="px-3.5 py-2.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/10 text-rose-300 hover:text-white rounded-lg text-xs font-medium cursor-pointer transition flex items-center gap-1.5"
-            title={lang === "fa" ? "حذف کل تاریخچه فیش‌ها" : "Truncate All Slip History Records"}
+            title={translateText("Truncate All Slip History Records", "حذف کل تاریخچه فیش‌ها", lang)}
           >
             <Trash2 className="w-3.5 h-3.5" />
-            {lang === "fa" ? "حذف تاریخچه فیش‌ها" : "Clear Receipts History"}
+            {translateText("Clear Receipts History", "حذف تاریخچه فیش‌ها", lang)}
           </button>
         </div>
       </div>
@@ -191,10 +189,8 @@ export default function TransactionApproval({
                           onClick={() => setDeleteConfirm({
                             id: tx.id,
                             type: "single",
-                            title: lang === "fa" ? "تایید حذف فیش" : "Confirm Delete Slip",
-                            message: lang === "fa"
-                              ? `آیا از حذف تراکنش کاربر @${tx.username} با شناسه ${tx.id} مطمئن هستید؟`
-                              : `Are you sure you want to delete receipt ${tx.id} for user @${tx.username}?`
+                            title: translateText("Confirm Delete Slip", "تایید حذف فیش", lang),
+                            message: translateText(`Are you sure you want to delete receipt ${tx.id} for user @${tx.username}?`, `آیا از حذف تراکنش کاربر @${tx.username} با شناسه ${tx.id} مطمئن هستید؟`, lang)
                           })}
                           className="p-1 px-2 bg-rose-950/40 hover:bg-rose-900 border border-rose-500/20 text-rose-300 hover:text-white rounded text-xs transition inline-flex items-center gap-1 cursor-pointer"
                           title="Delete Receipt From History"
@@ -243,7 +239,7 @@ export default function TransactionApproval({
                           onClick={() => setLightboxOpen(true)}
                         >
                           <Eye className="w-3.5 h-3.5 text-indigo-400" />
-                          {lang === "fa" ? "بزرگنمایی فیش" : "Zoom Receipt"}
+                          {translateText("Zoom Receipt", "بزرگنمایی فیش", lang)}
                         </div>
                       </div>
                     ) : (
@@ -251,7 +247,7 @@ export default function TransactionApproval({
                         <div className="absolute inset-0 bg-black/35 backdrop-blur-xs"></div>
                         <div className="z-10 text-center space-y-1 font-mono text-xs">
                           <p className="text-[10px] text-gray-400 uppercase tracking-wider">{t.bankReportHeader}</p>
-                          <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {lang === "fa" ? "تومان" : "TOMAN"}</p>
+                          <p className="text-xl font-bold font-display text-emerald-400">{selectedTx.amount.toLocaleString()} {translateText("TOMAN", "تومان", lang)}</p>
                           <p className="text-[10px]">Reference: {selectedTx.id.replace("TX-", "")}</p>
                           <p className="text-[10px]">Recipient Card: 6037-xxxx-xxxx-8848</p>
                           <div className="pt-2">
@@ -364,14 +360,14 @@ export default function TransactionApproval({
                 }}
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg transition cursor-pointer"
               >
-                {lang === "fa" ? "تایید و حذف" : "Yes, Delete"}
+                {translateText("Yes, Delete", "تایید و حذف", lang)}
               </button>
               <button
                 type="button"
                 onClick={() => setDeleteConfirm(null)}
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition cursor-pointer"
               >
-                {lang === "fa" ? "انصراف" : "Cancel"}
+                {translateText("Cancel", "انصراف", lang)}
               </button>
             </div>
           </div>
@@ -388,7 +384,7 @@ export default function TransactionApproval({
           <button 
             onClick={() => setLightboxOpen(false)} 
             className="absolute top-4 right-4 p-2.5 bg-slate-900/80 hover:bg-slate-800 text-gray-300 hover:text-white rounded-full transition border border-slate-700 cursor-pointer z-50"
-            title={lang === "fa" ? "بستن" : "Close"}
+            title={translateText("Close", "بستن", lang)}
           >
             <X className="w-5 h-5" />
           </button>

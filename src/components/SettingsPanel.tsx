@@ -1,6 +1,6 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useEffect, useRef } from "react"; // React hooks
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
-import { Language, translations } from "../locales";
 import ConfirmationModal from "./ConfirmationModal";
 import {
   Settings,
@@ -48,7 +48,7 @@ export default function SettingsPanel({
   customButtons,
   setCustomButtons,
 }: SettingsPanelProps) {
-  const t = translations[lang];
+  const t = { ...translations.en, ...translations[lang] };
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
   const [botNickname, setBotNickname] = useState(settings.botNickname || "");
@@ -85,7 +85,7 @@ export default function SettingsPanel({
 
   const handleTestGeminiKey = async () => {
     if (!geminiApiKey || geminiApiKey.trim() === "") {
-      setGeminiTestResult({ success: false, message: lang === "fa" ? "لطفاً ابتدا کلید API جیمینای را وارد کنید." : "Please enter the Gemini API Key first." });
+      setGeminiTestResult({ success: false, message: translateText("Please enter the Gemini API Key first.", "لطفاً ابتدا کلید API جیمینای را وارد کنید.", lang) });
       return;
     }
     setTestingGemini(true);
@@ -111,7 +111,7 @@ export default function SettingsPanel({
 
   const handleTestCustomKey = async () => {
     if (!customAiApiKey || customAiApiKey.trim() === "") {
-      setCustomTestResult({ success: false, message: lang === "fa" ? "لطفاً ابتدا کلید API هوش مصنوعی را وارد کنید." : "Please enter the AI API Key first." });
+      setCustomTestResult({ success: false, message: translateText("Please enter the AI API Key first.", "لطفاً ابتدا کلید API هوش مصنوعی را وارد کنید.", lang) });
       return;
     }
     setTestingCustom(true);
@@ -368,9 +368,7 @@ export default function SettingsPanel({
         setBroadcastStatus({
           type: "success",
           msg:
-            lang === "fa"
-              ? `📣 پیام همگانی با موفقیت برای تمامی کاربران فعال ارسال شد (${data.count || 0} پیام ارسالی).`
-              : `📣 Broadcast message dispatched successfully to all ${data.count || 0} registered users!`,
+            translateText("📣 Broadcast message dispatched successfully to all ", "📣 پیام همگانی با موفقیت برای تمامی کاربران فعال ارسال شد (", lang) + (data.count || 0) + translateText(" registered users!", " پیام ارسالی).", lang),
         });
         setBroadcastText("");
         setActiveAttachment(null);
@@ -440,12 +438,12 @@ export default function SettingsPanel({
 
   const [welcomeText, setWelcomeText] = useState(
     settings.welcomeText ||
-      `<b>🛍️ به فروشگاه دالتون بات (Daltoon Bot) خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`,
+      `<b>🛍️ به {nickname} خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`,
   );
 
   const [supportText, setSupportText] = useState(
     settings.supportText ||
-      `📞 <b>پشتیبانی دالتون بات (Daltoon Bot):</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @example_support\n📢 کانال تلگرام دالتون بات: @example_channel\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`,
+      `📞 <b>پشتیبانی {nickname}:</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @example_support\n📢 کانال تلگرام {nickname}: @example_channel\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`,
   );
 
   const [tgChannel, setTgChannel] = useState(
@@ -636,14 +634,10 @@ export default function SettingsPanel({
       <div className="bg-gradient-to-r from-purple-950/20 to-indigo-950/20 border border-indigo-500/20 p-5 rounded-xl space-y-4 shadow-sm">
         <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-indigo-400" />
-          {lang === "fa"
-            ? "📣 ارسال اطلاعیه همگانی (برادکست)"
-            : "📣 Send Telegram Broadcast Message"}
+          {translateText("📣 Send Telegram Broadcast Message", "📣 ارسال اطلاعیه همگانی (برادکست)", lang)}
         </h3>
         <p className="text-xs text-gray-400">
-          {lang === "fa"
-            ? "متن اطلاعیه، پیام یا بنر تبلیغاتی خود را بنویسید تا مستقیماً به چت تمام اعضای تعامل‌یافته با بازخورد سریع ربات ارسال گردد."
-            : "Compose and dispatch an official announcement, discount code, or network status update to all registered Telegram bot users."}
+          {translateText("Compose and dispatch an official announcement, discount code, or network status update to all registered Telegram bot users.", "متن اطلاعیه، پیام یا بنر تبلیغاتی خود را بنویسید تا مستقیماً به چت تمام اعضای تعامل‌یافته با بازخورد سریع ربات ارسال گردد.", lang)}
         </p>
 
         <div className="space-y-3">
@@ -652,9 +646,7 @@ export default function SettingsPanel({
               ref={broadcastAreaRef}
               rows={3}
               placeholder={
-                lang === "fa"
-                  ? "مثلا: 🚨 به روزرسانی سرورها انجام شد؛ برای دریافت اکانت جدید به پشتیبانی مراجعه فرمایید."
-                  : "e.g., Server maintenance completed successfully!"
+                translateText("e.g., Server maintenance completed successfully!", "مثلا: 🚨 به روزرسانی سرورها انجام شد؛ برای دریافت اکانت جدید به پشتیبانی مراجعه فرمایید.", lang)
               }
               className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
               value={broadcastText}
@@ -664,7 +656,7 @@ export default function SettingsPanel({
               <button
                 type="button"
                 onClick={() => applyFormat("bold")}
-                title={lang === "fa" ? "ضخیم کردن (Bold)" : "Bold Text"}
+                title={translateText("Bold Text", "ضخیم کردن (Bold)", lang)}
                 className="p-1 px-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border border-gray-700 transition text-[10px] font-bold"
               >
                 B
@@ -672,7 +664,7 @@ export default function SettingsPanel({
               <button
                 type="button"
                 onClick={() => applyFormat("italic")}
-                title={lang === "fa" ? "مورب کردن (Italic)" : "Italic Text"}
+                title={translateText("Italic Text", "مورب کردن (Italic)", lang)}
                 className="p-1 px-2 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white border border-gray-700 transition text-[10px] italic font-serif"
               >
                 I
@@ -681,9 +673,7 @@ export default function SettingsPanel({
                 type="button"
                 onClick={() => applyFormat("code")}
                 title={
-                  lang === "fa"
-                    ? "مونو کردن (کپی با یک کلیک)"
-                    : "Apply Mono Format (One-click copy)"
+                  translateText("Apply Mono Format (One-click copy)", "مونو کردن (کپی با یک کلیک)", lang)
                 }
                 className="p-1.5 rounded-md bg-gray-800 hover:bg-gray-700 text-indigo-400 hover:text-indigo-300 border border-gray-700 transition"
               >
@@ -692,7 +682,7 @@ export default function SettingsPanel({
               <button
                 type="button"
                 onClick={() => applyFormat("clear")}
-                title={lang === "fa" ? "پاکسازی استایل" : "Clear Format"}
+                title={translateText("Clear Format", "پاکسازی استایل", lang)}
                 className="p-1.5 rounded-md bg-gray-800 hover:bg-rose-500/20 text-gray-500 hover:text-rose-400 border border-gray-700 transition"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -704,47 +694,47 @@ export default function SettingsPanel({
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-indigo-950/40">
             <div className="flex items-center gap-2" dir="rtl">
               <span className="text-[11px] text-gray-500 ml-1">
-                {lang === "fa" ? "افزودن رسانه:" : "Attach media:"}
+                {t.attachMedia}
               </span>
 
               <button
                 type="button"
                 onClick={() => triggerUpload("image")}
-                title={lang === "fa" ? "ارسال تصویر" : "Upload Image"}
+                title={translateText("Upload Image", "ارسال تصویر", lang)}
                 className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-450 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
               >
                 <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
-                <span>{lang === "fa" ? "تصویر" : "Image"}</span>
+                <span>{t.mediaImage}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => triggerUpload("video")}
-                title={lang === "fa" ? "ارسال فیلم/ویدئو" : "Upload Video"}
+                title={translateText("Upload Video", "ارسال فیلم/ویدئو", lang)}
                 className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-455 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
               >
                 <Film className="w-3.5 h-3.5 text-blue-400" />
-                <span>{lang === "fa" ? "فیلم/ویدئو" : "Video"}</span>
+                <span>{t.mediaVideo}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => triggerUpload("voice")}
-                title={lang === "fa" ? "ارسال ویس/صوت" : "Upload Voice"}
+                title={translateText("Upload Voice", "ارسال ویس/صوت", lang)}
                 className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-460 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
               >
                 <Mic className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{lang === "fa" ? "ویس" : "Voice"}</span>
+                <span>{t.mediaVoice}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => triggerUpload("file")}
-                title={lang === "fa" ? "ارسال فایل/سند" : "Upload File/Doc"}
+                title={translateText("Upload File/Doc", "ارسال فایل/سند", lang)}
                 className="px-2.5 py-1.5 rounded-lg bg-[#111827] border border-gray-700 hover:border-indigo-500 text-gray-400 hover:text-indigo-465 text-xs transition cursor-pointer flex items-center gap-1.5 font-sans"
               >
                 <Paperclip className="w-3.5 h-3.5 text-amber-400" />
-                <span>{lang === "fa" ? "فایل" : "File"}</span>
+                <span>{t.mediaFile}</span>
               </button>
             </div>
 
@@ -808,20 +798,10 @@ export default function SettingsPanel({
                   </div>
                   <div className="text-[10px] text-gray-500 flex items-center gap-1.5">
                     <span className="px-1.5 py-0.5 bg-gray-800 rounded text-gray-400 capitalize">
-                      {lang === "fa"
-                        ? activeAttachment.fileType === "image"
-                          ? "تصوير"
-                          : activeAttachment.fileType === "video"
-                            ? "فیلم/ویدئو"
-                            : activeAttachment.fileType === "voice"
-                              ? "ویس"
-                              : "فایل"
-                        : activeAttachment.fileType}
+                      {translateText(activeAttachment.fileType, activeAttachment.fileType === "image" ? "تصوير" : activeAttachment.fileType === "video" ? "فیلم/ویدئو" : activeAttachment.fileType === "voice" ? "ویس" : "فایل", lang)}
                     </span>
                     <span>
-                      {lang === "fa"
-                        ? "آماده ارسال..."
-                        : "Ready to broadcast..."}
+                      {translateText("Ready to broadcast...", "آماده ارسال...", lang)}
                     </span>
                   </div>
                 </div>
@@ -831,7 +811,7 @@ export default function SettingsPanel({
                 type="button"
                 onClick={() => setActiveAttachment(null)}
                 className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition cursor-pointer"
-                title={lang === "fa" ? "حذف پیوست" : "Remove Attachment"}
+                title={translateText("Remove Attachment", "حذف پیوست", lang)}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -842,7 +822,7 @@ export default function SettingsPanel({
           {activeAttachment && (
             <div className="p-3.5 rounded-xl bg-[#111827] border border-indigo-500/10 text-xs animate-fadeIn mt-2 space-y-2.5" dir="rtl">
               <span className="text-gray-400 font-medium block">
-                {lang === "fa" ? "موقعیت نمایش متن همراه رسانه:" : "Text position relative to media:"}
+                {translateText("Text position relative to media:", "موقعیت نمایش متن همراه رسانه:", lang)}
               </span>
               <div className="flex gap-6">
                 <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition">
@@ -854,7 +834,7 @@ export default function SettingsPanel({
                     onChange={() => setCaptionPosition("below")}
                     className="accent-indigo-500 w-4 h-4"
                   />
-                  <span>{lang === "fa" ? "زیر رسانه (پیش‌فرض)" : "Below media (default)"}</span>
+                  <span>{translateText("Below media (default)", "زیر رسانه (پیش‌فرض)", lang)}</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer text-gray-300 hover:text-white transition">
                   <input
@@ -865,7 +845,7 @@ export default function SettingsPanel({
                     onChange={() => setCaptionPosition("above")}
                     className="accent-indigo-500 w-4 h-4"
                   />
-                  <span>{lang === "fa" ? "بالای رسانه" : "Above media"}</span>
+                  <span>{translateText("Above media", "بالای رسانه", lang)}</span>
                 </label>
               </div>
             </div>
@@ -898,14 +878,12 @@ export default function SettingsPanel({
               {isBroadcasting ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  {lang === "fa" ? "در حال ارسال..." : "Broadcasting..."}
+                  {translateText("Broadcasting...", "در حال ارسال...", lang)}
                 </>
               ) : (
                 <>
                   <Send className="w-3.5 h-3.5" />
-                  {lang === "fa"
-                    ? "ارسال پیام به تمامی اعضا"
-                    : "Broadcast Message to All"}
+                  {t.sendBroadcastBtn}
                 </>
               )}
             </button>
@@ -921,9 +899,7 @@ export default function SettingsPanel({
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />
             <span>
-              {lang === "fa"
-                ? "🤖 دستیار هوشمند و پشتیبانی هوش مصنوعی"
-                : "🤖 Smart AI Support Assistant"}
+              {t.smartAiTitle}
             </span>
           </div>
 
@@ -951,18 +927,14 @@ export default function SettingsPanel({
         </h3>
 
         <p className="text-xs text-gray-400 leading-relaxed max-w-2xl relative">
-          {lang === "fa"
-            ? "فعال‌سازی هوش مصنوعی (Gemini) به عنوان پشتیبان ۲۴ ساعته. کاربران می‌توانند سوالات خود را بپرسند و ربات بر اساس تعرفه‌ها و راهنما پاسخ می‌دهد."
-            : "Enable Gemini AI as a 24/7 support assistant. Users can chat with the bot, and it answers based on your prices and connection guides."}
+          {translateText("Enable Gemini AI as a 24/7 support assistant. Users can chat with the bot, and it answers based on your prices and connection guides.", "فعال‌سازی هوش مصنوعی (Gemini) به عنوان پشتیبان ۲۴ ساعته. کاربران می‌توانند سوالات خود را بپرسند و ربات بر اساس تعرفه‌ها و راهنما پاسخ می‌دهد.", lang)}
         </p>
 
         {!hideBtnAiChat && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 animate-fadeIn relative">
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                {lang === "fa"
-                  ? "عنوان دکمه در منوی ربات:"
-                  : "Button label in Telegram menu:"}
+                {translateText("Button label in Telegram menu:", "عنوان دکمه در منوی ربات:", lang)}
               </label>
               <input
                 type="text"
@@ -974,9 +946,7 @@ export default function SettingsPanel({
 
             <div className="space-y-1.5">
               <label className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                {lang === "fa"
-                  ? "کلید API جیمینای (Gemini API Key):"
-                  : "Gemini API Key:"}
+                {translateText("Gemini API Key:", "کلید API جیمینای (Gemini API Key):", lang)}
               </label>
               <input
                 type="text"
@@ -1003,12 +973,8 @@ export default function SettingsPanel({
                   }`}
                 ></div>
                 {geminiApiKey
-                  ? lang === "fa"
-                    ? "کلید API جیمینای شناسایی شد."
-                    : "Gemini API Key is configured."
-                  : lang === "fa"
-                    ? "خطا: کلید API ربات (Gemini) ست نشده است."
-                    : "Missing Gemini API Secret Key."}
+                  ? translateText("Gemini API Key is configured.", "کلید API جیمینای شناسایی شد.", lang)
+                  : translateText("Missing Gemini API Secret Key.", "خطا: کلید API ربات (Gemini) ست نشده است.", lang)}
               </div>
             </div>
 
@@ -1024,7 +990,7 @@ export default function SettingsPanel({
                 ) : (
                   <Check className="w-3.5 h-3.5" />
                 )}
-                {lang === "fa" ? "🔍 بررسی و تست اتصال کلید جیمینای" : "🔍 Test Gemini API Key Connection"}
+                {translateText("🔍 Test Gemini API Key Connection", "🔍 بررسی و تست اتصال کلید جیمینای", lang)}
               </button>
 
               {geminiTestResult && (
@@ -1053,9 +1019,7 @@ export default function SettingsPanel({
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-400" />
             <span>
-              {lang === "fa"
-                ? "📢 عضویت کانال اجباری"
-                : "📢 Mandatory Channel Join"}
+              {t.mandatoryJoinTitle}
             </span>
           </div>
 
@@ -1084,9 +1048,7 @@ export default function SettingsPanel({
         </h3>
 
         <p className="text-xs text-gray-400 leading-relaxed">
-          {lang === "fa"
-            ? "وقتی این ویژگی فعال باشد، تمامی کاربرانی که وارد ربات تلگرام می‌شوند ابتدا باید در کانال تعیین‌شده عضو شوند تا اجازه استفاده از امکانات ربات را پیدا کنند."
-            : "When active, any user starting the bot must be subscribed to the designated Telegram channel to access features."}
+          {translateText("When active, any user starting the bot must be subscribed to the designated Telegram channel to access features.", "وقتی این ویژگی فعال باشد، تمامی کاربرانی که وارد ربات تلگرام می‌شوند ابتدا باید در کانال تعیین‌شده عضو شوند تا اجازه استفاده از امکانات ربات را پیدا کنند.", lang)}
         </p>
 
         {mandatoryJoinActive && (
@@ -1095,9 +1057,7 @@ export default function SettingsPanel({
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-gray-300">
-                  {lang === "fa"
-                    ? "کانال‌های تلگرام جهت عضویت اجباری (کاربر باید در تمامی آن‌ها عضو شود):"
-                    : "Telegram channels for mandatory join (user must join all):"}
+                  {translateText("Telegram channels for mandatory join (user must join all):", "کانال‌های تلگرام جهت عضویت اجباری (کاربر باید در تمامی آن‌ها عضو شود):", lang)}
                 </label>
                 <button
                   type="button"
@@ -1105,7 +1065,7 @@ export default function SettingsPanel({
                   className="px-2.5 py-1.5 text-[11px] font-medium rounded bg-indigo-600 hover:bg-indigo-700 text-white transition flex items-center gap-1 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  {lang === "fa" ? "افزودن کانال" : "Add Channel"}
+                  {t.addChannelBtn}
                 </button>
               </div>
 
@@ -1120,9 +1080,7 @@ export default function SettingsPanel({
                         type="text"
                         className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 pr-8 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-mono"
                         placeholder={
-                          lang === "fa"
-                            ? "@example_channel یا لینک کامل"
-                            : "@example_channel or full invite link"
+                          translateText("@example_channel or full invite link", "@example_channel یا لینک کامل", lang)
                         }
                         value={chan}
                         onChange={(e) => {
@@ -1154,17 +1112,13 @@ export default function SettingsPanel({
               dir="rtl"
             >
               <label className="text-xs font-semibold text-gray-300">
-                {lang === "fa"
-                  ? "متن پیام درخواستی برای عضویت اجباری:"
-                  : "Custom message displayed to unsubscribed users:"}
+                {t.mandatoryJoinMsgLabel}
               </label>
               <textarea
                 rows={3}
                 className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
                 placeholder={
-                  lang === "fa"
-                    ? "مثلا: کاربر گرامی، برای استفاده از ربات لطفا ابتدا در کانال رسمی دالتون عضو شوید."
-                    : "e.g., Please sub to our channel to unlock the bot's features!"
+                  translateText("e.g., Please sub to our channel to unlock the bot's features!", "مثلا: کاربر گرامی، برای استفاده از ربات لطفا ابتدا در کانال رسمی دالتون عضو شوید.", lang)
                 }
                 value={mandatoryJoinText}
                 onChange={(e) => setMandatoryJoinText(e.target.value)}
@@ -1180,9 +1134,7 @@ export default function SettingsPanel({
             onClick={(e) => handleSubmit(e)}
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
           >
-            {lang === "fa"
-              ? "ذخیره تنظیمات عضویت اجباری"
-              : "Save Mandatory Join Config"}
+            {t.mandatoryJoinBtn}
           </button>
         </div>
       </div>
@@ -1196,9 +1148,7 @@ export default function SettingsPanel({
               <Database className="w-5 h-5 text-blue-400" />
             </div>
             <h3 className="font-display font-bold text-gray-200">
-              {lang === "fa"
-                ? "پشتیبان‌گیری خودکار (بکاپ)"
-                : "Auto Database Backup"}
+              {translateText("Auto Database Backup", "پشتیبان‌گیری خودکار (بکاپ)", lang)}
             </h3>
           </div>
 
@@ -1227,9 +1177,7 @@ export default function SettingsPanel({
         </div>
 
         <p className="text-xs text-gray-400 leading-relaxed">
-          {lang === "fa"
-            ? "بکاپ‌های دوره‌ای باعث اطمینان خاطر شما از حفظ اطلاعات سیستم می‌شود. فایل بکاپ به تلگرام Owner ارسال می‌گردد."
-            : "Periodically backup the Daltoon_Bot.db and send it to the system owner's Telegram account."}
+          {translateText("Periodically backup the Daltoon_Bot.db and send it to the system owner's Telegram account.", "بکاپ‌های دوره‌ای باعث اطمینان خاطر شما از حفظ اطلاعات سیستم می‌شود. فایل بکاپ به تلگرام Owner ارسال می‌گردد.", lang)}
         </p>
 
         {autoBackupEnabled && (
@@ -1237,9 +1185,7 @@ export default function SettingsPanel({
             {/* Interval selection */}
             <div className="space-y-1.5 text-right font-sans" dir="rtl">
               <label className="text-xs font-semibold text-gray-300">
-                {lang === "fa"
-                  ? "دوره زمانی پشتیبان‌گیری:"
-                  : "Backup Interval:"}
+                {translateText("Backup Interval:", "دوره زمانی پشتیبان‌گیری:", lang)}
               </label>
               <select
                 className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
@@ -1248,16 +1194,16 @@ export default function SettingsPanel({
                 dir="ltr"
               >
                 <option value="hourly">
-                  {lang === "fa" ? "ساعتی (Hourly)" : "Hourly"}
+                  {translateText("Hourly", "ساعتی (Hourly)", lang)}
                 </option>
                 <option value="daily">
-                  {lang === "fa" ? "روزانه (Daily)" : "Daily"}
+                  {translateText("Daily", "روزانه (Daily)", lang)}
                 </option>
                 <option value="weekly">
-                  {lang === "fa" ? "هفتگی (Weekly)" : "Weekly"}
+                  {translateText("Weekly", "هفتگی (Weekly)", lang)}
                 </option>
                 <option value="monthly">
-                  {lang === "fa" ? "ماهانه (Monthly)" : "Monthly"}
+                  {translateText("Monthly", "ماهانه (Monthly)", lang)}
                 </option>
               </select>
             </div>
@@ -1270,7 +1216,7 @@ export default function SettingsPanel({
             onClick={(e) => handleSubmit(e)}
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
           >
-            {lang === "fa" ? "ذخیره تنظیمات بکاپ" : "Save Backup Settings"}
+            {translateText("Save Backup Settings", "ذخیره تنظیمات بکاپ", lang)}
           </button>
         </div>
       </div>
@@ -1282,23 +1228,19 @@ export default function SettingsPanel({
             <Sparkles className="w-5 h-5 text-blue-400 animate-pulse" />
           </div>
           <h3 className="font-display font-bold text-gray-200">
-            {lang === "fa"
-              ? "🎨 شخصی‌سازی و زیباسازی کدهای QR"
-              : "🎨 QR Code Customization & Styling"}
+            {translateText("🎨 QR Code Customization & Styling", "🎨 شخصی‌سازی و زیباسازی کدهای QR", lang)}
           </h3>
         </div>
 
         <p className="text-xs text-gray-400 leading-relaxed">
-          {lang === "fa"
-            ? "کدهای QR ربات خود را با رنگ برندینگ خود، درج لوگو/واترمارک اختصاصی در مرکز، یا فرمت‌های سفارشی کاملاً دگرگون کنید."
-            : "Customize your QR Codes with custom branding colors, watermarks/logos, or use custom generation APIs."}
+          {translateText("Customize your QR Codes with custom branding colors, watermarks/logos, or use custom generation APIs.", "کدهای QR ربات خود را با رنگ برندینگ خود، درج لوگو/واترمارک اختصاصی در مرکز، یا فرمت‌های سفارشی کاملاً دگرگون کنید.", lang)}
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
           {/* QR Code Color */}
           <div className="space-y-1.5 text-right font-sans" dir="rtl">
             <label className="text-xs font-semibold text-gray-300">
-              {lang === "fa" ? "رنگ کدهای QR (کد هگز):" : "QR Code Color (Hex):"}
+              {translateText("QR Code Color (Hex):", "رنگ کدهای QR (کد هگز):", lang)}
             </label>
             <div className="flex gap-2">
               <input
@@ -1318,14 +1260,14 @@ export default function SettingsPanel({
               />
             </div>
             <p className="text-[10px] text-gray-500">
-              {lang === "fa" ? "برای استفاده از رنگ قالب JSON کلمه none را بنویسید یا کادر را خالی بگذارید." : "Type 'none' or leave empty to use the JSON template's original color."}
+              {translateText("Type 'none' or leave empty to use the JSON template's original color.", "برای استفاده از رنگ قالب JSON کلمه none را بنویسید یا کادر را خالی بگذارید.", lang)}
             </p>
           </div>
 
           {/* QR Code Logo (Watermark) */}
           <div className="space-y-1.5 text-right font-sans" dir="rtl">
             <label className="text-xs font-semibold text-gray-300">
-              {lang === "fa" ? "لینک عکس لوگو/واترمارک مرکز:" : "Center Logo/Watermark Image URL:"}
+              {translateText("Center Logo/Watermark Image URL:", "لینک عکس لوگو/واترمارک مرکز:", lang)}
             </label>
             <input
               type="text"
@@ -1336,7 +1278,7 @@ export default function SettingsPanel({
               dir="ltr"
             />
             <p className="text-[10px] text-gray-500">
-              {lang === "fa" ? "لینک آیکون یا لوگویی که مایلید در مرکز کد QR حک شود." : "URL of a transparent PNG icon to be embedded in the center."}
+              {translateText("URL of a transparent PNG icon to be embedded in the center.", "لینک آیکون یا لوگویی که مایلید در مرکز کد QR حک شود.", lang)}
             </p>
           </div>
         </div>
@@ -1344,7 +1286,7 @@ export default function SettingsPanel({
         {/* Custom API Template URL */}
         <div className="space-y-1.5 text-right font-sans pt-1" dir="rtl">
           <label className="text-xs font-semibold text-gray-300">
-            {lang === "fa" ? "تمپلیت پیشرفته QR (فرمت JSON یا لینک دلخواه):" : "Advanced QR Template (JSON Config or Custom API URL):"}
+            {translateText("Advanced QR Template (JSON Config or Custom API URL):", "تمپلیت پیشرفته QR (فرمت JSON یا لینک دلخواه):", lang)}
           </label>
           <textarea
             placeholder={`{\n  "body": "mosaic",\n  "eye": "frame13",\n  "eyeBall": "ball14",\n  "bodyColor": "#000000"\n}`}
@@ -1354,9 +1296,7 @@ export default function SettingsPanel({
             dir="ltr"
           />
           <p className="text-[10px] text-gray-500 leading-relaxed">
-            {lang === "fa" 
-              ? "می‌توانید کدهای JSON ساخته شده توسط qrcode-monkey.com را اینجا قرار دهید تا کدها با ظاهر کاستوم تولید شوند! (همچنین لینک API ساده هم پشتیبانی می‌شود. متغیرها: {text}، {color} و {logo_url})" 
-              : "Paste QRCode-Monkey JSON config, or use a custom API URL with placeholders {text}, {color}, {logo_url}."}
+            {translateText("Paste QRCode-Monkey JSON config, or use a custom API URL with placeholders {text}, {color}, {logo_url}.", "می‌توانید کدهای JSON ساخته شده توسط qrcode-monkey.com را اینجا قرار دهید تا کدها با ظاهر کاستوم تولید شوند! (همچنین لینک API ساده هم پشتیبانی می‌شود. متغیرها: {text}، {color} و {logo_url})", lang)}
           </p>
         </div>
 
@@ -1366,7 +1306,7 @@ export default function SettingsPanel({
             onClick={(e) => handleSubmit(e)}
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer flex items-center gap-1.5"
           >
-            {lang === "fa" ? "ذخیره تنظیمات QR" : "Save QR Settings"}
+            {translateText("Save QR Settings", "ذخیره تنظیمات QR", lang)}
           </button>
         </div>
       </div>
@@ -1375,15 +1315,13 @@ export default function SettingsPanel({
       <div className="bg-red-500/5 border border-red-500/20 p-5 rounded-xl space-y-4 shadow-sm mb-6">
         <h3 className="font-display font-medium text-lg text-red-400 flex items-center gap-2">
           <Database className="w-5 h-5" />
-          {lang === "fa" ? "منطقه خطر و تست" : "Danger Zone & Testing"}
+          {translateText("Danger Zone & Testing", "منطقه خطر و تست", lang)}
         </h3>
 
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 space-y-2">
             <p className="text-xs text-gray-400">
-              {lang === "fa"
-                ? "حالت شبیه‌ساز: در صورت فعال بودن، اگر اتصال به پنل سنایی قطع باشد، ربات لینک‌های تستی تولید می‌کند."
-                : "Simulator Mode: If enabled, the bot will generate mock links when panel connection fails."}
+              {translateText("Simulator Mode: If enabled, the bot will generate mock links when panel connection fails.", "حالت شبیه‌ساز: در صورت فعال بودن، اگر اتصال به پنل سنایی قطع باشد، ربات لینک‌های تستی تولید می‌کند.", lang)}
             </p>
             <button
               type="button"
@@ -1395,19 +1333,13 @@ export default function SettingsPanel({
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
-              {lang === "fa"
-                ? simulatorMode
-                  ? "حالت شبیه‌ساز: روشن"
-                  : "حالت شبیه‌ساز: خاموش"
-                : `Simulator: ${simulatorMode ? "ON" : "OFF"}`}
+              {simulatorMode ? translateText("Simulator: ON", "حالت شبیه‌ساز: روشن", lang) : translateText("Simulator: OFF", "حالت شبیه‌ساز: خاموش", lang)}
             </button>
           </div>
 
           <div className="flex-1 space-y-2">
             <p className="text-xs text-gray-400">
-              {lang === "fa"
-                ? "حذف کامل تمامی اطلاعات کاربران، تراکنش‌ها و تنظیمات. سیستم به حالت اولیه باز می‌گردد."
-                : "Wipe all users, transactions, plans, and settings. This will re-initialize the system."}
+              {translateText("Wipe all users, transactions, plans, and settings. This will re-initialize the system.", "حذف کامل تمامی اطلاعات کاربران، تراکنش‌ها و تنظیمات. سیستم به حالت اولیه باز می‌گردد.", lang)}
             </p>
             <button
               type="button"
@@ -1415,9 +1347,7 @@ export default function SettingsPanel({
                 setDeleteConfirmConfig({
                   isOpen: true,
                   message:
-                    lang === "fa"
-                      ? "آیا از حذف کامل دیتابیس و ریست کردن تمامی اطلاعات اطمینان دارید؟ تمامی تنظیمات، پلن‌ها و کاربران حذف خواهند شد."
-                      : "Are you sure you want to completely wipe the database? This will delete all users, plans, and settings.",
+                    translateText("Are you sure you want to completely wipe the database? This will delete all users, plans, and settings.", "آیا از حذف کامل دیتابیس و ریست کردن تمامی اطلاعات اطمینان دارید؟ تمامی تنظیمات، پلن‌ها و کاربران حذف خواهند شد.", lang),
                   action: async () => {
                     try {
                       const res = await fetch("/api/database/wipe-all", {
@@ -1436,9 +1366,7 @@ export default function SettingsPanel({
               className="px-4 py-2 text-xs font-semibold rounded-lg bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/30 transition cursor-pointer flex items-center gap-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              {lang === "fa"
-                ? "حذف کامل دیتابیس و تنظیمات"
-                : "Full Database Wipe"}
+              {translateText("Full Database Wipe", "حذف کامل دیتابیس و تنظیمات", lang)}
             </button>
           </div>
         </div>
@@ -1469,44 +1397,36 @@ export default function SettingsPanel({
 
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "نام فروشگاه / ربات (جهت نمایش)"
-                  : "Store Name / Bot Nickname"}
+                {translateText("Store Name / Bot Nickname", "نام فروشگاه / ربات (جهت نمایش)", lang)}
               </label>
               <input
                 type="text"
                 placeholder={
-                  lang === "fa" ? "مثال: دالتون استور" : "e.g. Daltoon Store"
+                  translateText("e.g. Daltoon Store", "مثال: دالتون استور", lang)
                 }
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm w-full text-white font-medium focus:ring-1 focus:ring-indigo-500"
                 value={botNickname}
                 onChange={(e) => setBotNickname(e.target.value)}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {lang === "fa"
-                  ? "این نام در پیام‌های ربات (مثل خوش‌آمدگویی یا خرید) جایگزین متغیر {nickname} می‌شود."
-                  : "This name replaces the {nickname} variable in bot messages."}
+                {translateText("This name replaces the {nickname} variable in bot messages.", "این نام در پیام‌های ربات (مثل خوش‌آمدگویی یا خرید) جایگزین متغیر {nickname} می‌شود.", lang)}
               </p>
             </div>
 
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "واحد پول سیستم و ربات (Currency)"
-                  : "System & Bot Currency"}
+                {translateText("System & Bot Currency", "واحد پول سیستم و ربات (Currency)", lang)}
               </label>
               <input
                 type="text"
                 required
-                placeholder={lang === "fa" ? "مثال: تومان، ریال، USD, TL" : "e.g. Toman, USD, TL"}
+                placeholder={translateText("e.g. Toman, USD, TL", "مثال: تومان، ریال، USD, TL", lang)}
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white font-medium focus:ring-1 focus:ring-indigo-500"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {lang === "fa"
-                  ? "تمام مبالغ، فاکتورها، گزارش‌های درآمد و شبیه‌سازهای ربات با این واحد پول پردازش و نمایش داده می‌شوند."
-                  : "All amounts, invoices, revenue metrics, and bot simulators will use and display this currency."}
+                {translateText("All amounts, invoices, revenue metrics, and bot simulators will use and display this currency.", "تمام مبالغ، فاکتورها، گزارش‌های درآمد و شبیه‌سازهای ربات با این واحد پول پردازش و نمایش داده می‌شوند.", lang)}
               </p>
             </div>
 
@@ -1525,9 +1445,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "📢 آیدی کانال تلگرام (مثال: @example_channel)"
-                  : "📢 Telegram Channel ID (e.g., @example_channel)"}
+                {translateText("📢 Telegram Channel ID (e.g., @example_channel)", "📢 آیدی کانال تلگرام (مثال: @example_channel)", lang)}
               </label>
               <input
                 type="text"
@@ -1540,9 +1458,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)"
-                  : "👤 Technical Support Handle (e.g., @example_owner)"}
+                {translateText("👤 Technical Support Handle (e.g., @example_owner)", "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)", lang)}
               </label>
               <input
                 type="text"
@@ -1560,7 +1476,7 @@ export default function SettingsPanel({
               <div className="flex items-center gap-2 bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-emerald-400 font-semibold font-mono">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span>
-                  {lang === "fa" ? "فعال و آنلاین" : "Active / Online"}
+                  {translateText("Active / Online", "فعال و آنلاین", lang)}
                 </span>
               </div>
             </div>
@@ -1570,14 +1486,10 @@ export default function SettingsPanel({
                 <div>
                   <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                     <Power className="w-4 h-4 text-indigo-400" />
-                    {lang === "fa"
-                      ? "هشدار خودکار اتمام حجم/زمان"
-                      : "Auto Usage/Time Warning"}
+                    {translateText("Auto Usage/Time Warning", "هشدار خودکار اتمام حجم/زمان", lang)}
                   </h4>
                   <p className="text-xs text-gray-400 mt-1">
-                    {lang === "fa"
-                      ? "ربات به صورت خودکار در صورتی که کمتر از ۱ گیگابایت یا ۱ روز از طرح کاربر باقی مانده باشد، پیامی جهت تمدید ارسال خواهد کرد."
-                      : "Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains."}
+                    {translateText("Bot automatically alerts users when less than 1 GB or 1 Day of their plan remains.", "ربات به صورت خودکار در صورتی که کمتر از ۱ گیگابایت یا ۱ روز از طرح کاربر باقی مانده باشد، پیامی جهت تمدید ارسال خواهد کرد.", lang)}
                   </p>
                 </div>
 
@@ -1607,14 +1519,10 @@ export default function SettingsPanel({
                 <div>
                   <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                     <Power className="w-4 h-4 text-indigo-400" />
-                    {lang === "fa"
-                      ? "اخطار عدم اتصال پس از ۱ روز"
-                      : "No Connection Alert (1 Day)"}
+                    {translateText("No Connection Alert (1 Day)", "اخطار عدم اتصال پس از ۱ روز", lang)}
                   </h4>
                   <p className="text-xs text-gray-400 mt-1">
-                    {lang === "fa"
-                      ? "در صورتی که روز بعد از خرید، کاربر هنوز حجمی مصرف نکرده باشد، پیگیری ربات فعال می‌شود."
-                      : "Bot will alert the user if they haven't connected 1 day after getting their subscription."}
+                    {translateText("Bot will alert the user if they haven't connected 1 day after getting their subscription.", "در صورتی که روز بعد از خرید، کاربر هنوز حجمی مصرف نکرده باشد، پیگیری ربات فعال می‌شود.", lang)}
                   </p>
                 </div>
 
@@ -1646,14 +1554,10 @@ export default function SettingsPanel({
                 <div>
                   <h4 className="text-sm font-semibold text-white flex items-center gap-2">
                     <Power className="w-4 h-4 text-indigo-400" />
-                    {lang === "fa"
-                      ? "اطلاع رسانی اولین اتصال"
-                      : "First Connection Alert"}
+                    {translateText("First Connection Alert", "اطلاع رسانی اولین اتصال", lang)}
                   </h4>
                   <p className="text-xs text-gray-400 mt-1">
-                    {lang === "fa"
-                      ? "هنگامی که کاربر برای اولین بار با موفقیت به کانفیگ متصل شود، پیام خوش آمدگویی و لینک اشتراک برای او ارسال می شود."
-                      : "When a user connects successfully for the first time, they receive an alert with their sub link."}
+                    {translateText("When a user connects successfully for the first time, they receive an alert with their sub link.", "هنگامی که کاربر برای اولین بار با موفقیت به کانفیگ متصل شود، پیام خوش آمدگویی و لینک اشتراک برای او ارسال می شود.", lang)}
                   </p>
                 </div>
 
@@ -1690,23 +1594,17 @@ export default function SettingsPanel({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
           <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
             <Lock className="w-5 h-5 text-indigo-400" />
-            {lang === "fa"
-              ? "امنیت داشبورد و کنترل ادمین‌ها"
-              : "Dashboard Security & Admins Control"}
+            {translateText("Dashboard Security & Admins Control", "امنیت داشبورد و کنترل ادمین‌ها", lang)}
           </h3>
           <p className="text-xs text-gray-400">
-            {lang === "fa"
-              ? "نام کاربری، رمز عبور ورود، پورت اجرایی سرور و ادمین‌های مجاز بات دالتون را تنظیم نمایید:"
-              : "Set dashboard login, server listening port, and registered Telegram bot/dashboard sub-admins:"}
+            {translateText("Set dashboard login, server listening port, and registered Telegram bot/dashboard sub-admins:", "نام کاربری، رمز عبور ورود، پورت اجرایی سرور و ادمین‌های مجاز بات دالتون را تنظیم نمایید:", lang)}
           </p>
 
           {/* Main Credentials & Port Row */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-b border-gray-800 pb-5">
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "نام کاربری ورود داشبورد"
-                  : "Dashboard Login User"}
+                {translateText("Dashboard Login User", "نام کاربری ورود داشبورد", lang)}
               </label>
               <input
                 type="text"
@@ -1719,9 +1617,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "رمز عبور ورود داشبورد"
-                  : "Dashboard Login Pass"}
+                {translateText("Dashboard Login Pass", "رمز عبور ورود داشبورد", lang)}
               </label>
               <input
                 type="password"
@@ -1734,7 +1630,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa" ? "پورت سرور لینوکس" : "Linux Server Port"}
+                {translateText("Linux Server Port", "پورت سرور لینوکس", lang)}
               </label>
               <input
                 type="number"
@@ -1750,17 +1646,13 @@ export default function SettingsPanel({
                 }
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
-                {lang === "fa"
-                  ? "تغییر پورت پس از اجرای مجدد."
-                  : "Requires restart."}
+                {translateText("Requires restart.", "تغییر پورت پس از اجرای مجدد.", lang)}
               </span>
             </div>
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "رفرش خودکار داشبورد (ثانیه)"
-                  : "Auto Refresh (Seconds)"}
+                {translateText("Auto Refresh (Seconds)", "رفرش خودکار داشبورد (ثانیه)", lang)}
               </label>
               <input
                 type="number"
@@ -1775,7 +1667,7 @@ export default function SettingsPanel({
                 }
               />
               <span className="text-[10px] text-gray-500 mt-1 block">
-                {lang === "fa" ? "صفر یعنی غیرفعال" : "0 means disabled"}
+                {translateText("0 means disabled", "صفر یعنی غیرفعال", lang)}
                 {autoRefreshInterval !== "" &&
                   Number(autoRefreshInterval) > 0 &&
                   typeof autoRefreshInterval === "number" && (
@@ -1792,26 +1684,20 @@ export default function SettingsPanel({
           {/* Admin Management Section */}
           <div className="space-y-4 pt-2">
             <h4 className="text-sm font-semibold text-gray-300">
-              {lang === "fa"
-                ? "👥 مدیریت ادمین‌های بات و دالتون بات"
-                : "👥 Manage Bot & Dashboard Admins"}
+              {translateText("👥 Manage Bot & Dashboard Admins", "👥 مدیریت ادمین‌های بات و دالتون بات", lang)}
             </h4>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
               {/* Add form */}
               <div className="lg:col-span-5 bg-[#0b101d] border border-gray-800/60 p-4 rounded-xl space-y-3.5">
                 <span className="text-xs font-bold text-gray-400 flex items-center gap-1.5 uppercase tracking-wider">
-                  {lang === "fa"
-                    ? "👤 ثبت ادمین جدید"
-                    : "👤 Register New Admin"}
+                  {translateText("👤 Register New Admin", "👤 ثبت ادمین جدید", lang)}
                 </span>
 
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
-                      {lang === "fa"
-                        ? "نام کاربری ادمین (بدون @)"
-                        : "Admin Username (No @)"}
+                      {translateText("Admin Username (No @)", "نام کاربری ادمین (بدون @)", lang)}
                     </label>
                     <input
                       type="text"
@@ -1824,9 +1710,7 @@ export default function SettingsPanel({
 
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
-                      {lang === "fa"
-                        ? "شناسه عددی تلگرام ادمین"
-                        : "Telegram User ID"}
+                      {translateText("Telegram User ID", "شناسه عددی تلگرام ادمین", lang)}
                     </label>
                     <input
                       type="text"
@@ -1839,7 +1723,7 @@ export default function SettingsPanel({
 
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
-                      {lang === "fa" ? "سطح دسترسی" : "Admin Privilege Role"}
+                      {translateText("Admin Privilege Role", "سطح دسترسی", lang)}
                     </label>
                     <select
                       className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white outline-none cursor-pointer"
@@ -1851,10 +1735,10 @@ export default function SettingsPanel({
                       }
                     >
                       <option value="admin">
-                        {lang === "fa" ? "ادمین معمولی" : "General Admin"}
+                        {translateText("General Admin", "ادمین معمولی", lang)}
                       </option>
                       <option value="super_admin">
-                        {lang === "fa" ? "سوپر ادمین" : "Super Admin"}
+                        {translateText("Super Admin", "سوپر ادمین", lang)}
                       </option>
                     </select>
                   </div>
@@ -1865,9 +1749,7 @@ export default function SettingsPanel({
                     className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition text-xs shadow-md cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
-                    {lang === "fa"
-                      ? "افزودن به لیست ادمین‌ها"
-                      : "Add to Admins List"}
+                    {translateText("Add to Admins List", "افزودن به لیست ادمین‌ها", lang)}
                   </button>
                 </div>
               </div>
@@ -1877,9 +1759,7 @@ export default function SettingsPanel({
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-gray-400 flex justify-between items-center uppercase tracking-wider">
                     <span>
-                      {lang === "fa"
-                        ? "لیست ادمین‌های فعال"
-                        : "Registered Admins List"}
+                      {translateText("Registered Admins List", "لیست ادمین‌های فعال", lang)}
                     </span>
                     <span className="bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded text-[10px] font-mono">
                       {adminsList.length}
@@ -1918,9 +1798,7 @@ export default function SettingsPanel({
                                 isOpen: true,
                                 action: () => handleRemoveAdmin(adm.id),
                                 message:
-                                  lang === "fa"
-                                    ? "آیا از حذف این ادمین اطمینان دارید؟"
-                                    : "Are you sure you want to delete this admin?",
+                                  translateText("Are you sure you want to delete this admin?", "آیا از حذف این ادمین اطمینان دارید؟", lang),
                               })
                             }
                             className="text-rose-400 hover:text-white hover:bg-rose-500/15 p-1 rounded transition cursor-pointer shrink-0"
@@ -1942,26 +1820,20 @@ export default function SettingsPanel({
         <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-xl space-y-4">
           <h3 className="font-display font-medium text-lg text-white flex items-center gap-2">
             <Activity className="w-5 h-5 text-indigo-400" />
-            {lang === "fa"
-              ? "درگاه‌های پرداخت الکترونیک و سرویس‌ها"
-              : "Electronic Gateways & Services"}
+            {translateText("Electronic Gateways & Services", "درگاه‌های پرداخت الکترونیک و سرویس‌ها", lang)}
           </h3>
           <p className="text-xs text-gray-400">
-            {lang === "fa"
-              ? "مدیریت حرفه‌ای کلیدهای پرداخت ارزی، کریپتو و تنظیمات اتوماسیون (تمامی کلیدها به صورت امن نگهداری می‌شوند)."
-              : "Professional management of crypto keys and automation mechanisms."}
+            {translateText("Professional management of crypto keys and automation mechanisms.", "مدیریت حرفه‌ای کلیدهای پرداخت ارزی، کریپتو و تنظیمات اتوماسیون (تمامی کلیدها به صورت امن نگهداری می‌شوند).", lang)}
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "آدرس کیف پول Plisio (تتر TRC20/TON)"
-                  : "Plisio Wallet Base"}
+                {translateText("Plisio Secret Key (API)", "کد امنیتی Plisio (API Key)", lang)}
               </label>
               <input
                 type="text"
-                placeholder="TXABC..."
+                placeholder="API Key..."
                 className="w-full bg-[#1f2937] border border-gray-700/80 rounded-lg p-2.5 text-xs text-indigo-300 focus:ring-1 focus:ring-indigo-500 font-mono"
                 value={gatewayPlisioWallet}
                 onChange={(e) => setGatewayPlisioWallet(e.target.value)}
@@ -1970,9 +1842,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "کد امنیتی NowPayments (API Key)"
-                  : "NowPayments API Key"}
+                {translateText("NowPayments API Key", "کد امنیتی NowPayments (API Key)", lang)}
               </label>
               <input
                 type="text"
@@ -1985,9 +1855,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "کد امنیتی Cryptomus (API Key)"
-                  : "Cryptomus Key"}
+                {translateText("Cryptomus Key", "کد امنیتی Cryptomus (API Key)", lang)}
               </label>
               <input
                 type="password"
@@ -2000,9 +1868,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "نشان تجاری Cryptomus (Merchant ID)"
-                  : "Cryptomus Merchant"}
+                {translateText("Cryptomus Merchant", "نشان تجاری Cryptomus (Merchant ID)", lang)}
               </label>
               <input
                 type="text"
@@ -2015,9 +1881,7 @@ export default function SettingsPanel({
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {lang === "fa"
-                  ? "درگاه پرداخت Heleket (توکن / آدرس)"
-                  : "Heleket Token"}
+                {translateText("Heleket Token", "درگاه پرداخت Heleket (توکن / آدرس)", lang)}
               </label>
               <input
                 type="text"
@@ -2037,9 +1901,7 @@ export default function SettingsPanel({
                   onChange={(e) => setGatewayStarsStatus(e.target.checked)}
                 />
                 <span className="text-xs text-gray-300 font-medium font-sans">
-                  {lang === "fa"
-                    ? "پشتیبانی از درگاه Telegram Stars (ستاره‌های تلگرام)"
-                    : "Enable Gateway: Telegram Stars"}
+                  {translateText("Enable Gateway: Telegram Stars", "پشتیبانی از درگاه Telegram Stars (ستاره‌های تلگرام)", lang)}
                 </span>
               </label>
             </div>
@@ -2059,13 +1921,11 @@ export default function SettingsPanel({
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
             >
               <Plus className="w-4 h-4" />
-              {lang === "fa" ? "افزودن کارت جدید" : "Add New Card"}
+              {translateText("Add New Card", "افزودن کارت جدید", lang)}
             </button>
           </div>
           <p className="text-xs text-gray-400">
-            {lang === "fa" 
-              ? "می‌توانید یک یا چند کارت بانکی را جهت نمایش در پیام کارت به کارت ربات ثبت نمایید." 
-              : "You can register one or multiple bank cards to be displayed in the bot's card-to-card message."}
+            {translateText("You can register one or multiple bank cards to be displayed in the bot's card-to-card message.", "می‌توانید یک یا چند کارت بانکی را جهت نمایش در پیام کارت به کارت ربات ثبت نمایید.", lang)}
           </p>
 
           <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
@@ -2076,14 +1936,14 @@ export default function SettingsPanel({
               >
                 <div className="flex items-center justify-between border-b border-gray-800/50 pb-2">
                   <span className="text-xs font-semibold text-indigo-400">
-                    {lang === "fa" ? `کارت شماره ${index + 1}` : `Card #${index + 1}`}
+                    {translateText("Card #", "کارت شماره ", lang) + (index + 1)}
                   </span>
                   {cardNumbers.length > 1 && (
                     <button
                       type="button"
                       onClick={() => handleRemoveCard(index)}
                       className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-950/20 transition-all"
-                      title={lang === "fa" ? "حذف کارت" : "Remove Card"}
+                      title={translateText("Remove Card", "حذف کارت", lang)}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -2113,7 +1973,7 @@ export default function SettingsPanel({
                       className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500"
                       value={card.bankName || ""}
                       onChange={(e) => handleCardFieldChange(index, "bankName", e.target.value)}
-                      placeholder={lang === "fa" ? "مثلا ملی، سامان" : "e.g., Melli, Saman"}
+                      placeholder={translateText("e.g., Melli, Saman", "مثلا ملی، سامان", lang)}
                     />
                   </div>
 
@@ -2126,7 +1986,7 @@ export default function SettingsPanel({
                       className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2 text-sm text-white focus:ring-1 focus:ring-indigo-500"
                       value={card.holder || ""}
                       onChange={(e) => handleCardFieldChange(index, "holder", e.target.value)}
-                      placeholder={lang === "fa" ? "نام و نام خانوادگی صاحب کارت" : "Cardholder full name"}
+                      placeholder={translateText("Cardholder full name", "نام و نام خانوادگی صاحب کارت", lang)}
                     />
                   </div>
                 </div>
@@ -2140,9 +2000,7 @@ export default function SettingsPanel({
           <div className="flex items-center gap-2">
             <Database className="w-4 h-4 text-gray-500" />
             <span className="text-[10px] uppercase font-mono text-gray-500">
-              {lang === "fa"
-                ? "دیتابیس درگاه محلی: SQLite 'Daltoon_Bot.db'"
-                : "Local Cache DB: SQLite 'Daltoon_Bot.db'"}
+              {translateText("Local Cache DB: SQLite 'Daltoon_Bot.db'", "دیتابیس درگاه محلی: SQLite 'Daltoon_Bot.db'", lang)}
             </span>
           </div>
 

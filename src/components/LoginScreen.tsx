@@ -1,3 +1,4 @@
+import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useEffect } from "react";
 import {
   Lock,
@@ -11,7 +12,6 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
-import { Language } from "../locales";
 
 interface LoginScreenProps {
   onLoginSuccess: () => void;
@@ -96,7 +96,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       rememberMe: "تذكرني",
     },
     ru: {
-      title: "Панель управления Daltoon",
+      title: "Панель управления Daltoon Bot",
       subtitle: "Пожалуйста, введите учетные данные администратора",
       usernameLabel: "Имя пользователя",
       passwordLabel: "Пароль",
@@ -184,9 +184,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       }
     } catch (err) {
       setError(
-        lang === "fa"
-          ? "خطا در برقراری ارتباط با سرور."
-          : "Could not reach full-stack server.",
+        translateText("Could not reach full-stack server.", "خطا در برقراری ارتباط با سرور.", lang),
       );
     } finally {
       setLoading(false);
@@ -196,7 +194,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   return (
     <div
       className="min-h-screen bg-[#030305] text-gray-100 flex flex-col items-center justify-center py-10 px-4 gap-6 relative overflow-hidden select-none font-sans"
-      dir={lang === "fa" ? "rtl" : "ltr"}
+      dir={translateText("ltr", "rtl", lang)}
     >
       {/* Background Decorative Grids and Glowing Orbs */}
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-purple-600/5 rounded-full blur-[120px] pointer-events-none pulse-glow-bg"></div>
@@ -287,7 +285,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </label>
             <div className="relative">
               <div
-                className={`absolute inset-y-0 ${lang === "fa" ? "right-3" : "left-3"} flex items-center pointer-events-none text-gray-400`}
+                className={`absolute inset-y-0 ${translateText("left-3", "right-3", lang)} flex items-center pointer-events-none text-gray-400`}
               >
                 <User className="w-4 h-4" />
               </div>
@@ -298,7 +296,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder={t.usernamePl}
                 className={`w-full bg-black/40 border border-white/5 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 py-2.5 ${
-                  lang === "fa" ? "pr-10 pl-4" : "pl-10 pr-4"
+                  translateText("pl-10 pr-4", "pr-10 pl-4", lang)
                 } rounded-xl text-sm font-medium font-mono placeholder:text-gray-500 text-gray-100 outline-none transition`}
               />
             </div>
@@ -310,7 +308,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </label>
             <div className="relative">
               <div
-                className={`absolute inset-y-0 ${lang === "fa" ? "right-3" : "left-3"} flex items-center pointer-events-none text-gray-400`}
+                className={`absolute inset-y-0 ${translateText("left-3", "right-3", lang)} flex items-center pointer-events-none text-gray-400`}
               >
                 <KeyRound className="w-4 h-4" />
               </div>
@@ -321,13 +319,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={t.passwordPl}
                 className={`w-full bg-black/40 border border-white/5 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 py-2.5 ${
-                  lang === "fa" ? "pr-10 pl-11" : "pl-10 pr-11"
+                  translateText("pl-10 pr-11", "pr-10 pl-11", lang)
                 } rounded-xl text-sm font-medium font-mono text-gray-100 outline-none transition`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className={`absolute inset-y-0 ${lang === "fa" ? "left-3" : "right-3"} flex items-center text-gray-400 hover:text-purple-400 transition cursor-pointer`}
+                className={`absolute inset-y-0 ${translateText("right-3", "left-3", lang)} flex items-center text-gray-400 hover:text-purple-400 transition cursor-pointer`}
               >
                 {showPassword ? (
                   <EyeOff className="w-4 h-4" />
@@ -389,9 +387,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
 
         <div className="mt-8 pt-4 border-t border-white/5 text-center space-y-2">
           <p className="text-[10px] text-gray-500 font-mono">
-            {lang === "fa"
-              ? "رمز عبور و یوزرهای ادمین را با استفاده از دستور daltoon-dashboard بازیابی کنید."
-              : "Modify credentials or add sub-admins anytime using the daltoon-dashboard server tool."}
+            {translateText("Modify credentials or add sub-admins anytime using the daltoon-dashboard server tool.", "رمز عبور و یوزرهای ادمین را با استفاده از دستور daltoon-dashboard بازیابی کنید.", lang)}
           </p>
         </div>
       </div>

@@ -41,7 +41,7 @@ import {
   Ticket,
 } from "./types";
 
-import { Language, translations } from "./locales";
+import { Language, translations } from "./lang/locales";
 import {
   initialSettings,
   initialInbounds,
@@ -1018,7 +1018,7 @@ export default function App() {
     setIsSidebarOpen(false);
   }, [activeTab]);
 
-  const t = translations[lang];
+  const t = { ...translations.en, ...translations[lang] };
 
   const _unusedAppTrans = {
     updating: {
