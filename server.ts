@@ -408,24 +408,30 @@ function startPythonBot() {
     process.env.pm_id !== undefined ||
     process.env.name === "daltoon-store";
 
+  // Check if we should use PM2 by checking if daltoon-bot exists in PM2
   if (isPM2) {
-    console.log(
-      "[Bot Manager] Running in PM2 environment. Delegating bot restart to PM2 daemon to avoid duplicate polling conflicts...",
-    );
-    exec("pm2 restart daltoon-bot", (err, stdout, stderr) => {
-      if (err) {
-        console.error(
-          "[Bot Manager] Failed to restart daltoon-bot via PM2:",
-          err.message,
-        );
+    exec("pm2 info daltoon-bot", (infoErr) => {
+      if (!infoErr) {
+        console.log("[Bot Manager] Delegating bot restart to PM2 daemon...");
+        exec("pm2 restart daltoon-bot", (err) => {
+          if (err) {
+            console.error("[Bot Manager] Failed to restart daltoon-bot via PM2:", err.message);
+          } else {
+            console.log("[Bot Manager] daltoon-bot restarted successfully via PM2.");
+          }
+        });
       } else {
-        console.log(
-          "[Bot Manager] daltoon-bot process restarted successfully via PM2.",
-        );
+        console.log("[Bot Manager] PM2 detected but 'daltoon-bot' not found in PM2 list. Spawning internally...");
+        spawnInternalBot();
       }
     });
     return;
   }
+  
+  spawnInternalBot();
+}
+
+function spawnInternalBot() {
 
   if (botProcess) {
     console.log("[Bot Manager] Stopping old Python bot process...");
@@ -5603,12 +5609,47 @@ app.post("/api/system/bot/action", (req, res) => {
   if (!["start", "stop", "restart"].includes(action)) {
     return res.status(400).json({ error: "Invalid action" });
   }
-  exec(`pm2 ${action} daltoon-bot`, (err, stdout, stderr) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
+
+  const isPM2 =
+    process.env.PM2_HOME !== undefined ||
+    process.env.pm_id !== undefined ||
+    process.env.name === "daltoon-store";
+
+  if (isPM2) {
+    exec(`pm2 ${action} daltoon-bot`, (err, stdout, stderr) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      res.json({ success: true, message: `Action ${action} executed via PM2` });
+    });
+  } else {
+    // Non-PM2 environment
+    if (action === "stop" || action === "restart") {
+      if (botProcess) {
+        try {
+          botProcess.kill("SIGKILL");
+          botProcess = null;
+        } catch(e) {}
+      } else {
+        // Try to kill via PID file just in case
+        try {
+          if (fs.existsSync("bot.pid")) {
+            const pid = parseInt(fs.readFileSync("bot.pid", "utf8"));
+            if (pid) process.kill(pid, "SIGKILL");
+          }
+        } catch(e) {}
+      }
     }
-    res.json({ success: true, message: `Action ${action} executed` });
-  });
+    
+    if (action === "start" || action === "restart") {
+      setTimeout(() => {
+        startPythonBot();
+        res.json({ success: true, message: `Action ${action} executed internally` });
+      }, 1000);
+    } else {
+      res.json({ success: true, message: `Action ${action} executed internally` });
+    }
+  }
 });
 
 // 9. System auto-update endpoints
@@ -6051,7 +6092,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Step 6: Restart PM2 processes
         writeLog(`Step 6: Restarting PM2 processes...`);
-        const restartResult = await runCommandAsync("pm2 restart daltoon-store || pm2 restart daltoon-bot || pm2 restart all || true");
+        const restartResult = await runCommandAsync("pm2 restart daltoon-bot; pm2 restart daltoon-store || pm2 restart all || true");
         writeLog(`PM2 restart output:\n${restartResult.stdout}\n${restartResult.stderr}`);
 
         writeLog(`=== Auto-Update Completed Successfully ===`);
