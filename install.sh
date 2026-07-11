@@ -293,7 +293,7 @@ echo -e "${GREEN}Installing Python 3 dependencies...${NC}"
 if ! command -v pip3 &> /dev/null; then
     apt install -y python3-pip || apt install -y python3-setuptools || true
 fi
-pip3 install -U pyTelegramBotAPI python-dotenv requests --break-system-packages || pip install -U pyTelegramBotAPI python-dotenv requests || true
+pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator --break-system-packages || pip install -U pyTelegramBotAPI python-dotenv requests deep_translator || true
 
 # 5.5 Configure Dashboard Credentials
 echo -e "${YELLOW}=== Configure Dashboard Settings ===${NC}"
