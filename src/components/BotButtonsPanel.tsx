@@ -642,16 +642,6 @@ export default function BotButtonsPanel({
                     disabled: hideBtnAiChat,
                     toggleDisabled: () => setHideBtnAiChat(!hideBtnAiChat),
                   },
-                  btnAi: {
-                    label:
-                      lang === "fa"
-                        ? "عنوان دکمه هوش مصنوعی"
-                        : "AI Button Label",
-                    value: btnTextAi,
-                    setter: setBtnTextAi,
-                    disabled: hideBtnAi,
-                    toggleDisabled: () => setHideBtnAi(!hideBtnAi),
-                  },
                   btnColleagues: {
                     label:
                       lang === "fa"

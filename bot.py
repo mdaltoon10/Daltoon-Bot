@@ -386,7 +386,7 @@ def get_config():
             config["HIDE_WALLET"] = bool(panel_cfg["hideWallet"])
 
         config["BUTTONS_ORDER"] = panel_cfg.get("mainButtonsOrder", [
-            "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnAi", "btnInstantSupport", "btnFeedback", "btnReferral"
+            "btnBuyNew", "btnMySubs", "btnGuides", "btnProfile", "btnWallet", "btnSupport", "btnTicketSupport", "btnFreeTest", "btnAiChat", "btnInstantSupport", "btnFeedback", "btnReferral"
         ])
 
         if panel_cfg.get("serverPort"):
@@ -3252,7 +3252,6 @@ def get_custom_keyboard():
     if "btnReferral" not in order: order.append("btnReferral")
     if "btnColleagues" not in order: order.append("btnColleagues")
     if "btnAiChat" not in order: order.append("btnAiChat")
-    if "btnAi" not in order: order.append("btnAi")
     if "btnTicketSupport" not in order: order.append("btnTicketSupport")
 
     for key in order:
@@ -3261,7 +3260,6 @@ def get_custom_keyboard():
         elif key == "btnGuides" and not cfg.get("HIDE_GUIDES", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
         elif key == "btnColleagues" and not cfg.get("HIDE_COLLEAGUES", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"), callback_data="mm_btnColleagues"))
         elif key == "btnAiChat" and not cfg.get("HIDE_AI_CHAT", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"), callback_data="mm_btnAiChat"))
-        elif key == "btnAi" and not cfg.get("HIDE_AI", True): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_AI", "🧠 هوش مصنوعی"), callback_data="mm_btnAi"))
         elif key == "btnProfile" and not cfg.get("HIDE_PROFILE", False) and not cfg.get("HIDE_BUY", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_PROFILE", "👤 حساب کاربری"), callback_data="mm_btnProfile"))
         elif key == "btnWallet" and not cfg.get("HIDE_WALLET", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_WALLET", "شارژ کیف پول 💳"), callback_data="mm_btnWallet"))
         elif key == "btnSupport" and not cfg.get("HIDE_SUPPORT", False): buttons.append(types.InlineKeyboardButton(cfg.get("BTN_SUPPORT", "📞 پشتیبانی"), callback_data="mm_btnSupport"))
@@ -3797,25 +3795,6 @@ def handle_main_menu_callback(call):
                 reply_markup=get_cancel_keyboard()
             )
         bot.register_next_step_handler(message, process_ai_support)
-        return
-
-    elif action == "mm_btnAi":
-        try:
-            msg = bot.edit_message_text(
-                "🧠 <b>هوش مصنوعی فعال شد!</b>\n\nهر سوالی دارید بپرسید تا هوش مصنوعی پاسخ دهد:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
-                chat_id=message.chat.id,
-                message_id=message.message_id,
-                parse_mode="HTML",
-                reply_markup=get_cancel_keyboard()
-            )
-        except Exception:
-            msg = bot.send_message(
-                message.chat.id,
-                "🧠 <b>هوش مصنوعی فعال شد!</b>\n\nهر سوالی دارید بپرسید تا هوش مصنوعی پاسخ دهد:\n(جهت خروج کلمه «انصراف» را ارسال کنید)",
-                parse_mode="HTML",
-                reply_markup=get_cancel_keyboard()
-            )
-        bot.register_next_step_handler(message, process_ai_general)
         return
 
     elif action == "mm_btnBuyNew" or action == "mm_btnBuy":
