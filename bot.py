@@ -37,6 +37,11 @@ import sys
 import logging
 import urllib.parse
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 # Shared Database file path (script-relative for reliable CWD-independent execution)
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def get_db_path():
