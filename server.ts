@@ -1806,7 +1806,7 @@ app.post("/api/ai/chat", async (req, res) => {
       console.log(
         `[AI Chat] Making direct Google Gemini API call (isSupport: ${isSupport})`,
       );
-      const ai = new GoogleGenAI({ apiKey: apiKeyToUse, ...(finalBaseUrl ? { baseUrl: finalBaseUrl } : {}) });
+      const ai = new GoogleGenAI({ apiKey: apiKeyToUse, ...(finalBaseUrl ? { httpOptions: { baseUrl: finalBaseUrl } } : {}) });
 
       const modelName = finalModelName || "gemini-1.5-flash";
       
@@ -1966,7 +1966,7 @@ app.post("/api/ai/test-key", async (req, res) => {
       console.log(`[AI Key Test] Testing direct Gemini API key`);
       const ai = new GoogleGenAI({
         apiKey: trimmedKey,
-        ...(finalBaseUrl ? { baseUrl: finalBaseUrl } : {})
+        ...(finalBaseUrl ? { httpOptions: { baseUrl: finalBaseUrl } } : {})
       });
 
       const model = finalModelName || "gemini-1.5-flash";
