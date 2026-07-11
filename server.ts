@@ -1910,6 +1910,11 @@ app.post("/api/ai/chat", async (req, res) => {
   } catch (error: any) {
     console.error("[AI Chat API Error]:", error);
     let errMsg = error.message || "Failed to generate AI response.";
+    
+    // Sanitize HTML errors
+    if (errMsg.toLowerCase().includes("<!doctype") || errMsg.toLowerCase().includes("<html")) {
+      errMsg = "خطای ارتباط با سرور هوش مصنوعی (Forbidden/Proxy Error). لطفاً آدرس Base URL یا وضعیت شبکه را بررسی کنید.";
+    }
 
     if (errMsg.startsWith("{")) {
       try {
