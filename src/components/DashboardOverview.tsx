@@ -1,5 +1,5 @@
 import { translateText, Language, translations } from "../lang/locales";
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { InboundInfo, Transaction, PanelSettings } from "../types";
 import SystemResourceMonitor from "./SystemResourceMonitor";
 import SystemHealthAssessment from "./SystemHealthAssessment";

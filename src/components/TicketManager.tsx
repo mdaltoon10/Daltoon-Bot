@@ -1,3 +1,4 @@
+import { translateText } from "../lang/locales";
 import React, { useState } from "react";
 import { MessageSquare, Check, X, Send, Search, Clock, Shield, AlertCircle, Trash2, ArrowRight } from "lucide-react";
 import { Ticket } from "../types";

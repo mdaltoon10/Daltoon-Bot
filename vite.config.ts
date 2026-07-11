@@ -12,18 +12,26 @@ export default defineConfig(() => {
       },
     },
     server: {
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: {
         ignored: [
           '**/storage/**',
           '**/*.log',
+          '*.log',
+          'bot_dev.log',
+          'bot.pid',
+          '**/*.pid',
+          '**/*-wal',
+          '**/*-shm',
+          '*.db-wal',
+          '*.db-shm',
           '**/Daltoon_Bot.json',
           '**/database.json',
           '**/*.json',
           '**/*.db',
+          '*.db',
           '**/*.sqlite',
+          '*.sqlite',
           'Daltoon_Bot.json',
           'database.json',
           'package.json',
