@@ -13,3 +13,5 @@ Daltoon_Bot.db
 Daltoon_Bot.db-shm
 Daltoon_Bot.db-wal
 Daltoon_Bot.json
+*.pid
+bot.pid
