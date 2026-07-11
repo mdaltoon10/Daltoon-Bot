@@ -443,13 +443,6 @@ export const dynamicDictionary: Record<string, Partial<Record<Language, string>>
     "tr": "Yanıtla",
     "es": "Responder"
 },
-  "Closed": {
-    "fa": "بسته",
-    "ar": "مغلق",
-    "ru": "Закрыт",
-    "tr": "Kapalı",
-    "es": "Cerrado"
-},
   "No support tickets found.": {
     "fa": "هیچ تیکتی پیدا نشد.",
     "ar": "لم يتم العثور على أي تذاكر دعم.",
