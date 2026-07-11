@@ -981,7 +981,7 @@ export default function BotSimulator({
     else if (text === (settings?.btnTextWallet || t.btnWallet) || text === "💳 شارژ کیف پول" || text.includes("شارژ") || text.includes("Wallet") || text === "💵 کیف پول + شارژ" || text.includes("کیف پول")) {
       if (lang === "fa") {
         addBotReply(
-          `💳 <b>بخش شارژ و افزایش موجودی کیف پول دالتون:</b>\n\n💰 موجودی فعلی: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>\n\nلطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\nپس از انتخاب، اطلاعات پرداخت مرتبط با آن برای شما فرستاده می‌شود.`,
+          `💳 <b>بخش شارژ و افزایش موجودی کیف پول ${settings?.botNickname || 'دالتون'}:</b>\n\n💰 موجودی فعلی: <b>${currentUser.walletBalance.toLocaleString()} تومان</b>\n\nلطفاً مبلغی که مایل هستید جهت شارژ واریز کنید را از دکمه‌های زیر انتخاب نمایید:\nپس از انتخاب، اطلاعات پرداخت مرتبط با آن برای شما فرستاده می‌شود.`,
           800,
           undefined,
           [
@@ -1260,8 +1260,9 @@ export default function BotSimulator({
     }
 
     if (action === "btn_direct_support") {
+      const handle = settings?.supportHandle || "@daltoon_owner";
       addBotReply(
-        translateText("💬 Send a message to <b>@daltoon_support</b> on Telegram for direct support assistance.", "💬 جهت گفتگوی مستقیم تلگرام به آیدی <b>@daltoon_support</b> پیام دهید. تیم ما پس از بررسی پیام شما، فوراً گفتگو را آغاز خواهد کرد.", lang),
+        translateText(`💬 Send a message to <b>${handle}</b> on Telegram for direct support assistance.`, `💬 جهت گفتگوی مستقیم تلگرام به آیدی <b>${handle}</b> پیام دهید. تیم ما پس از بررسی پیام شما، فوراً گفتگو را آغاز خواهد کرد.`, lang),
         500,
         getKeyboard()
       );

@@ -1134,7 +1134,7 @@ export default function SettingsPanel({
                 rows={3}
                 className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500 font-sans"
                 placeholder={
-                  translateText("e.g., Please sub to our channel to unlock the bot's features!", "مثلا: کاربر گرامی، برای استفاده از ربات لطفا ابتدا در کانال رسمی دالتون عضو شوید.", lang)
+                  translateText("e.g., Please sub to our channel to unlock the bot's features!", "مثلا: کاربر گرامی، برای استفاده از ربات لطفا ابتدا در کانال رسمی ما عضو شوید.", lang)
                 }
                 value={mandatoryJoinText}
                 onChange={(e) => setMandatoryJoinText(e.target.value)}
@@ -1418,7 +1418,7 @@ export default function SettingsPanel({
               <input
                 type="text"
                 placeholder={
-                  translateText("e.g. Daltoon Store", "مثال: دالتون استور", lang)
+                  translateText("e.g. My Proxy Store", "مثال: فروشگاه پروکسی من", lang)
                 }
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm w-full text-white font-medium focus:ring-1 focus:ring-indigo-500"
                 value={botNickname}

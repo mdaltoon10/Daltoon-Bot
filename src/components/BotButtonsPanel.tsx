@@ -898,7 +898,7 @@ export default function BotButtonsPanel({
                   <textarea
                     rows={5}
                     placeholder={
-                      translateText("Hello! Here is your quick configuration...", "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-daltoon...", lang)
+                      translateText("Hello! Here is your quick configuration...", "سلام! جهت دریافت سرویس تست دکمه فعال شد:\nvless://test-configs-vpn...", lang)
                     }
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none leading-relaxed font-sans"
                     value={btnReplyText}
@@ -1118,7 +1118,7 @@ export default function BotButtonsPanel({
                     rows={3}
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-200 focus:ring-1 focus:ring-indigo-500 font-mono"
                     placeholder={
-                      translateText("e.g. 📢 Follow our new channel: @Daltoon_Store", "مثال: 📢 آدرس جدید کانال ما را حتما دنبال کنید: @Daltoon_Store", lang)
+                      translateText("e.g. 📢 Follow our new channel: @My_New_Channel", "مثال: 📢 آدرس جدید کانال ما را حتما دنبال کنید: @My_New_Channel", lang)
                     }
                     value={pinnedMessageText}
                     onChange={(e) => setPinnedMessageText(e.target.value)}

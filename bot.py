@@ -8547,8 +8547,10 @@ def handle_master_media_upload(message):
                 media_type = "سند (Document)"
                 
             if file_id:
+                cfg = get_config()
+                nickname = cfg.get("BOT_NICKNAME", "دالتون")
                 reply_txt = (
-                    f"🔑 <b>مکانیزم استخراج شناسه رسانه ربات دالتون</b>\n\n"
+                    f"🔑 <b>مکانیزم استخراج شناسه رسانه ربات {nickname}</b>\n\n"
                     f"📂 نوع فایل ارسالی: <b>{media_type}</b>\n"
                     f"📌 شناسه فایل (File ID):\n"
                     f"<code>{file_id}</code>\n\n"

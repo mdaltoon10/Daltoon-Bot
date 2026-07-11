@@ -574,21 +574,26 @@ app.post("/api/database/reset", async (req, res) => {
 
 // AESTHETIC TELEGRAM WEB APP SUBSCRIPTION COPY CONTAINER
 app.get("/copy", (req, res) => {
+  let botNickname = "دالتون";
   try {
-    // Dynamic host domain auto-detection & registration for Python Bot synchrony
-    const host = req.headers.host;
-    if (host) {
-      const protocol =
-        req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
-      const dynamicUrl = `${protocol}://${host}`;
-      const db = readSqliteDb();
-      if (db.settings) {
-        let pcObj: any = {};
-        if (db.settings.panel_config) {
-          try {
-            pcObj = JSON.parse(db.settings.panel_config);
-          } catch (err) {}
-        }
+    const db = readSqliteDb();
+    if (db.settings) {
+      let pcObj: any = {};
+      if (db.settings.panel_config) {
+        try {
+          pcObj = JSON.parse(db.settings.panel_config);
+          if (pcObj.botNickname) {
+            botNickname = pcObj.botNickname;
+          }
+        } catch (err) {}
+      }
+      
+      // Dynamic host domain auto-detection & registration for Python Bot synchrony
+      const host = req.headers.host;
+      if (host) {
+        const protocol =
+          req.headers["x-forwarded-proto"] || (req.secure ? "https" : "http");
+        const dynamicUrl = `${protocol}://${host}`;
         if (pcObj.botWebUrl !== dynamicUrl) {
           pcObj.botWebUrl = dynamicUrl;
           db.settings.panel_config = JSON.stringify(pcObj);
@@ -597,7 +602,7 @@ app.get("/copy", (req, res) => {
       }
     }
   } catch (err) {
-    console.error("[Dynamic Host Save Failed]", err);
+    console.error("[Dynamic Host/Nickname Load Failed]", err);
   }
 
   const link = (req.query.link as string) || "";
@@ -608,7 +613,7 @@ app.get("/copy", (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>دریافت لینک اتصال دالتون</title>
+    <title>دریافت لینک اتصال ${botNickname}</title>
     <!-- Tailwind CSS Play CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Telegram Web App SDK -->
@@ -640,14 +645,14 @@ app.get("/copy", (req, res) => {
     
     <!-- Top Brand Logo Header -->
     <div class="w-full flex flex-col items-center mt-6 z-10 animate-fade-in">
-        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.25)] mb-3">
+         <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-[0_0_20px_rgba(139,92,246,0.25)] mb-3">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
             <path stroke-linecap="round" stroke-linejoin="round" d="M10.172 13.828a4 4 0 015.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
         </div>
-        <h1 class="text-xl font-extrabold text-white tracking-wide">روتر اختصاصی دالتون</h1>
-        <p class="text-[10px] text-indigo-400 mt-1 font-semibold tracking-widest uppercase">Daltoon Subscription Gateway</p>
+        <h1 class="text-xl font-extrabold text-white tracking-wide">روتر اختصاصی ${botNickname}</h1>
+        <p class="text-[10px] text-indigo-400 mt-1 font-semibold tracking-widest uppercase">${botNickname} Subscription Gateway</p>
     </div>
 
     <!-- Main Content Glass Box -->
