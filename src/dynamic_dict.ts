@@ -142,13 +142,6 @@ export const dynamicDictionary: Record<string, Partial<Record<Language, string>>
     "tr": "Yüzde (%)",
     "es": "Porcentaje (%)"
 },
-  "Amount (${currency})": {
-    "fa": "مبلغی (${currency})",
-    "ar": "مبلغ (${currency})",
-    "ru": "Сумма (${currency})",
-    "tr": "Tutar (${currency})",
-    "es": "Cantidad (${currency})"
-},
   "Extension (Days)": {
     "fa": "تمدید (روز)",
     "ar": "تمديد (بالأيام)",
@@ -2502,13 +2495,6 @@ export const dynamicDictionary: Record<string, Partial<Record<Language, string>>
     "ru": "Категории планов",
     "tr": "Plan Kategorileri",
     "es": "Categorías de planes"
-  },
-  "Groups like VIP, Standard, etc.": {
-    "fa": "گروه‌های VIP، معمولی و ...",
-    "ar": "مجموعات مثل VIP و Standard وما إلى ذلك.",
-    "ru": "Такие группы, как VIP, Standard и т. д.",
-    "tr": "VIP, Standart vb. gruplar.",
-    "es": "Grupos como VIP, Estándar, etc."
   },
   "Free Test Settings": {
     "fa": "تنظیمات اختصاصی تست رایگان",
