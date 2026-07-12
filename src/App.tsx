@@ -938,6 +938,20 @@ export default function App() {
     }
   }, [isAuthenticated, settings, isNewInstall]);
 
+
+  const handleRestartAll = () => {
+    if (confirm(lang === "fa" ? "آیا از راه‌اندازی مجدد کل سیستم اطمینان دارید؟ (ربات و داشبورد)" : "Are you sure you want to restart the entire system (bot & dashboard)?")) {
+      setToastMessage(curAppT("updateSuccess"));
+      fetch("/api/system/bot/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "restart-all" })
+      }).then(() => {
+        setTimeout(() => window.location.reload(), 4000);
+      });
+    }
+  };
+
   const handleUpdate = () => {
     setShowUpdateConfirm(true);
   };
