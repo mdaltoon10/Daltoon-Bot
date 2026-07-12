@@ -809,202 +809,6 @@ app.get("/api/data", async (req, res) => {
       settings.botToken,
     );
 
-    // REAL-TIME 3X-UI INBOUNDS MONITORING IMPLEMENTATION
-    const activeServers = getActiveServers(settings);
-    if (activeServers.length > 0) {
-      try {
-        let allInbounds: any[] = [];
-        for (const server of activeServers) {
-          const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-          
-          if (server.panelType === "pasarguard") {
-            try {
-              const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
-
-              if (access_token) {
-                const groupsRes = await xuiFetch(
-                  `${cleanedUrl}/api/groups/simple`,
-                  {
-                    method: "GET",
-                    headers: {
-                      Authorization: `Bearer ${access_token}`,
-                      Accept: "application/json"
-                    }
-                  },
-                  5000
-                );
-                
-                if (groupsRes.ok) {
-                  const groupsData = await groupsRes.json();
-                  const pasarguardGroups = (groupsData.groups || []).map((g: any) => ({
-                    id: g.id,
-                    remark: g.name,
-                    port: 0,
-                    protocol: "pasarguard-group",
-                    clientsCount: 0 // Could fetch detailed list to get total_users if needed
-                  }));
-                  allInbounds = allInbounds.concat(pasarguardGroups);
-                }
-              }
-            } catch (e) {
-              console.error("[Sanaei API Sync] Failed to fetch Pasarguard groups", e);
-            }
-          } else if (server.panelType === "rebecca") {
-            try {
-              const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
-
-              if (access_token) {
-                const servicesRes = await xuiFetch(
-                  `${cleanedUrl}/api/v2/services`,
-                  {
-                    method: "GET",
-                    headers: {
-                      Authorization: `Bearer ${access_token}`,
-                      Accept: "application/json"
-                    }
-                  },
-                  5000
-                );
-                
-                if (servicesRes.ok) {
-                  const servicesData = await servicesRes.json();
-                  const rebeccaInbounds = (servicesData.services || []).map((s: any) => ({
-                    id: s.id,
-                    remark: s.name,
-                    port: 0,
-                    protocol: "rebecca-service",
-                    clientsCount: s.user_count || 0
-                  }));
-                  allInbounds = allInbounds.concat(rebeccaInbounds);
-                }
-              }
-            } catch (e) {
-              console.error("[Sanaei API Sync] Failed to fetch Reebeka services", e);
-            }
-          } else {
-            let loginResult = await loginXuiPanel(
-              cleanedUrl,
-              server.panelUsername,
-              server.panelPassword,
-            );
-
-            if (loginResult.success && loginResult.cookie) {
-              const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
-              if (loginResult.csrfToken) {
-                listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
-              }
-              let listRes = await xuiFetch(
-                `${cleanedUrl}/panel/api/inbounds/list`,
-                {
-                  method: "GET",
-                  headers: listHeaders,
-                },
-                5000,
-              );
-
-              // If redirected or HTML received (expired session), clear cache and retry
-              if (listRes.ok) {
-                const contentType = listRes.headers.get("content-type") || "";
-                if (listRes.redirected || contentType.includes("text/html")) {
-                  console.log(`[XUI Cache] Session expired for ${cleanedUrl} in /api/data. Retrying with fresh login...`);
-                  clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
-                  const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
-                  if (freshLogin.success && freshLogin.cookie) {
-                    loginResult = freshLogin;
-                    const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
-                    if (freshLogin.csrfToken) {
-                      freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
-                    }
-                    listRes = await xuiFetch(
-                      `${cleanedUrl}/panel/api/inbounds/list`,
-                      {
-                        method: "GET",
-                        headers: freshHeaders,
-                      },
-                      5000,
-                    );
-                  }
-                }
-              }
-
-              if (listRes.ok) {
-                const listText = await listRes.text();
-                let listJson: any = null;
-                try {
-                  listJson = JSON.parse(listText);
-                } catch (e) {
-                  // If parse failed, it might be HTML from expired session. Try fresh retry once.
-                  console.log(`[XUI Cache] JSON parse failed in /api/data. Retrying with fresh login...`);
-                  clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
-                  const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
-                  if (freshLogin.success && freshLogin.cookie) {
-                    const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
-                    if (freshLogin.csrfToken) {
-                      freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
-                    }
-                    const listResRetry = await xuiFetch(
-                      `${cleanedUrl}/panel/api/inbounds/list`,
-                      {
-                        method: "GET",
-                        headers: freshHeaders,
-                      },
-                      5000,
-                    );
-                    if (listResRetry.ok) {
-                      try {
-                        listJson = await listResRetry.json();
-                      } catch (err2) {}
-                    }
-                  }
-                }
-
-                if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-                  const freshInbounds = listJson.obj.map((item: any) => {
-                    let totalClientsCount = 0;
-                    try {
-                      const settingsObj =
-                        typeof item.settings === "string"
-                          ? JSON.parse(item.settings)
-                          : item.settings;
-                      if (settingsObj && Array.isArray(settingsObj.clients)) {
-                      totalClientsCount = settingsObj.clients.length;
-                    }
-                  } catch (e) {}
-
-                  const usedGb = (
-                    (Number(item.up || 0) + Number(item.down || 0)) /
-                    (1024 * 1024 * 1024)
-                  ).toFixed(1);
-                  const limitGb = item.total
-                    ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
-                    : "unlimited";
-
-                  return {
-                    id: item.id,
-                    remark:
-                      `[${server.name}] ` +
-                      (item.remark || `Inbound #${item.id}`),
-                    protocol: item.protocol || "vless",
-                    port: item.port || 1234,
-                    totalClients: totalClientsCount,
-                    trafficUsed: usedGb,
-                    trafficLimit: limitGb,
-                    status: item.enable ? "active" : "inactive",
-                  };
-                });
-                allInbounds = allInbounds.concat(freshInbounds);
-              }
-            }
-          }
-          }
-        }
-        db.inbounds = allInbounds;
-        writeSqliteDb(db);
-      } catch (e: any) {
-        console.warn("[Background 3x-ui Sync Warning]:", e.message);
-      }
-    }
-
     res.json({
       success: true,
       users: db.users,
@@ -6892,6 +6696,209 @@ async function autoSyncTrafficUsage() {
   }
 }
 
+async function autoSyncInboundsList() {
+  try {
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+    const activeServers = getActiveServers(settings);
+    if (activeServers.length === 0) return;
+
+    let allInbounds: any[] = [];
+    for (const server of activeServers) {
+      const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+      
+      if (server.panelType === "pasarguard") {
+        try {
+          const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
+
+          if (access_token) {
+            const groupsRes = await xuiFetch(
+              `${cleanedUrl}/api/groups/simple`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${access_token}`,
+                  Accept: "application/json"
+                }
+              },
+              5000
+            );
+            
+            if (groupsRes.ok) {
+              const groupsData = await groupsRes.json();
+              const pasarguardGroups = (groupsData.groups || []).map((g: any) => ({
+                id: g.id,
+                remark: `[${server.name}] ` + (g.name || `Group #${g.id}`),
+                port: 0,
+                protocol: "pasarguard-group",
+                clientsCount: 0
+              }));
+              allInbounds = allInbounds.concat(pasarguardGroups);
+            }
+          }
+        } catch (e) {
+          console.error("[Inbounds Sync] Failed to fetch Pasarguard groups", e);
+        }
+      } else if (server.panelType === "rebecca") {
+        try {
+          const access_token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
+
+          if (access_token) {
+            const servicesRes = await xuiFetch(
+              `${cleanedUrl}/api/v2/services`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${access_token}`,
+                  Accept: "application/json"
+                }
+              },
+              5000
+            );
+            
+            if (servicesRes.ok) {
+              const servicesData = await servicesRes.json();
+              const rebeccaInbounds = (servicesData.services || []).map((s: any) => ({
+                id: s.id,
+                remark: `[${server.name}] ` + (s.name || `Service #${s.id}`),
+                port: 0,
+                protocol: "rebecca-service",
+                clientsCount: s.user_count || 0
+              }));
+              allInbounds = allInbounds.concat(rebeccaInbounds);
+            }
+          }
+        } catch (e) {
+          console.error("[Inbounds Sync] Failed to fetch Reebeka services", e);
+        }
+      } else {
+        try {
+          let loginResult = await loginXuiPanel(
+            cleanedUrl,
+            server.panelUsername,
+            server.panelPassword,
+          );
+
+          if (loginResult.success && loginResult.cookie) {
+            const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+            if (loginResult.csrfToken) {
+              listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+            }
+            let listRes = await xuiFetch(
+              `${cleanedUrl}/panel/api/inbounds/list`,
+              {
+                method: "GET",
+                headers: listHeaders,
+              },
+              5000,
+            );
+
+            // If redirected or HTML received (expired session), clear cache and retry
+            if (listRes.ok) {
+              const contentType = listRes.headers.get("content-type") || "";
+              if (listRes.redirected || contentType.includes("text/html")) {
+                clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+                const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+                if (freshLogin.success && freshLogin.cookie) {
+                  loginResult = freshLogin;
+                  const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
+                  if (freshLogin.csrfToken) {
+                    freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                  }
+                  listRes = await xuiFetch(
+                    `${cleanedUrl}/panel/api/inbounds/list`,
+                    {
+                      method: "GET",
+                      headers: freshHeaders,
+                    },
+                    5000,
+                  );
+                }
+              }
+            }
+
+            if (listRes.ok) {
+              const listText = await listRes.text();
+              let listJson: any = null;
+              try {
+                listJson = JSON.parse(listText);
+              } catch (e) {
+                clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+                const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+                if (freshLogin.success && freshLogin.cookie) {
+                  const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
+                  if (freshLogin.csrfToken) {
+                    freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                  }
+                  const listResRetry = await xuiFetch(
+                    `${cleanedUrl}/panel/api/inbounds/list`,
+                    {
+                      method: "GET",
+                      headers: freshHeaders,
+                    },
+                    5000,
+                  );
+                  if (listResRetry.ok) {
+                    try {
+                      listJson = await listResRetry.json();
+                    } catch (err2) {}
+                  }
+                }
+              }
+
+              if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+                const freshInbounds = listJson.obj.map((item: any) => {
+                  let totalClientsCount = 0;
+                  try {
+                    const settingsObj =
+                      typeof item.settings === "string"
+                        ? JSON.parse(item.settings)
+                        : item.settings;
+                    if (settingsObj && Array.isArray(settingsObj.clients)) {
+                      totalClientsCount = settingsObj.clients.length;
+                    }
+                  } catch (e) {}
+
+                  const usedGb = (
+                    (Number(item.up || 0) + Number(item.down || 0)) /
+                    (1024 * 1024 * 1024)
+                  ).toFixed(1);
+                  const limitGb = item.total
+                    ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
+                    : "unlimited";
+
+                  return {
+                    id: item.id,
+                    remark:
+                      `[${server.name}] ` +
+                      (item.remark || `Inbound #${item.id}`),
+                    protocol: item.protocol || "vless",
+                    port: item.port || 1234,
+                    totalClients: totalClientsCount,
+                    trafficUsed: usedGb,
+                    trafficLimit: limitGb,
+                    status: item.enable ? "active" : "inactive",
+                  };
+                });
+                allInbounds = allInbounds.concat(freshInbounds);
+              }
+            }
+          }
+        } catch (serverErr) {
+          console.warn(`[Inbounds Sync] Failed for ${server.name}:`, serverErr);
+        }
+      }
+    }
+
+    const db2 = readSqliteDb();
+    db2.inbounds = allInbounds;
+    writeSqliteDb(db2);
+    console.log(`[Background Inbounds Sync] Updated ${allInbounds.length} inbounds successfully.`);
+  } catch (err: any) {
+    console.error("[Background Inbounds Sync Error]:", err.message);
+  }
+}
+
 async function startServer() {
   // Start the background cron job for auto cleaning expired trials
   setInterval(autoCleanExpiredFreeTrials, 10 * 60 * 1000);
@@ -6900,6 +6907,10 @@ async function startServer() {
   // Start background cron job for auto syncing traffic every 10 seconds
   setInterval(autoSyncTrafficUsage, 10 * 1000);
   setTimeout(autoSyncTrafficUsage, 5000); // Also run shortly after startup
+
+  // Start background cron job for auto syncing inbounds every 15 seconds
+  setInterval(autoSyncInboundsList, 15 * 1000);
+  setTimeout(autoSyncInboundsList, 3000); // Also run shortly after startup
 
   // Start background cron job for auto backup check every minute
   setInterval(checkAutoBackup, 60 * 1000);
