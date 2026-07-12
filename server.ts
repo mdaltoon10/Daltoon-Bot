@@ -6933,30 +6933,32 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
 
-    // Find the current JS file hash to detect clients with old cached index.html
-    let currentJsFile = "";
-    try {
-      const assetsPath = path.join(distPath, "assets");
-      if (fs.existsSync(assetsPath)) {
-        const files = fs.readdirSync(assetsPath);
-        const jsFile = files.find((f: string) => f.startsWith("index-") && f.endsWith(".js"));
-        if (jsFile) currentJsFile = jsFile;
-      }
-    } catch (e) {
-      console.warn("Could not determine current JS file", e);
-    }
-
+    // Dynamic cache-buster: only intercept if the requested index-*.js file does not exist on disk
     app.get("/assets/index-*.js", (req, res, next) => {
        const requestedFile = path.basename(req.path);
-       // If the client is requesting an old JS file because they have a stale index.html cached
-       if (currentJsFile && requestedFile !== currentJsFile && requestedFile.startsWith("index-") && requestedFile.endsWith(".js")) {
-          console.log(`[Cache-Buster] Intercepted request for old JS file: ${requestedFile}. Sending reload script.`);
-          res.setHeader("Content-Type", "application/javascript");
-          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-          return res.send(`
-             console.log("Stale frontend cache detected. Forcing reload...");
-             window.location.href = window.location.pathname + "?bust=" + new Date().getTime();
-          `);
+       const requestedFilePath = path.join(distPath, "assets", requestedFile);
+
+       if (fs.existsSync(requestedFilePath)) {
+         return next();
+       }
+
+       try {
+         const assetsPath = path.join(distPath, "assets");
+         if (fs.existsSync(assetsPath)) {
+           const files = fs.readdirSync(assetsPath);
+           const hasAnyJs = files.some((f: string) => f.startsWith("index-") && f.endsWith(".js"));
+           if (hasAnyJs) {
+             console.log(`[Cache-Buster] Requested old JS file ${requestedFile} which does not exist. Sending reload script.`);
+             res.setHeader("Content-Type", "application/javascript");
+             res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+             return res.send(`
+                console.log("Stale frontend cache detected. Forcing reload...");
+                window.location.href = window.location.pathname + "?bust=" + new Date().getTime();
+             `);
+           }
+         }
+       } catch (e) {
+         console.warn("Error in dynamic cache-buster check", e);
        }
        next();
     });
