@@ -882,7 +882,7 @@ app.get("/api/data", async (req, res) => {
               console.error("[Sanaei API Sync] Failed to fetch Reebeka services", e);
             }
           } else {
-            const loginResult = await loginXuiPanel(
+            let loginResult = await loginXuiPanel(
               cleanedUrl,
               server.panelUsername,
               server.panelPassword,
@@ -893,7 +893,7 @@ app.get("/api/data", async (req, res) => {
               if (loginResult.csrfToken) {
                 listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
               }
-              const listRes = await xuiFetch(
+              let listRes = await xuiFetch(
                 `${cleanedUrl}/panel/api/inbounds/list`,
                 {
                   method: "GET",
@@ -902,8 +902,62 @@ app.get("/api/data", async (req, res) => {
                 5000,
               );
 
+              // If redirected or HTML received (expired session), clear cache and retry
               if (listRes.ok) {
-                const listJson = await listRes.json();
+                const contentType = listRes.headers.get("content-type") || "";
+                if (listRes.redirected || contentType.includes("text/html")) {
+                  console.log(`[XUI Cache] Session expired for ${cleanedUrl} in /api/data. Retrying with fresh login...`);
+                  clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+                  const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+                  if (freshLogin.success && freshLogin.cookie) {
+                    loginResult = freshLogin;
+                    const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
+                    if (freshLogin.csrfToken) {
+                      freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                    }
+                    listRes = await xuiFetch(
+                      `${cleanedUrl}/panel/api/inbounds/list`,
+                      {
+                        method: "GET",
+                        headers: freshHeaders,
+                      },
+                      5000,
+                    );
+                  }
+                }
+              }
+
+              if (listRes.ok) {
+                const listText = await listRes.text();
+                let listJson: any = null;
+                try {
+                  listJson = JSON.parse(listText);
+                } catch (e) {
+                  // If parse failed, it might be HTML from expired session. Try fresh retry once.
+                  console.log(`[XUI Cache] JSON parse failed in /api/data. Retrying with fresh login...`);
+                  clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+                  const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+                  if (freshLogin.success && freshLogin.cookie) {
+                    const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
+                    if (freshLogin.csrfToken) {
+                      freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                    }
+                    const listResRetry = await xuiFetch(
+                      `${cleanedUrl}/panel/api/inbounds/list`,
+                      {
+                        method: "GET",
+                        headers: freshHeaders,
+                      },
+                      5000,
+                    );
+                    if (listResRetry.ok) {
+                      try {
+                        listJson = await listResRetry.json();
+                      } catch (err2) {}
+                    }
+                  }
+                }
+
                 if (listJson && listJson.success && Array.isArray(listJson.obj)) {
                   const freshInbounds = listJson.obj.map((item: any) => {
                     let totalClientsCount = 0;
@@ -2549,17 +2603,42 @@ class CookieJar {
   }
 }
 
+interface XuiSession {
+  cookie: string;
+  csrfToken: string | null;
+  timestamp: number;
+}
+const xuiSessionCache = new Map<string, XuiSession>();
+
+function clearXuiPanelSession(cleanedUrl: string, username: string, password: string) {
+  const cacheKey = `${cleanedUrl}||${username}||${password}`;
+  xuiSessionCache.delete(cacheKey);
+}
+
 // Robust helper to authenticate with XUI panel supporting both classic panels and modern panels requiring GET + CSRF token
 async function loginXuiPanel(
   cleanedUrl: string,
   username: string,
   password: string,
+  forceFresh = false,
 ): Promise<{
   success: boolean;
   cookie: string | null;
   csrfToken?: string | null;
   error?: string;
 }> {
+  const cacheKey = `${cleanedUrl}||${username}||${password}`;
+  if (!forceFresh) {
+    const cached = xuiSessionCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < 20 * 60 * 1000)) { // 20 minutes cache
+      return {
+        success: true,
+        cookie: cached.cookie,
+        csrfToken: cached.csrfToken,
+      };
+    }
+  }
+
   try {
     const jar = new CookieJar();
     let csrfToken = "";
@@ -2657,19 +2736,31 @@ async function loginXuiPanel(
         }
       }
 
+      const finalCookie = jar.getCookieHeaderString();
+      const finalCsrf = postCsrfToken || null;
+
+      xuiSessionCache.set(cacheKey, {
+        cookie: finalCookie,
+        csrfToken: finalCsrf,
+        timestamp: Date.now(),
+      });
+
       return {
         success: true,
-        cookie: jar.getCookieHeaderString(),
-        csrfToken: postCsrfToken || null,
+        cookie: finalCookie,
+        csrfToken: finalCsrf,
       };
     } else {
       const errMsg =
         bodyJson?.msg ||
         `کد خطا: ${loginRes.status}. نام کاربری یا رمز عبور پنل نادرست است.`;
+      
+      xuiSessionCache.delete(cacheKey);
       return { success: false, cookie: null, csrfToken: null, error: errMsg };
     }
   } catch (err: any) {
     console.error(`[Diagnostic] XUI login encountered error:`, err);
+    xuiSessionCache.delete(cacheKey);
     return {
       success: false,
       cookie: null,
@@ -3577,6 +3668,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
       cleanedUrl,
       panelUsername,
       panelPassword,
+      true, // ALWAYS forceFresh for test-connection!
     );
 
     if (loginResult.success && loginResult.cookie) {
@@ -6356,7 +6448,7 @@ async function autoSyncTrafficUsage() {
     for (const server of activeServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-        const loginResult = await loginXuiPanel(
+        let loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
           server.panelPassword,
@@ -6373,14 +6465,56 @@ async function autoSyncTrafficUsage() {
 
         // Try to get clientTraffics API directly for accurate unique stats
         let trafficJson = null;
+        let isSessionExpired = false;
         try {
           const ctRes = await xuiFetch(
             `${cleanedUrl}/panel/api/inbounds/getClientTraffics`,
             { method: "GET", headers },
             8000,
           );
-          if (ctRes.ok) trafficJson = await ctRes.json();
-        } catch (e) {}
+          if (ctRes.ok) {
+            const contentType = ctRes.headers.get("content-type") || "";
+            if (ctRes.redirected || contentType.includes("text/html")) {
+              isSessionExpired = true;
+            } else {
+              const ctText = await ctRes.text();
+              try {
+                trafficJson = JSON.parse(ctText);
+              } catch (e) {
+                isSessionExpired = true; // Parse failed because we received HTML login page
+              }
+            }
+          }
+        } catch (e) {
+          isSessionExpired = true;
+        }
+
+        // If session is expired, clear session cache, get a fresh login, and retry!
+        if (isSessionExpired) {
+          console.log(`[XUI Cache] Session expired for ${cleanedUrl} in autoSyncTrafficUsage. Retrying with fresh login...`);
+          clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+          const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+          if (freshLogin.success && freshLogin.cookie) {
+            loginResult = freshLogin;
+            headers.Cookie = freshLogin.cookie;
+            if (freshLogin.csrfToken) {
+              headers["X-Csrf-Token"] = freshLogin.csrfToken;
+            }
+            try {
+              const ctResRetry = await xuiFetch(
+                `${cleanedUrl}/panel/api/inbounds/getClientTraffics`,
+                { method: "GET", headers },
+                8000,
+              );
+              if (ctResRetry.ok) {
+                const ctTextRetry = await ctResRetry.text();
+                try {
+                  trafficJson = JSON.parse(ctTextRetry);
+                } catch (e) {}
+              }
+            } catch (err2) {}
+          }
+        }
 
         if (
           trafficJson &&
@@ -6410,15 +6544,69 @@ async function autoSyncTrafficUsage() {
           }
         } else {
           // Get all inbounds fallback
-          const inbRes = await xuiFetch(
+          let inbRes = await xuiFetch(
             `${cleanedUrl}/panel/api/inbounds/list`,
             { method: "GET", headers },
             10000,
           );
+
+          // Retry fallback list endpoint if it is redirected or failed with HTML
+          if (inbRes.ok) {
+            const contentType = inbRes.headers.get("content-type") || "";
+            if (inbRes.redirected || contentType.includes("text/html")) {
+              console.log(`[XUI Cache] Session expired on fallback list for ${cleanedUrl}. Retrying with fresh login...`);
+              clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+              const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+              if (freshLogin.success && freshLogin.cookie) {
+                const freshHeaders = {
+                  Cookie: freshLogin.cookie,
+                  Accept: "application/json"
+                };
+                if (freshLogin.csrfToken) {
+                  freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                }
+                inbRes = await xuiFetch(
+                  `${cleanedUrl}/panel/api/inbounds/list`,
+                  { method: "GET", headers: freshHeaders },
+                  10000,
+                );
+              }
+            }
+          }
+
           if (!inbRes.ok) continue;
 
-          const inbJson = await inbRes.json();
-          if (!inbJson.success || !Array.isArray(inbJson.obj)) continue;
+          const inbText = await inbRes.text();
+          let inbJson: any = null;
+          try {
+            inbJson = JSON.parse(inbText);
+          } catch (e) {
+            // Retry list parsing once with fresh login if JSON parse failed
+            console.log(`[XUI Cache] JSON parse failed on fallback list for ${cleanedUrl}. Retrying with fresh login...`);
+            clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
+            const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
+            if (freshLogin.success && freshLogin.cookie) {
+              const freshHeaders = {
+                Cookie: freshLogin.cookie,
+                Accept: "application/json"
+              };
+              if (freshLogin.csrfToken) {
+                freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+              }
+              const inbResRetry = await xuiFetch(
+                `${cleanedUrl}/panel/api/inbounds/list`,
+                { method: "GET", headers: freshHeaders },
+                10000,
+              );
+              if (inbResRetry.ok) {
+                try {
+                  inbJson = await inbResRetry.json();
+                } catch (e2) {}
+              }
+            }
+          }
+
+          if (!inbJson || !inbJson.success || !Array.isArray(inbJson.obj)) continue;
 
           for (let inb of inbJson.obj) {
             let clientStats = inb.clientStats || [];
