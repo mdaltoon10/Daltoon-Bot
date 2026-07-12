@@ -6068,7 +6068,7 @@ app.post("/api/system/update", async (req, res) => {
 
         if (channel === 'dev') {
           writeLog(`Step 1: Pulling latest changes from dev branch...`);
-          const gitCmd = `git fetch origin dev && git reset --hard origin/dev`;
+          const gitCmd = `git checkout main && git fetch origin main && git reset --hard origin/main`;
           const gitResult = await runCommandAsync(gitCmd);
           writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
           
