@@ -500,21 +500,26 @@ function spawnInternalBot() {
   };
 
   if (!pythonDepsInstalled) {
-    console.log(
-      "[Bot Manager] Ensuring Python dependencies (pyTelegramBotAPI, python-dotenv, requests) are installed...",
-    );
-    exec(
-      "curl -sSL https://bootstrap.pypa.io/get-pip.py -o get-pip_fresh.py && python3 get-pip_fresh.py --user || true",
-      () => {
+    exec('python3 -c "import telebot, dotenv, requests"', (err) => {
+      if (!err) {
+        pythonDepsInstalled = true;
+        runBot();
+      } else {
+        console.log("[Bot Manager] Installing Python dependencies (pyTelegramBotAPI, python-dotenv, requests)...");
         exec(
-          "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests --user || pip install pyTelegramBotAPI python-dotenv requests --user || true",
+          "curl -sSL https://bootstrap.pypa.io/get-pip.py -o get-pip_fresh.py && python3 get-pip_fresh.py --user || true",
           () => {
-            pythonDepsInstalled = true;
-            runBot();
-          },
+            exec(
+              "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests --user || pip install pyTelegramBotAPI python-dotenv requests --user || true",
+              () => {
+                pythonDepsInstalled = true;
+                runBot();
+              }
+            );
+          }
         );
       }
-    );
+    });
   } else {
     runBot();
   }
