@@ -403,14 +403,6 @@ let botProcess: ChildProcess | null = null;
 let pythonDepsInstalled = false;
 
 function startPythonBot() {
-  if (action === "restart-all") {
-    res.json({ success: true, message: `System restarting...` });
-    setTimeout(() => {
-      exec("pm2 restart daltoon-bot; pm2 restart daltoon-store || pm2 restart all || true");
-      process.exit(0);
-    }, 1500);
-    return;
-  }
 
   const isPM2 =
     process.env.PM2_HOME !== undefined ||
@@ -5622,6 +5614,15 @@ app.post("/api/system/bot/action", (req, res) => {
   const { action } = req.body;
   if (!["start", "stop", "restart", "restart-all"].includes(action)) {
     return res.status(400).json({ error: "Invalid action" });
+  }
+  
+  if (action === "restart-all") {
+    res.json({ success: true, message: `System restarting...` });
+    setTimeout(() => {
+      exec("pm2 restart daltoon-bot; pm2 restart daltoon-store || pm2 restart all || true");
+      process.exit(0);
+    }, 1500);
+    return;
   }
 
   const isPM2 =
