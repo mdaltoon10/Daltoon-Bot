@@ -916,26 +916,23 @@ def translate_text(text, lang):
 def translate_markup(markup, lang):
     if not markup or lang == "fa":
         return markup
-    target_dict = BOT_TRANSLATIONS.get(lang, {})
     
     # Check InlineKeyboardMarkup
     if hasattr(markup, "inline_keyboard"):
         for row in markup.inline_keyboard:
             for btn in row:
                 if hasattr(btn, "text") and btn.text:
-                    for fa_key, translation in target_dict.items():
-                        btn.text = btn.text.replace(fa_key, translation)
-                        
+                    btn.text = translate_text(btn.text, lang)
+                    
     # Check ReplyKeyboardMarkup
     if hasattr(markup, "keyboard"):
         for row in markup.keyboard:
-            for btn in row:
+            for i in range(len(row)):
+                btn = row[i]
                 if isinstance(btn, str):
-                    for fa_key, translation in target_dict.items():
-                        btn = btn.replace(fa_key, translation)
+                    row[i] = translate_text(btn, lang)
                 elif hasattr(btn, "text") and btn.text:
-                    for fa_key, translation in target_dict.items():
-                        btn.text = btn.text.replace(fa_key, translation)
+                    btn.text = translate_text(btn.text, lang)
     return markup
 
 # Override bot methods to dynamically translate
