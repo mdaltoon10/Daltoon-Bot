@@ -532,6 +532,10 @@ export default function SettingsPanel({
       "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
   );
 
+  const [usePremiumEmojis, setUsePremiumEmojis] = useState(
+    settings.usePremiumEmojis || false,
+  );
+
   // Auto Backup config state
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(
     settings.autoBackupEnabled !== undefined
@@ -622,6 +626,7 @@ export default function SettingsPanel({
       mandatoryJoinChannel,
       mandatoryJoinChannels,
       mandatoryJoinText,
+      usePremiumEmojis,
       autoBackupEnabled,
       autoBackupInterval,
       qrTemplate,
@@ -1427,6 +1432,20 @@ export default function SettingsPanel({
               <p className="text-xs text-gray-500 mt-1">
                 {translateText("This name replaces the {nickname} variable in bot messages.", "این نام در پیام‌های ربات (مثل خوش‌آمدگویی یا خرید) جایگزین متغیر {nickname} می‌شود.", lang)}
               </p>
+            </div>
+            
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
+                  checked={usePremiumEmojis}
+                  onChange={(e) => setUsePremiumEmojis(e.target.checked)}
+                />
+                <span className="text-sm text-gray-300 font-medium font-sans">
+                  {translateText("Enable Telegram Premium Emojis (in panels and messages)", "استفاده از ایموجی‌های پریمیوم تلگرام در دکمه‌ها و پیام‌ها", lang)}
+                </span>
+              </label>
             </div>
 
             <div className="md:col-span-2">

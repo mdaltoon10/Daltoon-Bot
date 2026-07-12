@@ -15,3 +15,7 @@ Daltoon_Bot.db-wal
 Daltoon_Bot.json
 *.pid
 bot.pid
+
+dist_temp/
+test_extract/
+tmp/

@@ -474,6 +474,8 @@ def get_config():
             config["TG_CHANNEL"] = panel_cfg["tgChannel"]
         if "supportHandle" in panel_cfg:
             config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
+        if "usePremiumEmojis" in panel_cfg:
+            config["USE_PREMIUM_EMOJIS"] = bool(panel_cfg["usePremiumEmojis"])
         
         # Parse QR configurations
         config["QR_TEMPLATE"] = panel_cfg.get("qrTemplate", "")

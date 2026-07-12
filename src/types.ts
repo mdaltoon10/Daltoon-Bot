@@ -130,6 +130,7 @@ export interface PanelSettings {
   mandatoryJoinChannel?: string;
   mandatoryJoinChannels?: string[];
   mandatoryJoinText?: string;
+  usePremiumEmojis?: boolean;
 
   admins?: Array<{
     id: string;
