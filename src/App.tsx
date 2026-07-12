@@ -875,7 +875,7 @@ export default function App() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const CLIENT_VERSION = "3.0.1";
+  const CLIENT_VERSION = "3.0.9";
   const [appVersion, setAppVersion] = useState<string>(CLIENT_VERSION);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
@@ -901,7 +901,10 @@ export default function App() {
       .then((res) => res.json())
       .then((data) => {
         if (data.latestVersion) setLatestVersion(data.latestVersion);
-        if (data.currentVersion) setAppVersion(data.currentVersion);
+        if (data.currentVersion) {
+          setAppVersion(data.currentVersion);
+          localStorage.setItem("daltoon_last_running_version", data.currentVersion);
+        }
         setUpdateAvailable(data.updateAvailable);
       })
       .catch((err) => console.warn("Check update failed", err));
