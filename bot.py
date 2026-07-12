@@ -873,7 +873,19 @@ BOT_TRANSLATIONS = {
     }
 }
 
-from deep_translator import GoogleTranslator
+try:
+    from deep_translator import GoogleTranslator
+except ImportError:
+    import subprocess
+    import sys
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "deep-translator", "--break-system-packages"])
+    except Exception:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "deep-translator"])
+        except Exception:
+            pass
+    from deep_translator import GoogleTranslator
 import time
 
 _translation_cache = {}

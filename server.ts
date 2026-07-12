@@ -500,17 +500,17 @@ function spawnInternalBot() {
   };
 
   if (!pythonDepsInstalled) {
-    exec('python3 -c "import telebot, dotenv, requests"', (err) => {
+    exec('python3 -c "import telebot, dotenv, requests, deep_translator"', (err) => {
       if (!err) {
         pythonDepsInstalled = true;
         runBot();
       } else {
-        console.log("[Bot Manager] Installing Python dependencies (pyTelegramBotAPI, python-dotenv, requests)...");
+        console.log("[Bot Manager] Installing Python dependencies (pyTelegramBotAPI, python-dotenv, requests, deep-translator)...");
         exec(
           "curl -sSL https://bootstrap.pypa.io/get-pip.py -o get-pip_fresh.py && python3 get-pip_fresh.py --user || true",
           () => {
             exec(
-              "python3 -m pip install pyTelegramBotAPI python-dotenv requests --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests --user || pip install pyTelegramBotAPI python-dotenv requests --user || true",
+              "python3 -m pip install pyTelegramBotAPI python-dotenv requests deep-translator --break-system-packages --user || ~/.local/bin/pip install pyTelegramBotAPI python-dotenv requests deep-translator --user || pip install pyTelegramBotAPI python-dotenv requests deep-translator --user || true",
               () => {
                 pythonDepsInstalled = true;
                 runBot();
@@ -6106,7 +6106,7 @@ app.post("/api/system/update", async (req, res) => {
 
         // Step 5: Install Python Dependencies (Optional/No-block)
         writeLog(`Step 5: Installing Python dependencies...`);
-        const pipCmd = "pip3 install -U pyTelegramBotAPI python-dotenv requests --break-system-packages || pip3 install -U pyTelegramBotAPI python-dotenv requests || true";
+        const pipCmd = "pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator --break-system-packages || pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator || true";
         const pipResult = await runCommandAsync(pipCmd);
         writeLog(`Pip output:\n${pipResult.stdout}\n${pipResult.stderr}`);
 
