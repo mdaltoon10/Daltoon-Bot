@@ -291,9 +291,11 @@ npm run build
 # Ensure Python 3 dependencies are completely satisfied
 echo -e "${GREEN}Installing Python 3 dependencies...${NC}"
 if ! command -v pip3 &> /dev/null; then
-    apt install -y python3-pip || apt install -y python3-setuptools || true
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y || true
+    apt-get install -yq python3-pip python3-setuptools || true
 fi
-pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator --break-system-packages || pip install -U pyTelegramBotAPI python-dotenv requests deep_translator || true
+pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator --break-system-packages 2>/dev/null || pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator 2>/dev/null || pip install -U pyTelegramBotAPI python-dotenv requests deep_translator 2>/dev/null || true
 
 # 5.5 Configure Dashboard Credentials
 echo -e "${YELLOW}=== Configure Dashboard Settings ===${NC}"
