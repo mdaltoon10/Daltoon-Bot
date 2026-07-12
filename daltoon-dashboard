@@ -121,7 +121,7 @@ while true; do
     case $opt in
         1)
             echo -e "${YELLOW}Updating project from GitHub...${NC}"
-            cd $INSTALL_DIR && git pull && npm install && npm run build && pm2 restart daltoon-store
+            cd $INSTALL_DIR && git pull && npm install && npm run build && pip3 install -U pyTelegramBotAPI python-dotenv requests deep_translator --break-system-packages 2>/dev/null || true && pm2 restart daltoon-store daltoon-bot
             read -p "Update finished. Press enter..."
             ;;
         2)
