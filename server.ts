@@ -6717,7 +6717,7 @@ async function startServer() {
   setInterval(checkAutoBackup, 60 * 1000);
   setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
 
-  const isCompiled = process.argv[1] && process.argv[1].endsWith("server.cjs");
+  const isCompiled = typeof require !== "undefined" && typeof __dirname !== "undefined";
   const isProduction = process.env.NODE_ENV === "production" || isCompiled;
 
   if (!isProduction) {
