@@ -8,6 +8,90 @@ export const dynamicDictionary: Record<string, Partial<Record<Language, string>>
     "tr": "Plisio Gizli Anahtarı (API)",
     "es": "Clave secreta de Plisio (API)"
 },
+  "Price per GB": {
+    "fa": "هزینه هر گیگابایت",
+    "ar": "سعر الجيجابايت",
+    "ru": "Цена за ГБ",
+    "tr": "GB başına fiyat",
+    "es": "Precio por GB"
+  },
+  "Price per Day": {
+    "fa": "هزینه هر روز",
+    "ar": "السعر لليوم",
+    "ru": "Цена в день",
+    "tr": "Günlük fiyat",
+    "es": "Precio por día"
+  },
+  "Selected Volume": {
+    "fa": "حجم انتخابی",
+    "ar": "الترافيك المحدد",
+    "ru": "Выбранный объем",
+    "tr": "Seçilen Hacim",
+    "es": "Volumen seleccionado"
+  },
+  "Please enter duration in Days": {
+    "fa": "لطفاً تعداد روزهای فعال بودن اشتراک را به روز (Days) وارد کنید",
+    "ar": "يرجى إدخال المدة بالأيام",
+    "ru": "Пожалуйста, введите продолжительность в днях",
+    "tr": "Lütfen süreyi Gün olarak girin",
+    "es": "Por favor ingrese la duración en días"
+  },
+  "Value must be a positive number (e.g. 30)": {
+    "fa": "عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً ۳۰)",
+    "ar": "يجب أن تكون القيمة عددًا إيجابيًا (مثل 30)",
+    "ru": "Значение должно быть положительным числом (например, 30)",
+    "tr": "Değer pozitif bir sayı olmalıdır (örn. 30)",
+    "es": "El valor debe ser un número positivo (ej. 30)"
+  },
+  "Custom Config Pre-Invoice": {
+    "fa": "پیش‌فاکتور ساخت کانفیگ دلخواه",
+    "ar": "فاتورة التكوين المخصص",
+    "ru": "Предварительный счет для настройки",
+    "tr": "Özel Yapılandırma Ön Faturası",
+    "es": "Pre-factura de Configuración Personalizada"
+  },
+  "The creation fee will be deducted directly from your wallet balance.": {
+    "fa": "هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد.",
+    "ar": "سيتم خصم رسوم الإنشاء مباشرة من رصيد محفظتك.",
+    "ru": "Плата за создание будет списана непосредственно с баланса вашего кошелька.",
+    "tr": "Kurulum ücreti doğrudan cüzdan bakiyenizden düşülecektir.",
+    "es": "La tarifa de creación se deducirá directamente del saldo de su billetera."
+  },
+  "Renewal Pre-Invoice": {
+    "fa": "پیش‌فاکتور تمدید و ارتقای اشتراک",
+    "ar": "فاتورة التجديد والترقية",
+    "ru": "Предварительный счет на продление",
+    "tr": "Yenileme Ön Faturası",
+    "es": "Pre-factura de Renovación"
+  },
+  "Extra Volume": {
+    "fa": "حجم ترافیک اضافی",
+    "ar": "الترافيك الإضافي",
+    "ru": "Дополнительный объем",
+    "tr": "Ek Hacim",
+    "es": "Volumen adicional"
+  },
+  "Extra Duration": {
+    "fa": "مدت زمان تمدید",
+    "ar": "مدة التجديد",
+    "ru": "Дополнительный срок",
+    "tr": "Ek Süre",
+    "es": "Duración adicional"
+  },
+  "Please select your payment method below:": {
+    "fa": "لطفا یکی از روش‌های پرداخت زیر را جهت تمدید فوری انتخاب نمایید:",
+    "ar": "يرجى اختيار طريقة الدفع أدناه:",
+    "ru": "Пожалуйста, выберите способ оплаты ниже:",
+    "tr": "Lütfen aşağıdan ödeme yönteminizi seçin:",
+    "es": "Por favor seleccione su método de pago a continuación:"
+  },
+  "Custom Config ": {
+    "fa": "کانفیگ دلخواه ",
+    "ar": "تكوين مخصص ",
+    "ru": "Настройка ",
+    "tr": "Özel Yapılandırma ",
+    "es": "Configuración personalizada "
+  },
   "Invites:": {
     "fa": "دعوت:",
     "ar": "الدعوات:",

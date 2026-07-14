@@ -904,15 +904,10 @@ def translate_text(text, lang):
         return target_dict[text]
         
     translated = text
-    dict_matched = False
     for fa_key, translation in target_dict.items():
         if fa_key in translated:
             translated = translated.replace(fa_key, translation)
-            dict_matched = True
             
-    if dict_matched:
-        return translated
-        
     # If we still have Persian characters, use Google Translator dynamically
     if any('؀' <= c <= 'ۿ' for c in translated):
         cache_key = f"{lang}:{translated}"

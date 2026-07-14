@@ -373,14 +373,10 @@ export default function BotSimulator({
         setCustomVolGb(gb);
         setCustomVolStep("ask_days");
         addBotReply(
-          lang === "fa"
-            ? `👤 نام کاربری: <code>${customVolUsername}</code>\n` +
-              `🔻 حجم انتخابی: <code>${gb} GB</code>\n\n` +
-              `⏳ لطفاً تعداد روزهای فعال بودن اشتراک را به <b>روز (Days)</b> وارد کنید:\n` +
-              `⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)`
-            : `👤 Username: <code>${customVolUsername}</code>\n` +
-              `🔻 Selected Volume: <code>${gb} GB</code>\n\n` +
-              `⏳ Please enter duration in <b>Days</b> (e.g. <code>30</code>):`,
+          `👤 ${translateText("Username", "نام کاربری", lang)}: <code>${customVolUsername}</code>\n` +
+          `🔻 ${translateText("Selected Volume", "حجم انتخابی", lang)}: <code>${gb} GB</code>\n\n` +
+          `⏳ ${translateText("Please enter duration in Days", "لطفاً تعداد روزهای فعال بودن اشتراک را به روز (Days) وارد کنید", lang)}:\n` +
+          `⚠️ ${translateText("Value must be a positive number (e.g. 30)", "عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً ۳۰)", lang)}`,
           500,
           [[t.btnCancel]]
         );
@@ -419,23 +415,16 @@ export default function BotSimulator({
           if (s) serverName = s.name;
         }
 
-        const invoiceText = lang === "fa"
-          ? `📊 <b>پیش‌فاکتور ساخت کانفیگ دلخواه</b>\n\n` +
-            `🌐 سرور: <b>${serverName}</b>\n` +
-            `👤 نام کاربری: <code>${customVolUsername}</code>\n` +
-            `🔻 حجم درخواستی: <b>${customVolGb} گیگابایت</b>\n` +
-            `⏳ مدت زمان: <b>${days} روز</b>\n\n` +
-            `💵 هزینه هر گیگابایت: ${priceGb.toLocaleString()} تومان\n` +
-            `💵 هزینه هر روز: ${priceDay.toLocaleString()} تومان\n` +
-            `──────────────────\n` +
-            `💰 <b>جمع کل: ${totalPrice.toLocaleString()} تومان</b>\n\n` +
-            `⚠️ هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد.`
-          : `📊 <b>Custom Config Pre-Invoice</b>\n\n` +
-            `🌐 Server: <b>${serverName}</b>\n` +
-            `👤 Username: <code>${customVolUsername}</code>\n` +
-            `🔻 Traffic: <b>${customVolGb} GB</b>\n` +
-            `⏳ Duration: <b>${days} Days</b>\n\n` +
-            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>`;
+        const invoiceText = `📊 <b>${translateText("Custom Config Pre-Invoice", "پیش‌فاکتور ساخت کانفیگ دلخواه", lang)}</b>\n\n` +
+          `🌐 ${translateText("Server", "سرور", lang)}: <b>${serverName}</b>\n` +
+          `👤 ${translateText("Username", "نام کاربری", lang)}: <code>${customVolUsername}</code>\n` +
+          `🔻 ${translateText("Traffic", "حجم درخواستی", lang)}: <b>${customVolGb} ${translateText("GB", "گیگابایت", lang)}</b>\n` +
+          `⏳ ${translateText("Duration", "مدت زمان", lang)}: <b>${days} ${translateText("Days", "روز", lang)}</b>\n\n` +
+          `💵 ${translateText("Price per GB", "هزینه هر گیگابایت", lang)}: ${priceGb.toLocaleString()} ${translateText("Toman", "تومان", lang)}\n` +
+          `💵 ${translateText("Price per Day", "هزینه هر روز", lang)}: ${priceDay.toLocaleString()} ${translateText("Toman", "تومان", lang)}\n` +
+          `──────────────────\n` +
+          `💰 <b>${translateText("Total Price", "جمع کل", lang)}: ${totalPrice.toLocaleString()} ${translateText("Toman", "تومان", lang)}</b>\n\n` +
+          `${translateText("The creation fee will be deducted directly from your wallet balance.", "⚠️ هزینه ساخت مستقیماً از موجودی کیف پول شما کسر خواهد شد.", lang)}`;
 
         addBotReply(
           invoiceText,
@@ -516,21 +505,15 @@ export default function BotSimulator({
 
         const totalPrice = (renewGbVal * priceGb) + (days * priceDay);
 
-        const invoiceText = lang === "fa"
-          ? `🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n` +
-            `👤 نام کاربری سرویس: <code>${sub.clientName || sub.planName}</code>\n` +
-            `➕ حجم ترافیک اضافی: <b>${renewGbVal} گیگابایت</b>\n` +
-            `➕ مدت زمان تمدید: <b>${days} روز</b>\n\n` +
-            `💵 قیمت هر گیگابایت: ${priceGb.toLocaleString()} تومان\n` +
-            `💵 قیمت هر روز: ${priceDay.toLocaleString()} تومان\n` +
-            `──────────────────\n` +
-            `💰 <b>جمع کل هزینه تمدید: ${totalPrice.toLocaleString()} تومان</b>\n\n` +
-            `👇 لطفا یکی از روش‌های پرداخت زیر را جهت تمدید فوری انتخاب نمایید:`
-          : `🔄 <b>Renewal Pre-Invoice</b>\n\n` +
-            `👤 Service: <code>${sub.clientName || sub.planName}</code>\n` +
-            `➕ Extra Volume: <b>${renewGbVal} GB</b>\n` +
-            `➕ Extra Duration: <b>${days} Days</b>\n\n` +
-            `💰 <b>Total Price: ${totalPrice.toLocaleString()} Toman</b>\n\nPlease select your payment method below:`;
+        const invoiceText = `🔄 <b>${translateText("Renewal Pre-Invoice", "پیش‌فاکتور تمدید و ارتقای اشتراک", lang)}</b>\n\n` +
+          `👤 ${translateText("Service Username", "نام کاربری سرویس", lang)}: <code>${sub.clientName || sub.planName}</code>\n` +
+          `➕ ${translateText("Extra Volume", "حجم ترافیک اضافی", lang)}: <b>${renewGbVal} ${translateText("GB", "گیگابایت", lang)}</b>\n` +
+          `➕ ${translateText("Extra Duration", "مدت زمان تمدید", lang)}: <b>${days} ${translateText("Days", "روز", lang)}</b>\n\n` +
+          `💵 ${translateText("Price per GB", "قیمت هر گیگابایت", lang)}: ${priceGb.toLocaleString()} ${translateText("Toman", "تومان", lang)}\n` +
+          `💵 ${translateText("Price per Day", "قیمت هر روز", lang)}: ${priceDay.toLocaleString()} ${translateText("Toman", "تومان", lang)}\n` +
+          `──────────────────\n` +
+          `💰 <b>${translateText("Total Price", "جمع کل", lang)}: ${totalPrice.toLocaleString()} ${translateText("Toman", "تومان", lang)}</b>\n\n` +
+          `${translateText("Please select your payment method below:", "👇 لطفا یکی از روش‌های پرداخت زیر را جهت تمدید فوری انتخاب نمایید:", lang)}`;
 
         addBotReply(
           invoiceText,
