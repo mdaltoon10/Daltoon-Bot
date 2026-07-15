@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Language } from "../lang/locales";
-import { Bot, UserCog, User, Key, ArrowRight, Info } from "lucide-react";
+import { Bot, UserCog, User, Key, ArrowRight, Info, Coins } from "lucide-react";
 import { PanelSettings } from "../types";
 
 const sTrans = {
@@ -42,6 +42,12 @@ const sTrans = {
     ownerId: "آیدی عددی مالک (Owner ID)",
     ownerPlaceholder: "فقط عدد (مثلا: 123456789)",
     ownerDesc: "آیدی عددی خود را می‌توانید از ربات تلگرامی infouserbot@ دریافت کنید.",
+    currencyLabel: "واحد پول",
+    currencyPlaceholder: "تومان",
+    currencyDesc: "واحد پولی که در پیام‌ها، دکمه‌ها و بخش‌های مختلف ربات نمایش داده می‌شود.",
+    receiptBotTokenLabel: "توکن ربات تایید رسیدها (اختیاری)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "اگر مایلید رسیدهای واریزی مستقیم به یک ربات دیگر ارسال شوند، توکن آن را اینجا وارد کنید.",
     verifying: "در حال بررسی اتصال به تلگرام...",
     saveAndEnter: "ذخیره و ورود به داشبورد"
   },
@@ -68,6 +74,12 @@ const sTrans = {
     ownerId: "Owner Numeric ID",
     ownerPlaceholder: "Numbers only",
     ownerDesc: "Get your numeric ID from @infouserbot in Telegram.",
+    currencyLabel: "Currency",
+    currencyPlaceholder: "e.g. Toman",
+    currencyDesc: "The currency shown in invoices and wallet inside the bot.",
+    receiptBotTokenLabel: "Receipt Verification Bot Token (Optional)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "If set, payment receipt verification messages will be sent to this secondary bot.",
     verifying: "Verifying Telegram Bot Token...",
     saveAndEnter: "Save and Enter Dashboard"
   },
@@ -94,6 +106,12 @@ const sTrans = {
     ownerId: "ID владельца",
     ownerPlaceholder: "Только цифры",
     ownerDesc: "Получите свой ID у @infouserbot в Telegram.",
+    currencyLabel: "Currency",
+    currencyPlaceholder: "e.g. Toman",
+    currencyDesc: "The currency shown in invoices and wallet inside the bot.",
+    receiptBotTokenLabel: "Receipt Verification Bot Token (Optional)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "If set, payment receipt verification messages will be sent to this secondary bot.",
     verifying: "Проверка токена бота Telegram...",
     saveAndEnter: "Сохранить и войти в панель"
   },
@@ -120,6 +138,12 @@ const sTrans = {
     ownerId: "معرف المالك الرقمي",
     ownerPlaceholder: "أرقام فقط",
     ownerDesc: "احصل على معرفك الرقمي من @infouserbot في تليجرام.",
+    currencyLabel: "Currency",
+    currencyPlaceholder: "e.g. Toman",
+    currencyDesc: "The currency shown in invoices and wallet inside the bot.",
+    receiptBotTokenLabel: "Receipt Verification Bot Token (Optional)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "If set, payment receipt verification messages will be sent to this secondary bot.",
     verifying: "التحقق من رمز بوت تليجرام...",
     saveAndEnter: "حفظ والدخول إلى لوحة التحكم"
   },
@@ -146,6 +170,12 @@ const sTrans = {
     ownerId: "Sahip Sayısal Kimliği",
     ownerPlaceholder: "Yalnızca sayılar",
     ownerDesc: "Sayısal kimliğinizi Telegram'da @infouserbot adresinden alabilirsiniz.",
+    currencyLabel: "Currency",
+    currencyPlaceholder: "e.g. Toman",
+    currencyDesc: "The currency shown in invoices and wallet inside the bot.",
+    receiptBotTokenLabel: "Receipt Verification Bot Token (Optional)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "If set, payment receipt verification messages will be sent to this secondary bot.",
     verifying: "Telegram Bot Belirteci Doğrulanıyor...",
     saveAndEnter: "Kaydet ve Panele Gir"
   },
@@ -172,6 +202,12 @@ const sTrans = {
     ownerId: "ID Numérico del Propietario",
     ownerPlaceholder: "Solo números",
     ownerDesc: "Puede obtener su ID numérico de @infouserbot en Telegram.",
+    currencyLabel: "Currency",
+    currencyPlaceholder: "e.g. Toman",
+    currencyDesc: "The currency shown in invoices and wallet inside the bot.",
+    receiptBotTokenLabel: "Receipt Verification Bot Token (Optional)",
+    receiptBotTokenPlaceholder: "1234567890:AAH...",
+    receiptBotTokenDesc: "If set, payment receipt verification messages will be sent to this secondary bot.",
     verifying: "Verificando el Token del Bot...",
     saveAndEnter: "Guardar y Entrar al Tablero"
   }
@@ -186,6 +222,8 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
   const [nickname, setNickname] = useState(() => sessionStorage.getItem("setup_nickname") || "");
   const [botToken, setBotToken] = useState(() => sessionStorage.getItem("setup_botToken") || "");
   const [ownerId, setOwnerId] = useState(() => sessionStorage.getItem("setup_ownerId") || "");
+  const [currency, setCurrency] = useState(() => sessionStorage.getItem("setup_currency") || "تومان");
+  const [receiptBotToken, setReceiptBotToken] = useState(() => sessionStorage.getItem("setup_receiptBotToken") || "");
   const [error, setError] = useState<string | null>(null);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -200,6 +238,14 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
   useEffect(() => {
     sessionStorage.setItem("setup_ownerId", ownerId);
   }, [ownerId]);
+
+  useEffect(() => {
+    sessionStorage.setItem("setup_currency", currency);
+  }, [currency]);
+
+  useEffect(() => {
+    sessionStorage.setItem("setup_receiptBotToken", receiptBotToken);
+  }, [receiptBotToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,6 +286,8 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
     sessionStorage.removeItem("setup_nickname");
     sessionStorage.removeItem("setup_botToken");
     sessionStorage.removeItem("setup_ownerId");
+    sessionStorage.removeItem("setup_currency");
+    sessionStorage.removeItem("setup_receiptBotToken");
 
     const guidesTextDefault = st.guidesText;
 
@@ -251,6 +299,8 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
       botToken: botToken.trim(),
       botNickname: nickname.trim(),
       ownerId: Number(ownerId.trim()),
+      currency: currency.trim() || "تومان",
+      receiptBotToken: receiptBotToken.trim() || undefined,
       welcomeText: defaultWelcomeText,
       supportText: defaultSupportText,
       btnTextGuides: st.guidesBtn,
@@ -424,6 +474,43 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
               <p className="mt-1.5 text-xs text-indigo-300 font-medium flex items-center gap-1 font-sans">
                 <Info className="w-3 h-3" />
                 {st.ownerDesc}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-cyan-400" />
+                {st.currencyLabel} <span className="text-rose-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={currency}
+                disabled={isValidating}
+                onChange={e => setCurrency(e.target.value)}
+                placeholder={st.currencyPlaceholder}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all placeholder:text-gray-600 disabled:opacity-50"
+              />
+              <p className="mt-1.5 text-xs text-gray-500 font-sans">
+                {st.currencyDesc}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-1.5 flex items-center gap-2">
+                <Bot className="w-4 h-4 text-teal-400" />
+                {st.receiptBotTokenLabel}
+              </label>
+              <input
+                type="text"
+                value={receiptBotToken}
+                disabled={isValidating}
+                onChange={e => setReceiptBotToken(e.target.value)}
+                placeholder={st.receiptBotTokenPlaceholder}
+                className="w-full bg-[#1b2230] border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500/50 outline-none transition-all font-mono placeholder:text-gray-600 disabled:opacity-50"
+                dir="ltr"
+              />
+              <p className="mt-1.5 text-xs text-gray-500 font-sans">
+                {st.receiptBotTokenDesc}
               </p>
             </div>
           </div>
