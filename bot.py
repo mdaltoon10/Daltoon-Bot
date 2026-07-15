@@ -272,6 +272,7 @@ def get_config():
     """ Load real-time configurations from Daltoon_Bot.db or fallback to env vars """
     config = {
         "BOT_TOKEN": os.getenv("BOT_TOKEN", ""),
+        "RECEIPT_BOT_TOKEN": os.getenv("RECEIPT_BOT_TOKEN", ""),
         "OWNER_ID": int(os.getenv("OWNER_ID", "0")),
         "BOT_NICKNAME": "دالتون",
         "XUI_URL": os.getenv("XUI_URL", "https://tr.sub-daltoon.ir:2096/Daltoon").rstrip("/"),
@@ -330,6 +331,8 @@ def get_config():
             config["ADMINS"] = list(set([int(adm["userId"]) for adm in panel_cfg["admins"] if "userId" in adm and adm.get("userId")]))
         
         # Sync Panel URLs and Credentials from shared settings
+        if panel_cfg.get("receiptBotToken"):
+            config["RECEIPT_BOT_TOKEN"] = panel_cfg.get("receiptBotToken")
         if panel_cfg.get("baseUrl"):
             config["XUI_URL"] = panel_cfg.get("baseUrl").rstrip("/")
         if panel_cfg.get("subUrl"):
@@ -623,6 +626,180 @@ def patch_telebot_currency(bot_instance):
     bot_instance.send_document = patched_send_document
 
 patch_telebot_currency(bot)
+
+import threading
+
+class ReceiptBotManager:
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __init__(self):
+        self.current_token = None
+        self.r_bot = None
+        self.polling_thread = None
+        self.stop_event = threading.Event()
+
+    @classmethod
+    def get_instance(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = cls()
+            return cls._instance
+
+    def update_and_start(self, token):
+        token = (token or "").strip()
+        if not token:
+            self.stop()
+            return
+            
+        if self.current_token == token and self.polling_thread and self.polling_thread.is_alive():
+            return
+            
+        print(f"[ReceiptBotManager] Starting receipt bot with token: {token[:8]}...****")
+        self.stop()
+        
+        self.current_token = token
+        self.stop_event.clear()
+        
+        try:
+            import telebot
+            self.r_bot = telebot.TeleBot(token, parse_mode="HTML", threaded=True, num_threads=10)
+            patch_telebot_currency(self.r_bot)
+            
+            # Register callback handler on the receipt bot
+            @self.r_bot.callback_query_handler(func=lambda call: True)
+            def receipt_callback_handler(call):
+                tg_id = call.from_user.id
+                cfg = get_config()
+                is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+                is_admin = int(tg_id) in cfg.get("ADMINS", [])
+                
+                if not (is_owner or is_admin):
+                    try:
+                        self.r_bot.answer_callback_query(call.id, "❌ شما دسترسی لازم جهت انجام این عملیات را ندارید.", show_alert=True)
+                    except Exception:
+                        pass
+                    return
+                    
+                parts = call.data.split(":")
+                action = parts[0]
+                tx_id = parts[1]
+                
+                if action == "tx_approve":
+                    try:
+                        self.r_bot.answer_callback_query(call.id, "⌛ در حال پردازش تراکنش و ساخت کانکشن...")
+                    except Exception:
+                        pass
+                    try:
+                        import requests
+                        resp = requests.post("http://localhost:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if data.get("success"):
+                                orig_text = call.message.caption or call.message.text or ""
+                                new_caption = orig_text + "\n\n<b>✅ این رسید توسط شما تایید شد و تراکنش با موفقیت انجام گردید.</b>"
+                                
+                                try:
+                                    if call.message.content_type in ['photo', 'document']:
+                                        self.r_bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=new_caption, parse_mode="HTML", reply_markup=None)
+                                    else:
+                                        self.r_bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=new_caption, parse_mode="HTML", reply_markup=None)
+                                except Exception as e:
+                                    print(f"[Error editing approved message caption on receipt bot] {e}")
+                                    
+                                try:
+                                    self.r_bot.answer_callback_query(call.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", show_alert=True)
+                                except Exception:
+                                    pass
+                            else:
+                                msg = data.get("message", "خطای ناشناخته از سمت سرور")
+                                try:
+                                    self.r_bot.answer_callback_query(call.id, f"❌ خطا در تایید: {msg}", show_alert=True)
+                                except Exception:
+                                    pass
+                        else:
+                            try:
+                                self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        try:
+                            self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                        except Exception:
+                            pass
+                
+                elif action == "tx_reject":
+                    try:
+                        self.r_bot.answer_callback_query(call.id, "⌛ در حال رد تراکنش...")
+                    except Exception:
+                        pass
+                    try:
+                        import requests
+                        resp = requests.post("http://localhost:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            if data.get("success"):
+                                orig_text = call.message.caption or call.message.text or ""
+                                new_caption = orig_text + "\n\n<b>❌ این رسید توسط شما رد شد.</b>"
+                                
+                                try:
+                                    if call.message.content_type in ['photo', 'document']:
+                                        self.r_bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=new_caption, parse_mode="HTML", reply_markup=None)
+                                    else:
+                                        self.r_bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=new_caption, parse_mode="HTML", reply_markup=None)
+                                except Exception as e:
+                                    print(f"[Error editing rejected message caption on receipt bot] {e}")
+                                    
+                                try:
+                                    self.r_bot.answer_callback_query(call.id, "❌ تراکنش با موفقیت رد شد.", show_alert=True)
+                                except Exception:
+                                    pass
+                            else:
+                                msg = data.get("message", "خطای ناشناخته")
+                                try:
+                                    self.r_bot.answer_callback_query(call.id, f"❌ خطا در رد تراکنش: {msg}", show_alert=True)
+                                except Exception:
+                                    pass
+                        else:
+                            try:
+                                self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        try:
+                            self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                        except Exception:
+                            pass
+
+            # Start polling thread
+            def poll_worker():
+                while not self.stop_event.is_set():
+                    try:
+                        self.r_bot.delete_webhook(drop_pending_updates=True)
+                        print(f"[ReceiptBotManager] Polling started for secondary bot @{self.r_bot.get_me().username}")
+                        self.r_bot.polling(none_stop=True, interval=0, timeout=20)
+                    except Exception as ex:
+                        if self.stop_event.is_set():
+                            break
+                        print(f"[ReceiptBotManager Polling Error] {ex}. Retrying in 10 seconds...")
+                        time.sleep(10)
+
+            self.polling_thread = threading.Thread(target=poll_worker, daemon=True)
+            self.polling_thread.start()
+            
+        except Exception as err:
+            print(f"[ReceiptBotManager Initialization Error] {err}")
+
+    def stop(self):
+        if self.r_bot:
+            try:
+                self.stop_event.set()
+                self.r_bot.stop_polling()
+            except Exception as e:
+                print(f"[ReceiptBotManager Stop Warning] {e}")
+            self.r_bot = None
+        self.current_token = None
+        self.polling_thread = None
 
 # Multi-Language Translation System for Telegram Bot (Persian -> EN, AR, RU, TR, ES)
 BOT_TRANSLATIONS = {
@@ -8871,25 +9048,60 @@ def handle_receipt_upload(message):
                 types.InlineKeyboardButton("❌ رد فیش", callback_data=f"tx_reject:{tx_id}")
             )
             
-            for target_id in targets:
-                try:
-                    nickname = cfg.get("BOT_NICKNAME", "دالتون")
-                    admin_msg = (
-                        f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
-                        f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
-                        f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
-                        f"🆔 شناسه: <code>{tx_id}</code>\n"
-                        f"📝 جزئیات تراکنش: {tx_description}\n\n"
-                        f"📥 می‌توانید از دکمه‌های زیر جهت بررسی، تایید یا رد فوری و مستقیم این رسید استفاده کنید:"
-                    )
-                    if message.content_type == 'photo':
-                        bot.send_photo(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
-                    elif message.content_type == 'document':
-                        bot.send_document(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
-                    else:
-                        bot.send_message(target_id, admin_msg, parse_mode="HTML", reply_markup=markup)
-                except Exception as ex:
-                    print(f"[Admin Notify Warning for chat_id {target_id}] {ex}")
+            use_receipt_bot = False
+            r_bot_instance = None
+            try:
+                r_bot_instance = ReceiptBotManager.get_instance().r_bot
+                if r_bot_instance:
+                    use_receipt_bot = True
+            except Exception as r_ex:
+                print(f"[Error getting ReceiptBotManager instance] {r_ex}")
+
+            if use_receipt_bot and r_bot_instance:
+                import io
+                for target_id in targets:
+                    try:
+                        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+                        admin_msg = (
+                            f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
+                            f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
+                            f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
+                            f"🆔 شناسه: <code>{tx_id}</code>\n"
+                            f"📝 جزئیات تراکنش: {tx_description}\n\n"
+                            f"📥 می‌توانید از دکمه‌های زیر جهت بررسی، تایید یا رد فوری و مستقیم این رسید استفاده کنید:"
+                        )
+                        if message.content_type == 'photo':
+                            file_obj = io.BytesIO(response.content)
+                            file_obj.name = "receipt.jpg"
+                            r_bot_instance.send_photo(target_id, file_obj, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                        elif message.content_type == 'document':
+                            file_obj = io.BytesIO(response.content)
+                            file_obj.name = message.document.file_name or "receipt.jpg"
+                            r_bot_instance.send_document(target_id, file_obj, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                        else:
+                            r_bot_instance.send_message(target_id, admin_msg, parse_mode="HTML", reply_markup=markup)
+                    except Exception as ex:
+                        print(f"[Receipt Bot Admin Notify Warning for chat_id {target_id}] {ex}")
+            else:
+                for target_id in targets:
+                    try:
+                        nickname = cfg.get("BOT_NICKNAME", "دالتون")
+                        admin_msg = (
+                            f"🔔 <b>رسید جدید برای تایید واریز شد!</b>\n\n"
+                            f"👤 کاربر: @{username} (<code>{tg_id}</code>)\n"
+                            f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
+                            f"🆔 شناسه: <code>{tx_id}</code>\n"
+                            f"📝 جزئیات تراکنش: {tx_description}\n\n"
+                            f"📥 می‌توانید از دکمه‌های زیر جهت بررسی، تایید یا رد فوری و مستقیم این رسید استفاده کنید:"
+                        )
+                        if message.content_type == 'photo':
+                            bot.send_photo(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                        elif message.content_type == 'document':
+                            bot.send_document(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                        else:
+                            bot.send_message(target_id, admin_msg, parse_mode="HTML", reply_markup=markup)
+                    except Exception as ex:
+                        print(f"[Admin Notify Warning for chat_id {target_id}] {ex}")
         else:
             bot.reply_to(message, "❌ خطا در دانلود فایل تصویر فیش از سرورهای تلگرام. لطفا مجدد تلاش کنید.", reply_markup=get_custom_keyboard())
     except Exception as e:
@@ -9451,6 +9663,14 @@ if __name__ == "__main__":
     while True:
         try:
             cfg = get_config()
+            
+            # Dynamically start/update receipt bot if configured
+            try:
+                receipt_token = cfg.get("RECEIPT_BOT_TOKEN", "").strip()
+                ReceiptBotManager.get_instance().update_and_start(receipt_token)
+            except Exception as r_err:
+                print(f"[ReceiptBotManager Start Error in Loop] {r_err}")
+
             token = cfg.get("BOT_TOKEN", "").strip()
             if not token or token.upper() == "DUMMY_TOKEN":
                 print("[Daltoon Bot] Ready. Waiting for the active bot token to be configured on the web admin panel. Retrying in 10 seconds...")

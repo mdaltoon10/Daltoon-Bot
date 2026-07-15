@@ -51,6 +51,7 @@ export default function SettingsPanel({
   const t = { ...translations.en, ...translations[lang] };
   // Form state
   const [botToken, setBotToken] = useState(settings.botToken || "");
+  const [receiptBotToken, setReceiptBotToken] = useState(settings.receiptBotToken || "");
   const [botNickname, setBotNickname] = useState(settings.botNickname || "");
   const [currency, setCurrency] = useState(settings.currency || "تومان");
   const [ownerId, setOwnerId] = useState(
@@ -226,6 +227,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      receiptBotToken,
       botNickname,
       currency,
       ownerId: parseInt(ownerId) || 0,
@@ -268,6 +270,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      receiptBotToken,
       botNickname,
       currency,
       ownerId: parseInt(ownerId) || 0,
@@ -579,6 +582,7 @@ export default function SettingsPanel({
     onSaveSettings({
       ...settings,
       botToken,
+      receiptBotToken,
       botNickname,
       currency,
       ownerId: parseInt(ownerId) || 0,
@@ -1414,6 +1418,26 @@ export default function SettingsPanel({
                 value={botToken}
                 onChange={(e) => setBotToken(e.target.value)}
               />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
+                {translateText("Receipt Verification Bot Token (Optional)", "توکن اختصاصی ربات تایید رسیدها (اختیاری)", lang)}
+              </label>
+              <input
+                type="text"
+                placeholder={translateText("e.g. 123456789:ABCdefGhI...", "مثال: 123456789:ABCdefGhI...", lang)}
+                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 font-mono focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                value={receiptBotToken}
+                onChange={(e) => setReceiptBotToken(e.target.value)}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {translateText(
+                  "If set, payment receipt messages and direct approval/rejection buttons will be sent to this secondary bot instead of the main bot, preventing admin spam in the main chat.",
+                  "در صورت تنظیم، پیام‌های بررسی و دکمه‌های تایید/رد فوری فیش‌های واریزی به این ربات دوم ارسال می‌شوند تا از شلوغی و تداخل در ربات اصلی جلوگیری شود.",
+                  lang
+                )}
+              </p>
             </div>
 
             <div className="md:col-span-2">
