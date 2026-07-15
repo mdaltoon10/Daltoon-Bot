@@ -5117,6 +5117,77 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "⚠️ خطایی رخ داد.", show_alert=True)
         return
 
+    # Admin approval/rejection handlers for transactions
+    if call.data.startswith("tx_approve:") or call.data.startswith("tx_reject:"):
+        cfg = get_config()
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = int(tg_id) in cfg.get("ADMINS", [])
+        
+        if not (is_owner or is_admin):
+            bot.answer_callback_query(call.id, "❌ شما دسترسی لازم جهت انجام این عملیات را ندارید.", show_alert=True)
+            return
+            
+        parts = call.data.split(":")
+        action = parts[0]
+        tx_id = parts[1]
+        
+        if action == "tx_approve":
+            bot.answer_callback_query(call.id, "⌛ در حال پردازش تراکنش و ساخت کانکشن...")
+            try:
+                import requests
+                resp = requests.post("http://localhost:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("success"):
+                        orig_text = call.message.caption or call.message.text or ""
+                        new_caption = orig_text + "\n\n<b>✅ این رسید توسط شما تایید شد و تراکنش با موفقیت انجام گردید.</b>"
+                        
+                        try:
+                            if call.message.content_type in ['photo', 'document']:
+                                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=new_caption, parse_mode="HTML", reply_markup=None)
+                            else:
+                                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=new_caption, parse_mode="HTML", reply_markup=None)
+                        except Exception as e:
+                            print(f"[Error editing approved message caption] {e}")
+                            
+                        bot.answer_callback_query(call.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", show_alert=True)
+                    else:
+                        msg = data.get("message", "خطای ناشناخته از سمت سرور")
+                        bot.answer_callback_query(call.id, f"❌ خطا در تایید: {msg}", show_alert=True)
+                else:
+                    bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+            except Exception as e:
+                bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+        
+        elif action == "tx_reject":
+            bot.answer_callback_query(call.id, "⌛ در حال رد تراکنش...")
+            try:
+                import requests
+                resp = requests.post("http://localhost:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("success"):
+                        orig_text = call.message.caption or call.message.text or ""
+                        new_caption = orig_text + "\n\n<b>❌ این رسید توسط شما رد شد.</b>"
+                        
+                        try:
+                            if call.message.content_type in ['photo', 'document']:
+                                bot.edit_message_caption(chat_id=call.message.chat.id, message_id=call.message.message_id, caption=new_caption, parse_mode="HTML", reply_markup=None)
+                            else:
+                                bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=new_caption, parse_mode="HTML", reply_markup=None)
+                        except Exception as e:
+                            print(f"[Error editing rejected message caption] {e}")
+                            
+                        bot.answer_callback_query(call.id, "❌ تراکنش با موفقیت رد شد.", show_alert=True)
+                    else:
+                        msg = data.get("message", "خطای ناشناخته")
+                        bot.answer_callback_query(call.id, f"❌ خطا در رد تراکنش: {msg}", show_alert=True)
+                else:
+                    bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+            except Exception as e:
+                bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+        return
+
     # Buy Pay Selection Handler
     if call.data.startswith("buy_pay:"):
         handle_buy_pay(call)
@@ -8716,6 +8787,12 @@ def handle_receipt_upload(message):
                 if adm_id and adm_id > 0:
                     targets.add(adm_id)
             
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("✅ تایید واریز", callback_data=f"tx_approve:{tx_id}"),
+                types.InlineKeyboardButton("❌ رد فیش", callback_data=f"tx_reject:{tx_id}")
+            )
+            
             for target_id in targets:
                 try:
                     nickname = cfg.get("BOT_NICKNAME", "دالتون")
@@ -8725,9 +8802,14 @@ def handle_receipt_upload(message):
                         f"💰 مبلغ اعلام شده: {extracted_amount:,} تومان\n"
                         f"🆔 شناسه: <code>{tx_id}</code>\n"
                         f"📝 جزئیات تراکنش: {tx_description}\n\n"
-                        f"📥 لطفاً جهت بررسی و تایید به داشبورد مدیریت {nickname} سرور مراجعه کنید."
+                        f"📥 می‌توانید از دکمه‌های زیر جهت بررسی، تایید یا رد فوری و مستقیم این رسید استفاده کنید:"
                     )
-                    bot.send_message(target_id, admin_msg, parse_mode="HTML")
+                    if message.content_type == 'photo':
+                        bot.send_photo(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                    elif message.content_type == 'document':
+                        bot.send_document(target_id, file_id, caption=admin_msg, parse_mode="HTML", reply_markup=markup)
+                    else:
+                        bot.send_message(target_id, admin_msg, parse_mode="HTML", reply_markup=markup)
                 except Exception as ex:
                     print(f"[Admin Notify Warning for chat_id {target_id}] {ex}")
         else:
