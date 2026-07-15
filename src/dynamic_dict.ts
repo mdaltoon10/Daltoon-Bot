@@ -1,6 +1,48 @@
 import { Language } from './lang/locales';
 
 export const dynamicDictionary: Record<string, Partial<Record<Language, string>>> = {
+  "Server": {
+    "fa": "سرور",
+    "ar": "خادم",
+    "ru": "Сервер",
+    "tr": "Sunucu",
+    "es": "Servidor"
+  },
+  "Traffic": {
+    "fa": "حجم درخواستی",
+    "ar": "حركة المرور",
+    "ru": "Трафик",
+    "tr": "Trafik",
+    "es": "Tráfico"
+  },
+  "GB": {
+    "fa": "گیگابایت",
+    "ar": "جيجابايت",
+    "ru": "ГБ",
+    "tr": "GB",
+    "es": "GB"
+  },
+  "Duration": {
+    "fa": "مدت زمان",
+    "ar": "المدة",
+    "ru": "Срок",
+    "tr": "Süre",
+    "es": "Duración"
+  },
+  "Total Price": {
+    "fa": "جمع کل",
+    "ar": "السعر الإجمالي",
+    "ru": "Итоговая цена",
+    "tr": "Toplam Fiyat",
+    "es": "Precio Total"
+  },
+  "Service Username": {
+    "fa": "نام کاربری سرویس",
+    "ar": "اسم مستخدم الخدمة",
+    "ru": "Имя пользователя службы",
+    "tr": "Servis Kullanıcı Adı",
+    "es": "Nombre de usuario del servicio"
+  },
   "Plisio Secret Key (API)": {
     "fa": "کد امنیتی Plisio (API Key)",
     "ar": "مفتاح Plisio السري (API)",
