@@ -19,3 +19,6 @@ bot.pid
 dist_temp/
 test_extract/
 tmp/
+get-pip.py
+get-pip_fresh.py
+server.cjs.map
