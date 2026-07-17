@@ -692,7 +692,7 @@ class ReceiptBotManager:
                         pass
                     try:
                         import requests
-                        resp = requests.post("http://localhost:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                        resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
                         if resp.status_code == 200:
                             data = resp.json()
                             if data.get("success"):
@@ -735,7 +735,7 @@ class ReceiptBotManager:
                         pass
                     try:
                         import requests
-                        resp = requests.post("http://localhost:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                        resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
                         if resp.status_code == 200:
                             data = resp.json()
                             if data.get("success"):
@@ -5390,7 +5390,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "⌛ در حال پردازش تراکنش و ساخت کانکشن...")
             try:
                 import requests
-                resp = requests.post("http://localhost:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("success"):
@@ -5418,7 +5418,7 @@ def callback_handler(call):
             bot.answer_callback_query(call.id, "⌛ در حال رد تراکنش...")
             try:
                 import requests
-                resp = requests.post("http://localhost:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("success"):
