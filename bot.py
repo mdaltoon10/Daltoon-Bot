@@ -687,13 +687,15 @@ class ReceiptBotManager:
                 
                 if action == "tx_approve":
                     try:
-                        self.r_bot.answer_callback_query(call.id, "⌛ در حال پردازش تراکنش و ساخت کانکشن...")
-                    except Exception:
-                        pass
-                    try:
+                        
                         import requests
+                        with open("receipt_debug.log", "a") as dbg:
+                            dbg.write(f"\n--- TX APPROVE: {tx_id} ---\n")
                         resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                        with open("receipt_debug.log", "a") as dbg:
+                            dbg.write(f"API Response: {resp.status_code} - {resp.text}\n")
                         if resp.status_code == 200:
+
                             data = resp.json()
                             if data.get("success"):
                                 orig_text = call.message.caption or call.message.text or ""
@@ -722,17 +724,17 @@ class ReceiptBotManager:
                                 self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
                             except Exception:
                                 pass
+                    
                     except Exception as e:
+                        with open("receipt_debug.log", "a") as dbg:
+                            dbg.write(f"Exception in tx_approve: {e}\n")
                         try:
+
                             self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
                         except Exception:
                             pass
                 
                 elif action == "tx_reject":
-                    try:
-                        self.r_bot.answer_callback_query(call.id, "⌛ در حال رد تراکنش...")
-                    except Exception:
-                        pass
                     try:
                         import requests
                         resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
@@ -765,8 +767,12 @@ class ReceiptBotManager:
                                 self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
                             except Exception:
                                 pass
+                    
                     except Exception as e:
+                        with open("receipt_debug.log", "a") as dbg:
+                            dbg.write(f"Exception in tx_approve: {e}\n")
                         try:
+
                             self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
                         except Exception:
                             pass
@@ -5387,7 +5393,6 @@ def callback_handler(call):
         tx_id = parts[1]
         
         if action == "tx_approve":
-            bot.answer_callback_query(call.id, "⌛ در حال پردازش تراکنش و ساخت کانکشن...")
             try:
                 import requests
                 resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
@@ -5415,7 +5420,6 @@ def callback_handler(call):
                 bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
         
         elif action == "tx_reject":
-            bot.answer_callback_query(call.id, "⌛ در حال رد تراکنش...")
             try:
                 import requests
                 resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
