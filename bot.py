@@ -4413,9 +4413,14 @@ def handle_main_menu_callback(call):
 
         users = db.get("users", [])
         user_idx = next((i for i, u in enumerate(users) if u.get("userId") == tg_id), -1)
+        
+        is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
+        is_admin = int(tg_id) in cfg.get("ADMINS", [])
+        
         if user_idx >= 0 and users[user_idx].get("hasReceivedFreeTest"):
-            bot.edit_message_text("❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
-            return
+            if not (is_owner or is_admin):
+                bot.edit_message_text("❌ <b>شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!</b>\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.", chat_id=message.chat.id, message_id=message.message_id, parse_mode="HTML")
+                return
             
         nickname = cfg.get("BOT_NICKNAME", "دالتون")
         free_gb = cfg.get("FREE_TEST_GB", 0.1)
