@@ -3821,7 +3821,11 @@ def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, pric
         sub = next((s for s in db.get("subscription_keys", []) if s.get("id") == sub_id), None)
         server_info = ""
         if sub and sub.get("serverId"):
-            server_info = f"\n🖥️ سرور: <b>{sub['serverId']}</b>"
+            srv_id = sub.get("serverId")
+            cfg_srvs = get_config().get("SERVERS", [])
+            srv = next((s for s in cfg_srvs if str(s.get("id")) == str(srv_id)), None)
+            server_name = srv.get("name") if srv and srv.get("name") else srv_id
+            server_info = f"\n🖥️ سرور: <b>{server_name}</b>"
 
         price_display = f"{int(price):,} تومان" if price > 0 else "رایگان / تست"
         
@@ -7150,7 +7154,7 @@ def callback_handler(call):
                     f"👤 شناسه: <code>{username_input}</code>\n"
                     f"⏳ انقضا: <b>{days} روز</b> (تا {expire_date})\n"
                     f"📊 ترافیک: <b>{gb} گیگابایت</b>\n"
-                    f"🖥️ سرور: <b>{server_id}</b>\n\n"
+                    f"🖥️ سرور: <b>{server_name}</b>\n\n"
                     f"{configs_block}\n\n"
                     f"🆔 شناسه اشتراک: <code>{sub_id}</code>"
                 )
@@ -7177,7 +7181,7 @@ def callback_handler(call):
                     f"📊 طرح: {gb}GB / {days} روز\n"
                     f"💰 مبلغ: {price:,} تومان\n"
                     f"🆔 اشتراک: {sub_id}\n"
-                    f"🖥️ سرور: <b>{server_id}</b>"
+                    f"🖥️ سرور: <b>{server_name}</b>"
                 )
                 
                 # Notify admin

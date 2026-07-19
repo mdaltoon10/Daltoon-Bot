@@ -244,10 +244,7 @@ export default function SettingsPanel({
       cardHolder: bankOwner,
       bankName,
       cardNumbers,
-      welcomeText,
-      supportText,
       tgChannel,
-      supportHandle,
       hideSupport,
       hideBuy,
       hideProfile,
@@ -287,10 +284,7 @@ export default function SettingsPanel({
       cardHolder: bankOwner,
       bankName,
       cardNumbers,
-      welcomeText,
-      supportText,
       tgChannel,
-      supportHandle,
       hideSupport,
       hideBuy,
       hideProfile,
@@ -442,23 +436,12 @@ export default function SettingsPanel({
     setCardNumbers(updated);
   };
 
-  const [welcomeText, setWelcomeText] = useState(
-    settings.welcomeText ||
-      `<b>🛍️ به {nickname} خوش آمدید!</b>\n\nبهترین و معتبرترین پلن‌ها و اشتراک‌ها را با تحویل آنی و ضمانت بازگشت وجه تهیه فرمایید.\n\n🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n💰 موجودی کیف پول: <code>{wallet_balance}</code> تومان\n\n👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:`,
-  );
-
-  const [supportText, setSupportText] = useState(
-    settings.supportText ||
-      `📞 <b>پشتیبانی {nickname}:</b>\n\nمشتری گرامی! در صورت وجود هرگونه سوال، پیگیری خرید یا پشتیبانی قبل و بعد از فروش در خدمت شما هستیم.\n\n👤 پشتیبانی تلگرام: @example_support\n📢 کانال تلگرام {nickname}: @example_channel\n\nپاسخگویی فعال: ۲۴ ساعته شبانه‌روز`,
-  );
-
+  
+  
   const [tgChannel, setTgChannel] = useState(
     settings.tgChannel || "@example_channel",
   );
-  const [supportHandle, setSupportHandle] = useState(
-    settings.supportHandle || "@example_owner",
-  );
-
+  
   const [hideSupport, setHideSupport] = useState(!!settings.hideSupport);
   const [hideBuy, setHideBuy] = useState(!!settings.hideBuy);
   const [hideProfile, setHideProfile] = useState(!!settings.hideProfile);
@@ -535,10 +518,6 @@ export default function SettingsPanel({
       "لطفا جهت استفاده از امکانات ربات ابتدا عضو کانال ما شده و سپس روی گزینه تایید کلیک کنید.",
   );
 
-  const [usePremiumEmojis, setUsePremiumEmojis] = useState(
-    settings.usePremiumEmojis || false,
-  );
-
   // Auto Backup config state
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(
     settings.autoBackupEnabled !== undefined
@@ -599,10 +578,7 @@ export default function SettingsPanel({
       cardHolder: bankOwner,
       bankName,
       cardNumbers,
-      welcomeText,
-      supportText,
       tgChannel,
-      supportHandle,
       hideSupport,
       hideBuy,
       hideProfile,
@@ -630,7 +606,6 @@ export default function SettingsPanel({
       mandatoryJoinChannel,
       mandatoryJoinChannels,
       mandatoryJoinText,
-      usePremiumEmojis,
       autoBackupEnabled,
       autoBackupInterval,
       qrTemplate,
@@ -655,6 +630,11 @@ export default function SettingsPanel({
 
         <div className="space-y-3">
           <div className="flex flex-col gap-2">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[11px] font-medium text-gray-400">
+                {translateText("Compose Message Text", "متن پیام اطلاعیه", lang)}
+              </span>
+            </div>
             <textarea
               ref={broadcastAreaRef}
               rows={3}
@@ -1459,20 +1439,6 @@ export default function SettingsPanel({
             </div>
 
             
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 rounded text-indigo-500 bg-gray-700 border-gray-600 focus:ring-indigo-500 focus:ring-offset-gray-800"
-                  checked={usePremiumEmojis}
-                  onChange={(e) => setUsePremiumEmojis(e.target.checked)}
-                />
-                <span className="text-sm text-gray-300 font-medium font-sans">
-                  {translateText("Enable Telegram Premium Emojis (in panels and messages)", "استفاده از ایموجی‌های پریمیوم تلگرام در دکمه‌ها و پیام‌ها", lang)}
-                </span>
-              </label>
-            </div>
-
             <div className="md:col-span-2">
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
                 {translateText("System & Bot Currency", "واحد پول سیستم و ربات (Currency)", lang)}

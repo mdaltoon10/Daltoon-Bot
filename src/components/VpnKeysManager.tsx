@@ -21,8 +21,8 @@ export function VpnKeysManager({
   users,
   lang,
   toggleSubscriptionKey,
-  setDeleteConfirm,
-  updateSubscriptionKey
+  setDeleteConfirm,  updateSubscriptionKey,
+  servers = []
 }: any) {
   const [searchTerm, setSearchTerm] = useState("");
   const [copiedKeyId, setCopiedKeyId] = useState<string | null>(null);
@@ -291,7 +291,7 @@ export function VpnKeysManager({
                   <div className="col-span-2">
                     <span className="text-xs block text-gray-500 mb-1">{translateText("Server:", "سرور:", lang)}</span>
                     <span className="text-white font-mono text-sm block bg-black/20 p-2 rounded border border-slate-800">
-                      {key.serverId}
+                      {servers.find((s: any) => String(s.id) === String(key.serverId))?.name || key.serverId}
                     </span>
                   </div>
                 )}

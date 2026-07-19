@@ -231,8 +231,7 @@ export default function BotButtonsPanel({
     settings.useButtonColors !== undefined ? settings.useButtonColors : false
   );
 
-  const [tgChannel, setTgChannel] = useState(settings.tgChannel || "");
-
+  
   const [primaryButtonColors, setPrimaryButtonColors] = useState<Record<string, string>>(
     settings.primaryButtonColors || {}
   );
@@ -355,8 +354,7 @@ export default function BotButtonsPanel({
     }
     setUsePremiumEmojis(settings.usePremiumEmojis !== undefined ? settings.usePremiumEmojis : false);
     setUseButtonColors(settings.useButtonColors !== undefined ? settings.useButtonColors : false);
-    setTgChannel(settings.tgChannel || "");
-    setPrimaryButtonColors(settings.primaryButtonColors || {});
+        setPrimaryButtonColors(settings.primaryButtonColors || {});
     setExtraButtonColors(settings.extraButtonColors || (settings.buttonStylesMapping ? Object.entries(settings.buttonStylesMapping).flatMap(([color, words]) => words.map(w => ({keyword: w, color}))) : []));
     setPremiumEmojiList(settings.premiumEmojiList || (settings.premiumEmojiMapping ? Object.entries(settings.premiumEmojiMapping).map(([k, v]) => ({emoji: k, customId: v})) : defaultEmojis));
     setSupportHandle(settings.supportHandle || "");
@@ -559,7 +557,6 @@ export default function BotButtonsPanel({
       keyboardLayout,
       mainButtonsOrder,
       walletChargeAmounts,
-      tgChannel,
       guideVideoHapp,
       guideVideoIos,
       guideVideoAndroid,

@@ -2395,7 +2395,7 @@ export default function App() {
               toggleSubscriptionKey={toggleSubscriptionKey}
               setDeleteConfirm={setDeleteConfirm}
               updateSubscriptionKey={updateSubscriptionKey}
-            />
+            servers={settings?.servers || []} />
           )}
 
           {activeTab === "transactions" && (
