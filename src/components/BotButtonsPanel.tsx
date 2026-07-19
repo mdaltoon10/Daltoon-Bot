@@ -670,8 +670,8 @@ export default function BotButtonsPanel({
                 <span className="text-[10px] text-gray-400">
                   {translateText("Use premium/animated emojis in panels and menus", "نمایش ایموجی‌های پریمیوم متحرک در پنل‌ها و منوهای ربات", lang)}
                 </span>
-                <span className="text-[9px] text-amber-400/90 leading-tight mt-1">
-                  {translateText("⚠️ Requires Bot Boost Level 3+ on Telegram, otherwise Telegram strips them.", "⚠️ نیازمند بوست شدن ربات به سطح ۳ تلگرام (در غیر این صورت ایموجی‌ها توسط تلگرام حذف می‌شوند).", lang)}
+                <span className="text-[10px] text-amber-400/90 leading-tight mt-1">
+                  {translateText("ℹ️ To retrieve premium emoji IDs, you can refer to the @ShowJsonBot bot.", "ℹ️ جهت دریافت شناسه ایموجی‌های پریمیوم می‌توانید به ربات @ShowJsonBot مراجعه کنید.", lang)}
                 </span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
