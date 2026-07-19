@@ -1283,13 +1283,13 @@ def translate_markup(markup, lang):
                         
                 if is_inline and use_premium:
                     # Apply premium emoji icon on original Farsi or translated text
+                    has_custom = False
                     for std, custom_id in custom_emojis.items():
                         if std in original_text or std in btn.text:
-                            btn.icon_custom_emoji_id = custom_id
-                            # Keep standard emoji in text as fallback in case the bot is not Premium/Boosted,
-                            # so that buttons never appear completely emoji-less!
-                            # btn.text = btn.text.replace(std, "").strip()
-                            break
+                            if not has_custom:
+                                btn.icon_custom_emoji_id = custom_id
+                                has_custom = True
+                            btn.text = btn.text.replace(std, "").replace("  ", " ").strip()
     return markup
 
 # Override bot methods to dynamically translate
