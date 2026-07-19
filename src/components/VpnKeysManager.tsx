@@ -287,6 +287,14 @@ export function VpnKeysManager({
                   <span className="text-xs block text-gray-500 mb-1">{t.keyExpiryLabel}:</span>
                   <span className="text-gray-200 font-mono text-sm">{key.expireDate}</span>
                 </div>
+                {key.serverId && (
+                  <div className="col-span-2">
+                    <span className="text-xs block text-gray-500 mb-1">{translateText("Server:", "سرور:", lang)}</span>
+                    <span className="text-white font-mono text-sm block bg-black/20 p-2 rounded border border-slate-800">
+                      {key.serverId}
+                    </span>
+                  </div>
+                )}
                 <div className="col-span-2">
                   <span className="text-xs block text-gray-500 mb-1">{translateText("Used / Remaining data:", "حجم مصرفی / باقی‌مانده:", lang)}</span>
                   <span className="text-white font-mono text-sm block bg-black/20 p-2 rounded border border-slate-800">

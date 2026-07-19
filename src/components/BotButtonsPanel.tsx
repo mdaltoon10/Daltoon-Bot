@@ -568,6 +568,13 @@ export default function BotButtonsPanel({
       guideVideoMac,
       guideVideoLinux,
       guidesText,
+      supportText,
+      welcomeText,
+      supportHandle,
+      pinnedMessageText,
+      pinnedMessageActive,
+      purchaseSuccessNote,
+      purchaseSuccessAttachment: activePurchaseAttachment,
     };
   };
 

@@ -3817,6 +3817,12 @@ def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, pric
         user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
         username_val = user.get("username", "N/A") if user else "N/A"
         
+        # Try to find server_id from subscription_keys
+        sub = next((s for s in db.get("subscription_keys", []) if s.get("id") == sub_id), None)
+        server_info = ""
+        if sub and sub.get("serverId"):
+            server_info = f"\n🖥️ سرور: <b>{sub['serverId']}</b>"
+
         price_display = f"{int(price):,} تومان" if price > 0 else "رایگان / تست"
         
         admin_msg = (
@@ -3824,7 +3830,7 @@ def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, pric
             f"👤 کاربر: @{username_val} (<code>{tg_id}</code>)\n"
             f"📊 طرح: {plan_details_str}\n"
             f"💰 مبلغ: {price_display}\n"
-            f"🆔 اشتراک: {sub_id}"
+            f"🆔 اشتراک: {sub_id}{server_info}"
         )
         
         cfg = get_config()
@@ -7170,7 +7176,8 @@ def callback_handler(call):
                     f"👤 کاربر: {user.get('username', 'N/A') if user else 'N/A'} ({tg_id})\n"
                     f"📊 طرح: {gb}GB / {days} روز\n"
                     f"💰 مبلغ: {price:,} تومان\n"
-                    f"🆔 اشتراک: {sub_id}"
+                    f"🆔 اشتراک: {sub_id}\n"
+                    f"🖥️ سرور: <b>{server_id}</b>"
                 )
                 
                 # Notify admin
