@@ -56,12 +56,12 @@ export default function BotButtonsPanel({
   const [hideBtnBuyNew, setHideBtnBuyNew] = useState(!!settings.hideBtnBuyNew);
 
   const [btnTextMySubs, setBtnTextMySubs] = useState(
-    settings.btnTextMySubs || "🗂 اشتراک های من / تمدید",
+    settings.btnTextMySubs || "🗂 سرویس‌های من / تمدید",
   );
   const [hideBtnMySubs, setHideBtnMySubs] = useState(!!settings.hideBtnMySubs);
 
   const [btnTextGuides, setBtnTextGuides] = useState(
-    settings.btnTextGuides || "💡 آموزش ها",
+    settings.btnTextGuides || "💡 راهنما",
   );
   const [hideBtnGuides, setHideBtnGuides] = useState(!!settings.hideBtnGuides);
 
@@ -80,14 +80,14 @@ export default function BotButtonsPanel({
   );
 
   const [btnTextTicketSupport, setBtnTextTicketSupport] = useState(
-    settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی",
+    settings.btnTextTicketSupport || "🎫 تیکت پشتیبانی",
   );
   const [hideBtnTicketSupport, setHideBtnTicketSupport] = useState(
     !!settings.hideBtnTicketSupport,
   );
 
   const [btnTextFreeTest, setBtnTextFreeTest] = useState(
-    settings.btnTextFreeTest || "🎁 موجودی رایگان",
+    settings.btnTextFreeTest || "🎁 تست رایگان",
   );
   const [hideBtnFreeTest, setHideBtnFreeTest] = useState(
     !!settings.hideBtnFreeTest,
@@ -101,26 +101,26 @@ export default function BotButtonsPanel({
   );
 
   const [btnTextFeedback, setBtnTextFeedback] = useState(
-    settings.btnTextFeedback || "💌 بازخورد کاربر ها",
+    settings.btnTextFeedback || "💌 نظرات کاربران",
   );
   const [hideBtnFeedback, setHideBtnFeedback] = useState(
     !!settings.hideBtnFeedback,
   );
 
   const [btnTextWallet, setBtnTextWallet] = useState(
-    settings.btnTextWallet || "شارژ کیف پول 💳",
+    settings.btnTextWallet || "💵 کیف پول + شارژ",
   );
   const [hideBtnWallet, setHideBtnWallet] = useState(!!settings.hideBtnWallet);
 
   const [btnTextReferral, setBtnTextReferral] = useState(
-    settings.btnTextReferral || "👥 زیرمجموعه گیری",
+    settings.btnTextReferral || "👥 زیرمجموعه‌گیری",
   );
   const [hideBtnReferral, setHideBtnReferral] = useState(
     !!settings.hideBtnReferral,
   );
 
   const [btnTextColleagues, setBtnTextColleagues] = useState(
-    settings.btnTextColleagues || "بسته ویژه همکاران",
+    settings.btnTextColleagues || "پنل ویژه همکاران",
   );
   const [hideBtnColleagues, setHideBtnColleagues] = useState(
     settings.hideBtnColleagues !== undefined
@@ -129,7 +129,7 @@ export default function BotButtonsPanel({
   ); // default hidden
 
   const [btnTextAiChat, setBtnTextAiChat] = useState(
-    settings.btnTextAiChat || "🤖 چت با ربات",
+    settings.btnTextAiChat || "🤖 چت هوشمند",
   );
   const [hideBtnAiChat, setHideBtnAiChat] = useState(
     settings.hideBtnAiChat !== undefined ? settings.hideBtnAiChat : true,
@@ -221,8 +221,48 @@ export default function BotButtonsPanel({
   const [editingButtonId, setEditingButtonId] = useState<string | null>(null);
 
   const [saved, setSaved] = useState(false);
+  const [isExtraWordsOpen, setIsExtraWordsOpen] = useState(false);
+  const [isPremiumEmojisOpen, setIsPremiumEmojisOpen] = useState(false);
+
+  const [usePremiumEmojis, setUsePremiumEmojis] = useState(
+    settings.usePremiumEmojis !== undefined ? settings.usePremiumEmojis : false
+  );
+  const [useButtonColors, setUseButtonColors] = useState(
+    settings.useButtonColors !== undefined ? settings.useButtonColors : false
+  );
 
   const [tgChannel, setTgChannel] = useState(settings.tgChannel || "");
+
+  const [primaryButtonColors, setPrimaryButtonColors] = useState<Record<string, string>>(
+    settings.primaryButtonColors || {}
+  );
+  
+  const defaultExtraColors: {keyword: string, color: string}[] = [];
+  
+  const [extraButtonColors, setExtraButtonColors] = useState<{keyword: string, color: string}[]>(
+    settings.extraButtonColors || (settings.buttonStylesMapping ? Object.entries(settings.buttonStylesMapping).flatMap(([color, words]) => words.map(w => ({keyword: w, color}))) : defaultExtraColors)
+  );
+  
+  const defaultEmojis = [
+    {"emoji": "🛒", "customId": "5449640306352655512"}, {"emoji": "🎁", "customId": "5368324170671202286"},
+    {"emoji": "👤", "customId": "5368324170671202287"}, {"emoji": "🎧", "customId": "5368324170671202288"},
+    {"emoji": "🚀", "customId": "5368324170671202289"}, {"emoji": "✅", "customId": "5368324170671202290"},
+    {"emoji": "❌", "customId": "5368324170671202291"}, {"emoji": "⚠️", "customId": "5368324170671202292"},
+    {"emoji": "💎", "customId": "5368324170671202293"}, {"emoji": "💰", "customId": "5368324170671202294"},
+    {"emoji": "📊", "customId": "5368324170671202295"}, {"emoji": "🔄", "customId": "5368324170671202296"},
+    {"emoji": "🎫", "customId": "5368324170671202297"}, {"emoji": "⚡", "customId": "5368324170671202298"},
+    {"emoji": "💳", "customId": "5368324170671202299"}, {"emoji": "📝", "customId": "5368324170671202300"},
+    {"emoji": "⏳", "customId": "5368324170671202301"}, {"emoji": "🌐", "customId": "5368324170671202302"},
+    {"emoji": "⚙️", "customId": "5368324170671202303"}, {"emoji": "🔌", "customId": "5368324170671202304"},
+    {"emoji": "🔋", "customId": "5368324170671202305"}, {"emoji": "💡", "customId": "5368324170671202306"},
+    {"emoji": "🔒", "customId": "5368324170671202307"}, {"emoji": "🔓", "customId": "5368324170671202308"},
+    {"emoji": "🔑", "customId": "5368324170671202309"}
+  ];
+  
+  const [premiumEmojiList, setPremiumEmojiList] = useState<{emoji: string, customId: string}[]>(
+    settings.premiumEmojiList || (settings.premiumEmojiMapping ? Object.entries(settings.premiumEmojiMapping).map(([k, v]) => ({emoji: k, customId: v})) : defaultEmojis)
+  );
+
   const [supportHandle, setSupportHandle] = useState(
     settings.supportHandle || "",
   );
@@ -260,6 +300,73 @@ export default function BotButtonsPanel({
       }
     }, 10);
   };
+
+  React.useEffect(() => {
+    setBtnTextBuyNew(settings.btnTextBuyNew || "🛒 خرید اشتراک جدید");
+    setHideBtnBuyNew(!!settings.hideBtnBuyNew);
+    setBtnTextMySubs(settings.btnTextMySubs || "🗂 سرویس‌های من / تمدید");
+    setHideBtnMySubs(!!settings.hideBtnMySubs);
+    setBtnTextGuides(settings.btnTextGuides || "💡 راهنما");
+    setHideBtnGuides(!!settings.hideBtnGuides);
+    setBtnTextProfile(settings.btnTextProfile || "👤 حساب کاربری");
+    setHideBtnProfile(!!settings.hideBtnProfile);
+    setBtnTextSupport(settings.btnTextSupport || "📞 پشتیبانی");
+    setHideBtnSupport(!!settings.hideBtnSupport);
+    setBtnTextTicketSupport(settings.btnTextTicketSupport || "🎫 تیکت پشتیبانی");
+    setHideBtnTicketSupport(!!settings.hideBtnTicketSupport);
+    setBtnTextFreeTest(settings.btnTextFreeTest || "🎁 تست رایگان");
+    setHideBtnFreeTest(!!settings.hideBtnFreeTest);
+    setBtnTextInstantSupport(settings.btnTextInstantSupport || "🤖 پشتیبانی آنی");
+    setHideBtnInstantSupport(!!settings.hideBtnInstantSupport);
+    setBtnTextFeedback(settings.btnTextFeedback || "💌 نظرات کاربران");
+    setHideBtnFeedback(!!settings.hideBtnFeedback);
+    setBtnTextWallet(settings.btnTextWallet || "💵 کیف پول + شارژ");
+    setHideBtnWallet(!!settings.hideBtnWallet);
+    setBtnTextReferral(settings.btnTextReferral || "👥 زیرمجموعه‌گیری");
+    setHideBtnReferral(!!settings.hideBtnReferral);
+    setBtnTextColleagues(settings.btnTextColleagues || "پنل ویژه همکاران");
+    setHideBtnColleagues(settings.hideBtnColleagues !== undefined ? settings.hideBtnColleagues : true);
+    setBtnTextAiChat(settings.btnTextAiChat || "🤖 چت هوشمند");
+    setHideBtnAiChat(settings.hideBtnAiChat !== undefined ? settings.hideBtnAiChat : true);
+    setBtnTextAi(settings.btnTextAi || "🧠 هوش مصنوعی");
+    setHideBtnAi(settings.hideBtnAi !== undefined ? settings.hideBtnAi : true);
+    setKeyboardLayout(settings.keyboardLayout || "stepped");
+    setGuidesText(settings.guidesText || "");
+    setGuideVideoHapp(settings.guideVideoHapp || "");
+    setGuideVideoIos(settings.guideVideoIos || "");
+    setGuideVideoAndroid(settings.guideVideoAndroid || "");
+    setGuideVideoV2rayn(settings.guideVideoV2rayn || "");
+    setGuideVideoKaring(settings.guideVideoKaring || "");
+    setGuideVideoMac(settings.guideVideoMac || "");
+    setGuideVideoLinux(settings.guideVideoLinux || "");
+    if (settings.walletChargeAmounts && Array.isArray(settings.walletChargeAmounts)) {
+      setWalletChargeAmounts(settings.walletChargeAmounts);
+    }
+    if (settings.mainButtonsOrder && settings.mainButtonsOrder.length > 0) {
+      const saved = [...settings.mainButtonsOrder];
+      defaultOrder.forEach((key) => {
+        if (!saved.includes(key)) {
+          saved.push(key);
+        }
+      });
+      setMainButtonsOrder(saved);
+    } else {
+      setMainButtonsOrder(defaultOrder);
+    }
+    setUsePremiumEmojis(settings.usePremiumEmojis !== undefined ? settings.usePremiumEmojis : false);
+    setUseButtonColors(settings.useButtonColors !== undefined ? settings.useButtonColors : false);
+    setTgChannel(settings.tgChannel || "");
+    setPrimaryButtonColors(settings.primaryButtonColors || {});
+    setExtraButtonColors(settings.extraButtonColors || (settings.buttonStylesMapping ? Object.entries(settings.buttonStylesMapping).flatMap(([color, words]) => words.map(w => ({keyword: w, color}))) : []));
+    setPremiumEmojiList(settings.premiumEmojiList || (settings.premiumEmojiMapping ? Object.entries(settings.premiumEmojiMapping).map(([k, v]) => ({emoji: k, customId: v})) : defaultEmojis));
+    setSupportHandle(settings.supportHandle || "");
+    setWelcomeText(settings.welcomeText || "");
+    setSupportText(settings.supportText || "");
+    setPinnedMessageText(settings.pinnedMessageText || "");
+    setPinnedMessageActive(!!settings.pinnedMessageActive);
+    setPurchaseSuccessNote(settings.purchaseSuccessNote || "");
+    setActivePurchaseAttachment(settings.purchaseSuccessAttachment || null);
+  }, [settings]);
 
   // Add/Edit Button Handler
   const handleAddButton = async (e: React.MouseEvent) => {
@@ -380,15 +487,50 @@ export default function BotButtonsPanel({
     setMainButtonsOrder(newOrder);
   };
 
-  // Main Form Submit Handler (Saves primary button labels and layout)
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSaveSettings({
+  const getPayload = () => {
+    const newButtonStylesMapping: Record<string, string[]> = {
+      success: [], danger: [], primary: []
+    };
+    
+    extraButtonColors.forEach(item => {
+      if (item.keyword && item.color && item.color !== 'none') {
+        if (!newButtonStylesMapping[item.color]) newButtonStylesMapping[item.color] = [];
+        if (!newButtonStylesMapping[item.color].includes(item.keyword)) {
+            newButtonStylesMapping[item.color].push(item.keyword);
+        }
+      }
+    });
+    
+    const primaryBtns = { btnBuyNew: btnTextBuyNew, btnMySubs: btnTextMySubs, btnGuides: btnTextGuides, btnProfile: btnTextProfile, btnSupport: btnTextSupport, btnTicketSupport: btnTextTicketSupport, btnFreeTest: btnTextFreeTest, btnInstantSupport: btnTextInstantSupport, btnFeedback: btnTextFeedback, btnReferral: btnTextReferral, btnWallet: btnTextWallet, btnColleagues: btnTextColleagues, btnAiChat: btnTextAiChat, btnAi: btnTextAi };
+    Object.entries(primaryBtns).forEach(([key, val]) => {
+      const col = primaryButtonColors[key];
+      if (col && col !== 'none') {
+         if (!newButtonStylesMapping[col]) newButtonStylesMapping[col] = [];
+         if (!newButtonStylesMapping[col].includes(val)) {
+             newButtonStylesMapping[col].push(val);
+         }
+      }
+    });
+    
+    const newEmojiMapping: Record<string, string> = {};
+    premiumEmojiList.forEach(item => {
+      if (item.emoji && item.customId) {
+        newEmojiMapping[item.emoji] = item.customId;
+      }
+    });
+
+    return {
       ...settings,
+      primaryButtonColors,
+      extraButtonColors,
+      premiumEmojiList,
+      usePremiumEmojis,
+      useButtonColors,
+      buttonStylesMapping: newButtonStylesMapping,
+      premiumEmojiMapping: newEmojiMapping,
       btnTextBuyNew,
       btnTextMySubs,
       btnTextGuides,
-      guidesText,
       btnTextProfile,
       btnTextSupport,
       btnTextTicketSupport,
@@ -417,6 +559,7 @@ export default function BotButtonsPanel({
       keyboardLayout,
       mainButtonsOrder,
       walletChargeAmounts,
+      tgChannel,
       guideVideoHapp,
       guideVideoIos,
       guideVideoAndroid,
@@ -424,17 +567,16 @@ export default function BotButtonsPanel({
       guideVideoKaring,
       guideVideoMac,
       guideVideoLinux,
-      tgChannel,
-      supportHandle,
-      welcomeText,
-      supportText,
-      pinnedMessageText,
-      pinnedMessageActive,
-      purchaseSuccessNote,
-      purchaseSuccessAttachment: activePurchaseAttachment,
-    });
+      guidesText,
+    };
+  };
+
+  // Main Form Submit Handler (Saves primary button labels and layout)
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSaveSettings(getPayload());
     setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   return (
@@ -515,6 +657,52 @@ export default function BotButtonsPanel({
               <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-line">
                 {translateText("• Stepped: The first key takes standard full width, other keys follow grouped in pairs (default).\n• Horizontal: Arranges all action inputs side-by-side in columns.\n• Vertical: Extends all keys across full width on separate lines.", "• چیدمان پله‌ای: دکمه اول بزرگتر در ردیف بالا قرار می‌گیرد و سایر دکمه‌ها منظم در کنار هم قرار می‌گیرند (پیش‌فرض).\n• چیدمان افقی: دکمه‌ها دو به دو روبروی هم چیده می‌شوند.\n• چیدمان عمودی: هر دکمه در یک ردیف جداگانه و بزرگ نمایش داده می‌شود.", lang)}
               </p>
+            </div>
+          </div>
+
+          {/* Bot Features Toggles (Premium Emojis & Colored Buttons) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
+            <div className="flex items-center justify-between p-3 bg-[#111827] rounded-lg border border-gray-800/40">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-white">
+                  {translateText("Enable Telegram Premium Emojis", "استفاده از ایموجی‌های پریمیوم تلگرام", lang)}
+                </span>
+                <span className="text-[10px] text-gray-400">
+                  {translateText("Use premium/animated emojis in panels and menus", "نمایش ایموجی‌های پریمیوم متحرک در پنل‌ها و منوهای ربات", lang)}
+                </span>
+                <span className="text-[9px] text-amber-400/90 leading-tight mt-1">
+                  {translateText("⚠️ Requires Bot Boost Level 3+ on Telegram, otherwise Telegram strips them.", "⚠️ نیازمند بوست شدن ربات به سطح ۳ تلگرام (در غیر این صورت ایموجی‌ها توسط تلگرام حذف می‌شوند).", lang)}
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={usePremiumEmojis}
+                  onChange={(e) => setUsePremiumEmojis(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-[#111827] rounded-lg border border-gray-800/40">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-white">
+                  {translateText("Enable Colored Bot Buttons", "دکمه‌های رنگی ربات", lang)}
+                </span>
+                <span className="text-[10px] text-gray-400">
+                  {translateText("Render custom colors for Telegram bot keyboard buttons", "فعال‌سازی رنگ‌های سفارشی برای دکمه‌های کیبورد ربات تلگرام", lang)}
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useButtonColors}
+                  onChange={(e) => setUseButtonColors(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-10 h-5 bg-gray-700 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
             </div>
           </div>
 
@@ -671,14 +859,15 @@ export default function BotButtonsPanel({
                           </button>
                         </div>
                       </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          disabled={btn.disabled}
-                          className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnWallet" ? "pl-24" : key === "btnFreeTest" ? "pl-[120px]" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
-                          value={btn.value}
-                          onChange={(e) => btn.setter(e.target.value)}
-                        />
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            disabled={btn.disabled}
+                            className={`w-full bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 ${key === "btnWallet" ? "pl-24" : "pl-12"} text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium transition ${btn.disabled ? "opacity-50" : ""}`}
+                            value={btn.value}
+                            onChange={(e) => btn.setter(e.target.value)}
+                          />
                         <button
                           type="button"
                           onClick={btn.toggleDisabled}
@@ -709,11 +898,190 @@ export default function BotButtonsPanel({
                             <Pencil className="w-4 h-4" />
                           </button>
                         )}
+                        </div>
+                        <select
+                          className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-28 shrink-0"
+                          value={primaryButtonColors[key] || "none"}
+                          onChange={(e) => setPrimaryButtonColors({...primaryButtonColors, [key]: e.target.value})}
+                          dir={lang === "fa" ? "rtl" : "ltr"}
+                        >
+                          <option value="none">{translateText("No Color", "بدون رنگ", lang)}</option>
+                          <option value="success">{translateText("Green", "سبز", lang)}</option>
+                          <option value="danger">{translateText("Red", "قرمز", lang)}</option>
+                          <option value="primary">{translateText("Blue", "آبی", lang)}</option>
+                        </select>
                       </div>
                     </div>
                   );
                 });
               })()}
+            </div>
+            
+            {/* Part B: Extra Words Colors */}
+            <div className="mt-6 pt-6 border-t border-gray-800">
+              <button
+                type="button"
+                onClick={() => setIsExtraWordsOpen(!isExtraWordsOpen)}
+                className="w-full flex items-center justify-between text-left focus:outline-none"
+              >
+                <label className="text-xs uppercase tracking-wider text-gray-400 font-semibold cursor-pointer">
+                  {translateText("🎨 Custom Colored Words (Inline Buttons)", "🎨 کلمات رنگی سفارشی (برای دکمه‌های شیشه‌ای)", lang)}
+                </label>
+                <span className="text-gray-500">
+                  {isExtraWordsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </span>
+              </button>
+              
+              {isExtraWordsOpen && (
+              <div className="bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl space-y-4 mt-3 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {extraButtonColors.map((item, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500"
+                        placeholder={translateText("Keyword", "کلمه", lang)}
+                        value={item.keyword}
+                        onChange={(e) => {
+                          const newList = [...extraButtonColors];
+                          newList[idx].keyword = e.target.value;
+                          setExtraButtonColors(newList);
+                        }}
+                      />
+                      <select
+                        className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-[90px] shrink-0"
+                        value={item.color}
+                        onChange={(e) => {
+                          const newList = [...extraButtonColors];
+                          newList[idx].color = e.target.value;
+                          setExtraButtonColors(newList);
+                        }}
+                        dir={lang === "fa" ? "rtl" : "ltr"}
+                      >
+                        <option value="none">{translateText("None", "بدون رنگ", lang)}</option>
+                        <option value="success">{translateText("Green", "سبز", lang)}</option>
+                        <option value="danger">{translateText("Red", "قرمز", lang)}</option>
+                        <option value="primary">{translateText("Blue", "آبی", lang)}</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newList = extraButtonColors.filter((_, i) => i !== idx);
+                          setExtraButtonColors(newList);
+                        }}
+                        className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtraButtonColors([...extraButtonColors, { keyword: "", color: "none" }])}
+                    className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    {translateText("Add New Word", "افزودن کلمه جدید", lang)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtraButtonColors(extraButtonColors.map(item => ({ ...item, color: "none" })))}
+                    className="py-2.5 px-4 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg hover:bg-amber-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                    {translateText("Remove All Colors", "بدون رنگ کردن همه کلمات", lang)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtraButtonColors([])}
+                    className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                    {translateText("Clear All Words", "حذف همه کلمات از لیست", lang)}
+                  </button>
+                </div>
+              </div>
+              )}
+            </div>
+
+            {/* Part C: Premium Emojis */}
+            <div className="mt-6 pt-6 border-t border-gray-800 space-y-3">
+              <button
+                type="button"
+                onClick={() => setIsPremiumEmojisOpen(!isPremiumEmojisOpen)}
+                className="w-full flex items-center justify-between text-left focus:outline-none"
+              >
+                <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold cursor-pointer">
+                  {translateText("✨ Premium Animated Emojis", "✨ جایگزین‌های ایموجی متحرک تلگرام", lang)}
+                </label>
+                <span className="text-gray-500">
+                  {isPremiumEmojisOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </span>
+              </button>
+              
+              {isPremiumEmojisOpen && (
+              <div className="bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl space-y-4 mt-3 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {premiumEmojiList.map((item, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <input
+                        type="text"
+                        className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-center text-white focus:ring-1 focus:ring-indigo-500 w-12 shrink-0"
+                        placeholder="✨"
+                        value={item.emoji}
+                        onChange={(e) => {
+                          const newList = [...premiumEmojiList];
+                          newList[idx].emoji = e.target.value;
+                          setPremiumEmojiList(newList);
+                        }}
+                      />
+                      <input
+                        type="text"
+                        className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-left text-white focus:ring-1 focus:ring-indigo-500 font-mono tracking-wider"
+                        placeholder="Custom Emoji ID (e.g. 5449...)"
+                        value={item.customId}
+                        onChange={(e) => {
+                          const newList = [...premiumEmojiList];
+                          newList[idx].customId = e.target.value;
+                          setPremiumEmojiList(newList);
+                        }}
+                        dir="ltr"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newList = premiumEmojiList.filter((_, i) => i !== idx);
+                          setPremiumEmojiList(newList);
+                        }}
+                        className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPremiumEmojiList([...premiumEmojiList, { emoji: "", customId: "" }])}
+                    className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                    {translateText("Add Emoji Mapping", "افزودن ایموجی جدید", lang)}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPremiumEmojiList([])}
+                    className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                    {translateText("Clear All Emojis", "حذف همه ایموجی‌ها از لیست", lang)}
+                  </button>
+                </div>
+              </div>
+              )}
             </div>
           </div>
         </div>
@@ -876,10 +1244,12 @@ export default function BotButtonsPanel({
             <div className="space-y-4 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl flex flex-col justify-between">
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[11px] text-gray-400 mb-1.5 flex items-center gap-1 font-medium">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    {translateText("Button Keyboard Display Label", "عنوان دکمه (مثال: 🎁 تست رایگان)", lang)}
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[11px] text-gray-400 flex items-center gap-1 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                      {translateText("Button Keyboard Display Label", "عنوان دکمه (مثال: 🎁 تست رایگان)", lang)}
+                    </label>
+                  </div>
                   <input
                     type="text"
                     placeholder={
@@ -892,9 +1262,11 @@ export default function BotButtonsPanel({
                 </div>
 
                 <div>
-                  <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">
-                    {translateText("Auto Reply Text (Telegram HTML allowed)", "متن پاسخ ربات (پشتیبانی از تگ‌های HTML تلگرام)", lang)}
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-[11px] text-gray-400 font-medium">
+                      {translateText("Auto Reply Text (Telegram HTML allowed)", "متن پاسخ ربات (پشتیبانی از تگ‌های HTML تلگرام)", lang)}
+                    </label>
+                  </div>
                   <textarea
                     rows={5}
                     placeholder={
@@ -1053,9 +1425,11 @@ export default function BotButtonsPanel({
           <div className="space-y-4 pt-2">
             {/* Welcome text */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {translateText("Welcome Message Text (/start)", "متن خوش‌آمدگویی استارت ربات (/start)", lang)}
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs uppercase tracking-wider text-gray-400">
+                  {translateText("Welcome Message Text (/start)", "متن خوش‌آمدگویی استارت ربات (/start)", lang)}
+                </label>
+              </div>
               <textarea
                 rows={4}
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-yellow-100 focus:ring-1 focus:ring-indigo-500 font-mono"
@@ -1069,9 +1443,11 @@ export default function BotButtonsPanel({
 
             {/* Support text */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {translateText("Support Button Content", "متن دکمه پشتیبانی فنی", lang)}
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs uppercase tracking-wider text-gray-400">
+                  {translateText("Support Button Content", "متن دکمه پشتیبانی فنی", lang)}
+                </label>
+              </div>
               <textarea
                 rows={4}
                 className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-200 focus:ring-1 focus:ring-indigo-500 font-mono"
@@ -1111,9 +1487,11 @@ export default function BotButtonsPanel({
 
               {pinnedMessageActive && (
                 <div className="space-y-1.5 animate-fadeIn">
-                  <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                    {translateText("Pinned Message Text", "متن پیام پین‌شونده", lang)}
-                  </label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block text-xs uppercase tracking-wider text-gray-400">
+                      {translateText("Pinned Message Text", "متن پیام پین‌شونده", lang)}
+                    </label>
+                  </div>
                   <textarea
                     rows={3}
                     className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-200 focus:ring-1 focus:ring-indigo-500 font-mono"
@@ -1132,9 +1510,11 @@ export default function BotButtonsPanel({
 
             {/* Purchase success note text */}
             <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {translateText("📝 Config Delivery Success Note", "📝 توضیحات پیوست پس از تحویل اکانت به مشتری", lang)}
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs uppercase tracking-wider text-gray-400">
+                  {translateText("📝 Config Delivery Success Note", "📝 توضیحات پیوست پس از تحویل اکانت به مشتری", lang)}
+                </label>
+              </div>
               <textarea
                 rows={3}
                 placeholder={
@@ -1287,9 +1667,11 @@ export default function BotButtonsPanel({
             </div>
 
             <div className="p-5 flex-1 overflow-auto space-y-3">
-              <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">
-                {translateText("📝 Description for Connection Guide button", "📝 توضیحات برای دکمه راهنمای اتصال", lang)}
-              </label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold">
+                  {translateText("📝 Description for Connection Guide button", "📝 توضیحات برای دکمه راهنمای اتصال", lang)}
+                </label>
+              </div>
               <textarea
                 value={tempGuidesText}
                 onChange={(e) => setTempGuidesText(e.target.value)}
@@ -1321,46 +1703,8 @@ export default function BotButtonsPanel({
                 onClick={() => {
                   setGuidesText(tempGuidesText);
                   onSaveSettings({
-                    ...settings,
-                    btnTextBuyNew,
-                    btnTextMySubs,
-                    btnTextGuides,
+                    ...getPayload(),
                     guidesText: tempGuidesText,
-                    btnTextProfile,
-                    btnTextSupport,
-                    btnTextTicketSupport,
-                    btnTextFreeTest,
-                    btnTextInstantSupport,
-                    btnTextFeedback,
-                    btnTextReferral,
-                    btnTextWallet,
-                    btnTextColleagues,
-                    btnTextAiChat,
-                    btnTextAi,
-                    hideBtnBuyNew,
-                    hideBtnMySubs,
-                    hideBtnGuides,
-                    hideBtnProfile,
-                    hideBtnSupport,
-                    hideBtnTicketSupport,
-                    hideBtnFreeTest,
-                    hideBtnInstantSupport,
-                    hideBtnFeedback,
-                    hideBtnReferral,
-                    hideBtnWallet,
-                    hideBtnColleagues,
-                    hideBtnAiChat,
-                    hideBtnAi,
-                    keyboardLayout,
-                    mainButtonsOrder,
-                    walletChargeAmounts,
-                    guideVideoHapp,
-                    guideVideoIos,
-                    guideVideoAndroid,
-                    guideVideoV2rayn,
-                    guideVideoKaring,
-                    guideVideoMac,
-                    guideVideoLinux,
                   });
                   setShowGuidesModal(false);
                 }}
@@ -1460,38 +1804,7 @@ export default function BotButtonsPanel({
                 onClick={() => {
                   setWalletChargeAmounts(tempChargeAmounts);
                   onSaveSettings({
-                    ...settings,
-                    btnTextBuyNew,
-                    btnTextMySubs,
-                    btnTextGuides,
-                    guidesText,
-                    btnTextProfile,
-                    btnTextSupport,
-                    btnTextTicketSupport,
-                    btnTextFreeTest,
-                    btnTextInstantSupport,
-                    btnTextFeedback,
-                    btnTextReferral,
-                    btnTextWallet,
-                    btnTextColleagues,
-                    btnTextAiChat,
-                    btnTextAi,
-                    hideBtnBuyNew,
-                    hideBtnMySubs,
-                    hideBtnGuides,
-                    hideBtnProfile,
-                    hideBtnSupport,
-                    hideBtnTicketSupport,
-                    hideBtnFreeTest,
-                    hideBtnInstantSupport,
-                    hideBtnFeedback,
-                    hideBtnReferral,
-                    hideBtnWallet,
-                    hideBtnColleagues,
-                    hideBtnAiChat,
-                    hideBtnAi,
-                    keyboardLayout,
-                    mainButtonsOrder,
+                    ...getPayload(),
                     walletChargeAmounts: tempChargeAmounts,
                   });
                   setShowWalletAmountsModal(false);
@@ -1505,6 +1818,10 @@ export default function BotButtonsPanel({
           </div>
         </div>
       )}
+
+      {/* Style Modal */}
+
+      {/* Emoji Modal */}
 
       <ConfirmationModal
         isOpen={deleteConfirmConfig.isOpen}

@@ -1735,7 +1735,15 @@ app.post("/api/settings", async (req, res) => {
         }
       }
     }
-    startPythonBot();
+    const tokenChanged = prevSettings.botToken !== finalPayload.botToken;
+    const receiptTokenChanged = prevSettings.receiptBotToken !== finalPayload.receiptBotToken;
+    const isBotRunning = botProcess !== null;
+    if (tokenChanged || receiptTokenChanged || !isBotRunning) {
+      console.log("[Bot Manager] Critical token change or bot not running. Restarting Python bot...");
+      startPythonBot();
+    } else {
+      console.log("[Bot Manager] Non-critical settings updated. Skipping bot restart to prevent Telegram 409 conflict. Changes applied instantly on-the-fly!");
+    }
     res.json({
       success: true,
       message: "Settings saved successfully to JSON store."

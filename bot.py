@@ -479,6 +479,11 @@ def get_config():
             config["SUPPORT_HANDLE"] = panel_cfg["supportHandle"]
         if "usePremiumEmojis" in panel_cfg:
             config["USE_PREMIUM_EMOJIS"] = bool(panel_cfg["usePremiumEmojis"])
+        if "useButtonColors" in panel_cfg:
+            config["USE_BUTTON_COLORS"] = bool(panel_cfg["useButtonColors"])
+        config["PRIMARY_BUTTON_COLORS"] = panel_cfg.get("primaryButtonColors", {})
+        config["BUTTON_STYLES_MAPPING"] = panel_cfg.get("buttonStylesMapping", None)
+        config["PREMIUM_EMOJI_MAPPING"] = panel_cfg.get("premiumEmojiMapping", None)
         
         # Parse QR configurations
         config["QR_TEMPLATE"] = panel_cfg.get("qrTemplate", "")
@@ -1188,10 +1193,61 @@ def translate_text(text, lang):
     return translated
 
 BUTTON_STYLES = {
-    "success": ["خرید", "تایید", "بله", "فعال", "شروع", "تمدید", "ارسال", "جدید"],
-    "danger": ["حذف", "رد ", "انصراف", "خیر", "لغو", "غیرفعال", "خروج", "بستن", "قطع"],
-    "primary": ["پرداخت", "شارژ", "پشتیبانی", "تیکت", "حساب", "اطلاعات", "آموزش", "راهنما", "همکاران", "زیرمجموعه", "لینک", "تست", "رایگان", "دستیار", "بسته", "بازگشت"]
+    "success": [],
+    "danger": [],
+    "primary": []
 }
+
+def get_button_style(btn_text, cfg):
+    primary_colors = cfg.get("PRIMARY_BUTTON_COLORS") or {}
+    
+    primary_texts = {
+        cfg.get("BTN_BUY_NEW", "🛒 خرید اشتراک جدید"): "btnBuyNew",
+        cfg.get("BTN_MY_SUBS", "🗂 اشتراک های من / تمدید"): "btnMySubs",
+        cfg.get("BTN_GUIDES", "💡 آموزش ها"): "btnGuides",
+        cfg.get("BTN_PROFILE", "👤 حساب کاربری"): "btnProfile",
+        cfg.get("BTN_SUPPORT", "📞 پشتیبانی"): "btnSupport",
+        cfg.get("BTN_TICKET_SUPPORT", "🎫 تیکت به پشتیبانی"): "btnTicketSupport",
+        cfg.get("BTN_FREETEST", "🎁 موجودی رایگان"): "btnFreeTest",
+        cfg.get("BTN_INSTANT_SUPPORT", "🤖 پشتیبانی آنی"): "btnInstantSupport",
+        cfg.get("BTN_FEEDBACK", "💌 بازخورد کاربر ها"): "btnFeedback",
+        cfg.get("BTN_REFERRAL", "👥 زیرمجموعه گیری"): "btnReferral",
+        cfg.get("BTN_WALLET", "شارژ کیف پول 💳"): "btnWallet",
+        cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"): "btnColleagues",
+        cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"): "btnAiChat",
+        cfg.get("BTN_AI", "🧠 هوش مصنوعی"): "btnAi",
+    }
+    
+    def clean_btn_text(t):
+        if not t:
+            return ""
+        return "".join(c for c in t if ord(c) < 0x2000 or 0xFB00 <= ord(c) <= 0xFEFF).strip()
+        
+    cleaned_btn_text = clean_btn_text(btn_text)
+    
+    matched_key = None
+    for txt, key in primary_texts.items():
+        if txt == btn_text or clean_btn_text(txt) == cleaned_btn_text:
+            matched_key = key
+            break
+            
+    if matched_key:
+        color = primary_colors.get(matched_key)
+        if color and color != "none":
+            return color
+        # If the primary button is set to "none" or not configured, return None
+        # to prevent falling through to generic extra keywords matching!
+        return None
+        
+    # If not a primary button, check general custom styles (extra buttons mapping)
+    custom_styles = cfg.get("BUTTON_STYLES_MAPPING") or BUTTON_STYLES
+    for style, keywords in custom_styles.items():
+        if keywords and isinstance(keywords, list):
+            for kw in keywords:
+                if kw and kw in btn_text:
+                    return style
+                    
+    return None
 
 def translate_markup(markup, lang):
     if not markup:
@@ -1199,35 +1255,41 @@ def translate_markup(markup, lang):
         
     cfg = get_config()
     use_premium = cfg.get("USE_PREMIUM_EMOJIS", False)
+    use_button_colors = cfg.get("USE_BUTTON_COLORS", False)
+    custom_emojis = cfg.get("PREMIUM_EMOJI_MAPPING") or PREMIUM_EMOJI_MAPPING
     
     is_inline = markup.__class__.__name__ == "InlineKeyboardMarkup"
     
-    if hasattr(markup, "keyboard"):
-        for row in markup.keyboard:
-            for i in range(len(row)):
-                btn = row[i]
-                if isinstance(btn, str):
-                    row[i] = translate_text(btn, lang) if lang != "fa" else btn
-                elif hasattr(btn, "text") and btn.text:
-                    btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
-                    
-                    if is_inline:
-                        # Apply styles
-                        assigned_style = None
-                        for style, keywords in BUTTON_STYLES.items():
-                            if any(kw in btn.text for kw in keywords):
-                                assigned_style = style
-                                break
-                        if assigned_style:
-                            btn.style = assigned_style
-                            
-                        # Apply premium emoji icon
-                        if use_premium:
-                            for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
-                                if std in btn.text:
-                                    btn.icon_custom_emoji_id = custom_id
-                                    btn.text = btn.text.replace(std, "").strip()
-                                    break
+    rows = []
+    if hasattr(markup, "keyboard") and markup.keyboard:
+        rows = markup.keyboard
+    elif hasattr(markup, "inline_keyboard") and markup.inline_keyboard:
+        rows = markup.inline_keyboard
+        
+    for row in rows:
+        for i in range(len(row)):
+            btn = row[i]
+            if isinstance(btn, str):
+                row[i] = translate_text(btn, lang) if lang != "fa" else btn
+            elif hasattr(btn, "text") and btn.text:
+                original_text = btn.text
+                btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
+                
+                if is_inline and use_button_colors:
+                    # Apply styles using prioritized helper on original Farsi text
+                    assigned_style = get_button_style(original_text, cfg)
+                    if assigned_style:
+                        btn.style = assigned_style
+                        
+                if is_inline and use_premium:
+                    # Apply premium emoji icon on original Farsi or translated text
+                    for std, custom_id in custom_emojis.items():
+                        if std in original_text or std in btn.text:
+                            btn.icon_custom_emoji_id = custom_id
+                            # Keep standard emoji in text as fallback in case the bot is not Premium/Boosted,
+                            # so that buttons never appear completely emoji-less!
+                            # btn.text = btn.text.replace(std, "").strip()
+                            break
     return markup
 
 # Override bot methods to dynamically translate
@@ -1292,7 +1354,9 @@ PREMIUM_EMOJI_MAPPING = {
 def apply_premium_emojis(text):
     if not text or not isinstance(text, str):
         return text
-    for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
+    cfg = get_config()
+    custom_emojis = cfg.get("PREMIUM_EMOJI_MAPPING") or PREMIUM_EMOJI_MAPPING
+    for std, custom_id in custom_emojis.items():
         text = text.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
     return text
 
