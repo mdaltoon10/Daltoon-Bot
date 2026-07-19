@@ -455,10 +455,10 @@ export default function UserManagement({
       {/* Users table */}
       <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
-          <table className="w-full text-left text-sm text-gray-300">
+          <table className="w-full table-fixed text-left text-sm text-gray-300">
             <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937] sticky top-0 z-10">
               <tr>
-                <th className="px-5 py-3 w-1/2">{translateText("User Info", "مشخصات کاربر", lang)}</th>
+                <th className="px-5 py-3 w-1/2">{t.tableColUserInfo}</th>
                 <th className="px-5 py-3 w-1/2 text-right">{t.tableColDetails}</th>
               </tr>
             </thead>
@@ -531,17 +531,17 @@ export default function UserManagement({
                     {isExpanded && (
                        <tr className="bg-slate-900/30 border-b border-[#1f2937]">
                          <td colSpan={2} className="p-0">
-                           <div className="p-4 sm:p-5 flex flex-col gap-6">
+                           <div className="p-3 sm:p-5 flex flex-col gap-4 sm:gap-6 w-full box-border">
                               {/* Quick Stats Grid */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 min-w-0 overflow-hidden">
                                     <span className="text-gray-500 text-[11px] uppercase tracking-wider">{t.tableColWallet}</span>
                                     <div className="flex items-center gap-1.5 font-display text-emerald-400 font-semibold text-sm">
                                       <Wallet className="w-4 h-4" />
                                       {user.walletBalance.toLocaleString()} {currency}
                                     </div>
                                  </div>
-                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1">
+                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 min-w-0 overflow-hidden">
                                     <span className="text-gray-500 text-[11px] uppercase tracking-wider">{translateText("Referrals", "زیرمجموعه‌ها", lang)}</span>
                                     <div className="flex flex-col gap-0.5 text-xs">
                                       <div className="flex justify-between items-center text-gray-300">
@@ -552,11 +552,11 @@ export default function UserManagement({
                                       </div>
                                     </div>
                                  </div>
-                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 justify-between">
+                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 justify-between min-w-0 overflow-hidden">
                                     <span className="text-gray-500 text-[11px] uppercase tracking-wider">{t.tableColRegDate}</span>
                                     <span className="font-mono text-xs text-gray-400">{user.joinDate}</span>
                                  </div>
-                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 justify-between items-start">
+                                 <div className="bg-[#111827] border border-slate-800 p-3 rounded-lg flex flex-col gap-1 justify-between items-start min-w-0 overflow-hidden">
                                     <span className="text-gray-500 text-[11px] uppercase tracking-wider">{t.tableColCompliance}</span>
                                     <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
                                       user.status === "active" 
@@ -650,7 +650,7 @@ export default function UserManagement({
                                           </div>
                                         </div>
                                         
-                                        <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1.5 rounded select-all mt-1">
+                                        <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1.5 rounded select-all mt-1 min-w-0">
                                           <span className="font-mono text-[10px] text-gray-500 truncate grow" title={key.subLink}>
                                             {key.subLink}
                                           </span>
