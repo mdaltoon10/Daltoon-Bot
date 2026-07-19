@@ -1280,15 +1280,29 @@ def wrapped_send_message(*args, **kwargs):
     cfg = get_config()
     lang = cfg.get("LANG", "fa")
     args_list = list(args)
-    if len(args_list) > 1:
+    if len(args_list) > 1 and isinstance(args_list[1], str):
         args_list[1] = translate_text(args_list[1], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[1] = apply_premium_emojis(args_list[1])
-    elif "text" in kwargs:
+    elif "text" in kwargs and isinstance(kwargs["text"], str):
         kwargs["text"] = translate_text(kwargs["text"], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["text"] = apply_premium_emojis(kwargs["text"])
+    
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+        
+    use_premium = cfg.get("USE_PREMIUM_EMOJIS")
+    if use_premium:
+        p_args = list(args_list)
+        p_kwargs = dict(kwargs)
+        if len(p_args) > 1 and isinstance(p_args[1], str):
+            p_args[1] = apply_premium_emojis(p_args[1])
+        elif "text" in p_kwargs and isinstance(p_kwargs["text"], str):
+            p_kwargs["text"] = apply_premium_emojis(p_kwargs["text"])
+        try:
+            return orig_send_message(*p_args, **p_kwargs)
+        except Exception as e:
+            pass # Fallback to original
+            
     return orig_send_message(*args_list, **kwargs)
+
 bot.send_message = wrapped_send_message
 
 orig_edit_message_text = bot.edit_message_text
@@ -1296,16 +1310,29 @@ def wrapped_edit_message_text(*args, **kwargs):
     cfg = get_config()
     lang = cfg.get("LANG", "fa")
     args_list = list(args)
-    # edit_message_text: first arg is usually text, but sometimes it's text, chat_id, message_id
     if len(args_list) > 0 and isinstance(args_list[0], str):
         args_list[0] = translate_text(args_list[0], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[0] = apply_premium_emojis(args_list[0])
-    elif "text" in kwargs:
+    elif "text" in kwargs and isinstance(kwargs["text"], str):
         kwargs["text"] = translate_text(kwargs["text"], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["text"] = apply_premium_emojis(kwargs["text"])
+        
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
+        
+    use_premium = cfg.get("USE_PREMIUM_EMOJIS")
+    if use_premium:
+        p_args = list(args_list)
+        p_kwargs = dict(kwargs)
+        if len(p_args) > 0 and isinstance(p_args[0], str):
+            p_args[0] = apply_premium_emojis(p_args[0])
+        elif "text" in p_kwargs and isinstance(p_kwargs["text"], str):
+            p_kwargs["text"] = apply_premium_emojis(p_kwargs["text"])
+        try:
+            return orig_edit_message_text(*p_args, **p_kwargs)
+        except Exception as e:
+            pass
+            
     return orig_edit_message_text(*args_list, **kwargs)
+
 bot.edit_message_text = wrapped_edit_message_text
 
 orig_answer_callback_query = bot.answer_callback_query
@@ -1315,40 +1342,69 @@ def wrapped_answer_callback_query(callback_query_id, text=None, *args, **kwargs)
         lang = cfg.get("LANG", "fa")
         text = translate_text(text, lang)
     return orig_answer_callback_query(callback_query_id, text, *args, **kwargs)
+
 bot.answer_callback_query = wrapped_answer_callback_query
 
 orig_send_photo = bot.send_photo
 def wrapped_send_photo(*args, **kwargs):
     cfg = get_config()
     lang = cfg.get("LANG", "fa")
-    if "caption" in kwargs:
+    args_list = list(args)
+    
+    if "caption" in kwargs and isinstance(kwargs["caption"], str):
         kwargs["caption"] = translate_text(kwargs["caption"], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["caption"] = apply_premium_emojis(kwargs["caption"])
-    elif len(args) > 2:
-        args_list = list(args)
+    elif len(args_list) > 2 and isinstance(args_list[2], str):
         args_list[2] = translate_text(args_list[2], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[2] = apply_premium_emojis(args_list[2])
-        args = tuple(args_list)
+        
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
-    return orig_send_photo(*args, **kwargs)
+        
+    use_premium = cfg.get("USE_PREMIUM_EMOJIS")
+    if use_premium:
+        p_args = list(args_list)
+        p_kwargs = dict(kwargs)
+        if "caption" in p_kwargs and isinstance(p_kwargs["caption"], str):
+            p_kwargs["caption"] = apply_premium_emojis(p_kwargs["caption"])
+        elif len(p_args) > 2 and isinstance(p_args[2], str):
+            p_args[2] = apply_premium_emojis(p_args[2])
+        try:
+            return orig_send_photo(*p_args, **p_kwargs)
+        except Exception as e:
+            pass
+            
+    return orig_send_photo(*args_list, **kwargs)
+
 bot.send_photo = wrapped_send_photo
 
 orig_edit_message_caption = bot.edit_message_caption
 def wrapped_edit_message_caption(*args, **kwargs):
     cfg = get_config()
     lang = cfg.get("LANG", "fa")
-    if "caption" in kwargs:
+    args_list = list(args)
+    
+    if "caption" in kwargs and isinstance(kwargs["caption"], str):
         kwargs["caption"] = translate_text(kwargs["caption"], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["caption"] = apply_premium_emojis(kwargs["caption"])
-    elif len(args) > 0 and isinstance(args[0], str):
-        args_list = list(args)
+    elif len(args_list) > 0 and isinstance(args_list[0], str):
         args_list[0] = translate_text(args_list[0], lang)
-        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[0] = apply_premium_emojis(args_list[0])
-        args = tuple(args_list)
+        
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
-    return orig_edit_message_caption(*args, **kwargs)
+        
+    use_premium = cfg.get("USE_PREMIUM_EMOJIS")
+    if use_premium:
+        p_args = list(args_list)
+        p_kwargs = dict(kwargs)
+        if "caption" in p_kwargs and isinstance(p_kwargs["caption"], str):
+            p_kwargs["caption"] = apply_premium_emojis(p_kwargs["caption"])
+        elif len(p_args) > 0 and isinstance(p_args[0], str):
+            p_args[0] = apply_premium_emojis(p_args[0])
+        try:
+            return orig_edit_message_caption(*p_args, **p_kwargs)
+        except Exception as e:
+            pass
+            
+    return orig_edit_message_caption(*args_list, **kwargs)
+
 bot.edit_message_caption = wrapped_edit_message_caption
 
 orig_edit_message_reply_markup = bot.edit_message_reply_markup
@@ -3909,7 +3965,7 @@ def start_cmd(message):
         )
     # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
     try:
-        bot.send_message(message.chat.id, "\u200b", reply_markup=get_main_reply_keyboard())
+        bot.send_message(message.chat.id, "منوی اصلی", reply_markup=get_main_reply_keyboard())
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
         
