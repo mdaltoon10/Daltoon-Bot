@@ -1200,31 +1200,8 @@ def translate_markup(markup, lang):
     cfg = get_config()
     use_premium = cfg.get("USE_PREMIUM_EMOJIS", False)
     
-    # Check InlineKeyboardMarkup
-    if hasattr(markup, "inline_keyboard"):
-        for row in markup.inline_keyboard:
-            for btn in row:
-                if hasattr(btn, "text") and btn.text:
-                    btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
-                    
-                    # Apply styles
-                    assigned_style = None
-                    for style, keywords in BUTTON_STYLES.items():
-                        if any(kw in btn.text for kw in keywords):
-                            assigned_style = style
-                            break
-                    if assigned_style:
-                        btn.style = assigned_style
-                        
-                    # Apply premium emoji icon
-                    if use_premium:
-                        for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
-                            if std in btn.text:
-                                btn.icon_custom_emoji_id = custom_id
-                                btn.text = btn.text.replace(std, "").strip()
-                                break
-                    
-    # Check ReplyKeyboardMarkup
+    is_inline = markup.__class__.__name__ == "InlineKeyboardMarkup"
+    
     if hasattr(markup, "keyboard"):
         for row in markup.keyboard:
             for i in range(len(row)):
@@ -1233,6 +1210,24 @@ def translate_markup(markup, lang):
                     row[i] = translate_text(btn, lang) if lang != "fa" else btn
                 elif hasattr(btn, "text") and btn.text:
                     btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
+                    
+                    if is_inline:
+                        # Apply styles
+                        assigned_style = None
+                        for style, keywords in BUTTON_STYLES.items():
+                            if any(kw in btn.text for kw in keywords):
+                                assigned_style = style
+                                break
+                        if assigned_style:
+                            btn.style = assigned_style
+                            
+                        # Apply premium emoji icon
+                        if use_premium:
+                            for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
+                                if std in btn.text:
+                                    btn.icon_custom_emoji_id = custom_id
+                                    btn.text = btn.text.replace(std, "").strip()
+                                    break
     return markup
 
 # Override bot methods to dynamically translate
