@@ -19,6 +19,7 @@ export interface PanelSettings {
   receiptBotToken?: string;
   currency?: string; // Custom currency string (e.g. "تومان", "USD", "$", etc.)
   botNickname?: string;
+  usePremiumEmojis?: boolean;
   baseUrl: string; // Deprecated, kept for backward compatibility
   subUrl?: string; // Deprecated
   panelUrl: string; // Deprecated
@@ -131,7 +132,6 @@ export interface PanelSettings {
   mandatoryJoinChannel?: string;
   mandatoryJoinChannels?: string[];
   mandatoryJoinText?: string;
-  usePremiumEmojis?: boolean;
 
   admins?: Array<{
     id: string;

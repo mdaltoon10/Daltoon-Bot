@@ -1457,6 +1457,7 @@ export default function SettingsPanel({
                 {translateText("This name replaces the {nickname} variable in bot messages.", "این نام در پیام‌های ربات (مثل خوش‌آمدگویی یا خرید) جایگزین متغیر {nickname} می‌شود.", lang)}
               </p>
             </div>
+
             
             <div className="md:col-span-2">
               <label className="flex items-center gap-3 cursor-pointer">

@@ -1210,6 +1210,71 @@ def translate_markup(markup, lang):
     return markup
 
 # Override bot methods to dynamically translate
+PREMIUM_EMOJI_MAPPING = {
+    "🛒": "5449640306352655512", # Premium Cart
+    "🎁": "5368324170671202286",
+    "👤": "5368324170671202287",
+    "🎧": "5368324170671202288",
+    "🚀": "5368324170671202289",
+    "✅": "5368324170671202290",
+    "❌": "5368324170671202291",
+    "⚠️": "5368324170671202292",
+    "💎": "5368324170671202293",
+    "💰": "5368324170671202294",
+    "📊": "5368324170671202295",
+    "🔄": "5368324170671202296",
+    "🎫": "5368324170671202297",
+    "⚡": "5368324170671202298",
+    "💳": "5368324170671202299",
+    "📝": "5368324170671202300",
+    "⏳": "5368324170671202301",
+    "🌐": "5368324170671202302",
+    "⚙️": "5368324170671202303",
+    "🔌": "5368324170671202304",
+    "🔋": "5368324170671202305",
+    "💡": "5368324170671202306",
+    "🔒": "5368324170671202307",
+    "🔓": "5368324170671202308",
+    "🔑": "5368324170671202309",
+    # Flags
+    "🇮🇷": "5368324170671202310",
+    "🇩🇪": "5368324170671202311",
+    "🇺🇸": "5368324170671202312",
+    "🇬🇧": "5368324170671202313",
+    "🇫🇷": "5368324170671202314",
+    "🇳🇱": "5368324170671202315",
+    "🇹🇷": "5368324170671202316",
+    "🇨🇦": "5368324170671202317",
+    "🇫🇮": "5368324170671202318",
+    "🇷🇺": "5368324170671202319",
+    "🇦🇪": "5368324170671202320",
+    "🇺🇦": "5368324170671202321",
+    "🇵🇱": "5368324170671202322",
+    "🇸🇪": "5368324170671202323",
+    "🇦🇹": "5368324170671202324",
+    "🇨🇭": "5368324170671202325",
+    "🇮🇹": "5368324170671202326",
+    "🇪🇸": "5368324170671202327",
+    "🇧🇷": "5368324170671202328",
+    "🇮🇳": "5368324170671202329",
+    "🇨🇳": "5368324170671202330",
+    "🇯🇵": "5368324170671202331",
+    "🇰🇷": "5368324170671202332",
+    "🇦🇺": "5368324170671202333",
+    "🇿🇦": "5368324170671202334",
+    "🇲🇽": "5368324170671202335",
+    "🇦🇷": "5368324170671202336",
+    "🇸🇦": "5368324170671202337",
+    "🇮🇶": "5368324170671202338",
+}
+
+def apply_premium_emojis(text):
+    if not text or not isinstance(text, str):
+        return text
+    for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
+        text = text.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
+    return text
+
 orig_send_message = bot.send_message
 def wrapped_send_message(*args, **kwargs):
     cfg = get_config()
@@ -1217,8 +1282,10 @@ def wrapped_send_message(*args, **kwargs):
     args_list = list(args)
     if len(args_list) > 1:
         args_list[1] = translate_text(args_list[1], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[1] = apply_premium_emojis(args_list[1])
     elif "text" in kwargs:
         kwargs["text"] = translate_text(kwargs["text"], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["text"] = apply_premium_emojis(kwargs["text"])
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
     return orig_send_message(*args_list, **kwargs)
@@ -1232,8 +1299,10 @@ def wrapped_edit_message_text(*args, **kwargs):
     # edit_message_text: first arg is usually text, but sometimes it's text, chat_id, message_id
     if len(args_list) > 0 and isinstance(args_list[0], str):
         args_list[0] = translate_text(args_list[0], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[0] = apply_premium_emojis(args_list[0])
     elif "text" in kwargs:
         kwargs["text"] = translate_text(kwargs["text"], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["text"] = apply_premium_emojis(kwargs["text"])
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
     return orig_edit_message_text(*args_list, **kwargs)
@@ -1254,9 +1323,11 @@ def wrapped_send_photo(*args, **kwargs):
     lang = cfg.get("LANG", "fa")
     if "caption" in kwargs:
         kwargs["caption"] = translate_text(kwargs["caption"], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["caption"] = apply_premium_emojis(kwargs["caption"])
     elif len(args) > 2:
         args_list = list(args)
         args_list[2] = translate_text(args_list[2], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[2] = apply_premium_emojis(args_list[2])
         args = tuple(args_list)
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
@@ -1269,9 +1340,11 @@ def wrapped_edit_message_caption(*args, **kwargs):
     lang = cfg.get("LANG", "fa")
     if "caption" in kwargs:
         kwargs["caption"] = translate_text(kwargs["caption"], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): kwargs["caption"] = apply_premium_emojis(kwargs["caption"])
     elif len(args) > 0 and isinstance(args[0], str):
         args_list = list(args)
         args_list[0] = translate_text(args_list[0], lang)
+        if cfg.get("USE_PREMIUM_EMOJIS"): args_list[0] = apply_premium_emojis(args_list[0])
         args = tuple(args_list)
     if "reply_markup" in kwargs and kwargs["reply_markup"]:
         kwargs["reply_markup"] = translate_markup(kwargs["reply_markup"], lang)
