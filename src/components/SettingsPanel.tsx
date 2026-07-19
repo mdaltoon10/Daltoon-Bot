@@ -1482,18 +1482,7 @@ export default function SettingsPanel({
               />
             </div>
 
-            <div>
-              <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
-                {translateText("👤 Technical Support Handle (e.g., @example_owner)", "👤 آیدی پشتیبان فنی تلگرام (مثال: @example_owner)", lang)}
-              </label>
-              <input
-                type="text"
-                placeholder="@example_owner"
-                className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-sm text-white focus:ring-1 focus:ring-indigo-500 font-mono"
-                value={supportHandle}
-                onChange={(e) => setSupportHandle(e.target.value)}
-              />
-            </div>
+            
 
             <div>
               <label className="block text-xs uppercase tracking-wider text-gray-400 mb-1">
