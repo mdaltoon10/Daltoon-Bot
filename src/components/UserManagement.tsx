@@ -458,15 +458,14 @@ export default function UserManagement({
           <table className="w-full text-left text-sm text-gray-300">
             <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937] sticky top-0 z-10">
               <tr>
-                <th className="px-5 py-3">{t.tableColTelegramId}</th>
-                <th className="px-5 py-3">{t.tableColHandle}</th>
-                <th className="px-5 py-3 text-right">{t.tableColDetails}</th>
+                <th className="px-5 py-3 w-1/2">{translateText("User Info", "مشخصات کاربر", lang)}</th>
+                <th className="px-5 py-3 w-1/2 text-right">{t.tableColDetails}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1f2937]">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-5 py-10 text-center text-gray-500">
+                  <td colSpan={2} className="px-5 py-10 text-center text-gray-500">
                     {t.noUsersMatch}
                   </td>
                 </tr>
@@ -477,45 +476,46 @@ export default function UserManagement({
                   return (
                     <React.Fragment key={user.userId}>
                     <tr className={`transition ${isExpanded ? 'bg-slate-900/60' : 'hover:bg-slate-900/40'}`}>
-                      <td className="px-5 py-4 font-mono text-xs">
-                        <div className="flex items-center gap-1.5">
-                          <span>{user.userId}</span>
-                          <button
-                            onClick={() => {
-                              copyTextToClipboard(String(user.userId));
-                              setCopiedKeyId("uid_" + user.userId);
-                              setTimeout(() => setCopiedKeyId(null), 1500);
-                            }}
-                            className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer"
-                            title={translateText("Copy Telegram ID", "کپی شناسه تلگرام", lang)}
-                          >
-                            {copiedKeyId === "uid_" + user.userId ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4 font-medium text-white">
-                        <div className="flex items-center gap-1">
-                          <span className="text-indigo-400">@</span>
-                          <span>{user.username}</span>
-                          <button
-                            onClick={() => {
-                              copyTextToClipboard(user.username);
-                              setCopiedKeyId("uname_" + user.userId);
-                              setTimeout(() => setCopiedKeyId(null), 1500);
-                            }}
-                            className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer ml-1"
-                            title={translateText("Copy Username", "کپی نام کاربری", lang)}
-                          >
-                            {copiedKeyId === "uname_" + user.userId ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
+                      <td className="px-5 py-4">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-gray-500">ID:</span>
+                            <span>{user.userId}</span>
+                            <button
+                              onClick={() => {
+                                copyTextToClipboard(String(user.userId));
+                                setCopiedKeyId("uid_" + user.userId);
+                                setTimeout(() => setCopiedKeyId(null), 1500);
+                              }}
+                              className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer"
+                              title={translateText("Copy Telegram ID", "کپی شناسه تلگرام", lang)}
+                            >
+                              {copiedKeyId === "uid_" + user.userId ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 font-medium text-white">
+                            <span className="text-indigo-400">@</span>
+                            <span>{user.username}</span>
+                            <button
+                              onClick={() => {
+                                copyTextToClipboard(user.username);
+                                setCopiedKeyId("uname_" + user.userId);
+                                setTimeout(() => setCopiedKeyId(null), 1500);
+                              }}
+                              className="text-gray-500 hover:text-indigo-400 p-0.5 rounded transition cursor-pointer ml-1"
+                              title={translateText("Copy Username", "کپی نام کاربری", lang)}
+                            >
+                              {copiedKeyId === "uname_" + user.userId ? (
+                                <Check className="w-3 h-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3 h-3" />
+                              )}
+                            </button>
+                          </div>
                         </div>
                       </td>
                       
@@ -530,7 +530,7 @@ export default function UserManagement({
                     </tr>
                     {isExpanded && (
                        <tr className="bg-slate-900/30 border-b border-[#1f2937]">
-                         <td colSpan={3} className="p-0">
+                         <td colSpan={2} className="p-0">
                            <div className="p-4 sm:p-5 flex flex-col gap-6">
                               {/* Quick Stats Grid */}
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
