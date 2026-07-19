@@ -1187,16 +1187,42 @@ def translate_text(text, lang):
             
     return translated
 
+BUTTON_STYLES = {
+    "success": ["خرید", "تایید", "بله", "فعال", "شروع", "تمدید", "ارسال", "جدید"],
+    "danger": ["حذف", "رد ", "انصراف", "خیر", "لغو", "غیرفعال", "خروج", "بستن", "قطع"],
+    "primary": ["پرداخت", "شارژ", "پشتیبانی", "تیکت", "حساب", "اطلاعات", "آموزش", "راهنما", "همکاران", "زیرمجموعه", "لینک", "تست", "رایگان", "دستیار", "بسته", "بازگشت"]
+}
+
 def translate_markup(markup, lang):
-    if not markup or lang == "fa":
+    if not markup:
         return markup
+        
+    cfg = get_config()
+    use_premium = cfg.get("USE_PREMIUM_EMOJIS", False)
     
     # Check InlineKeyboardMarkup
     if hasattr(markup, "inline_keyboard"):
         for row in markup.inline_keyboard:
             for btn in row:
                 if hasattr(btn, "text") and btn.text:
-                    btn.text = translate_text(btn.text, lang)
+                    btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
+                    
+                    # Apply styles
+                    assigned_style = None
+                    for style, keywords in BUTTON_STYLES.items():
+                        if any(kw in btn.text for kw in keywords):
+                            assigned_style = style
+                            break
+                    if assigned_style:
+                        btn.style = assigned_style
+                        
+                    # Apply premium emoji icon
+                    if use_premium:
+                        for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
+                            if std in btn.text:
+                                btn.icon_custom_emoji_id = custom_id
+                                btn.text = btn.text.replace(std, "").strip()
+                                break
                     
     # Check ReplyKeyboardMarkup
     if hasattr(markup, "keyboard"):
@@ -1204,9 +1230,9 @@ def translate_markup(markup, lang):
             for i in range(len(row)):
                 btn = row[i]
                 if isinstance(btn, str):
-                    row[i] = translate_text(btn, lang)
+                    row[i] = translate_text(btn, lang) if lang != "fa" else btn
                 elif hasattr(btn, "text") and btn.text:
-                    btn.text = translate_text(btn.text, lang)
+                    btn.text = translate_text(btn.text, lang) if lang != "fa" else btn.text
     return markup
 
 # Override bot methods to dynamically translate
@@ -3965,7 +3991,8 @@ def start_cmd(message):
         )
     # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
     try:
-        bot.send_message(message.chat.id, "منوی اصلی", reply_markup=get_main_reply_keyboard())
+        msg = bot.send_message(message.chat.id, "درحال بارگذاری...", reply_markup=get_main_reply_keyboard())
+        bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
         
