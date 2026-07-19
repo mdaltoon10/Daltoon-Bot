@@ -455,11 +455,11 @@ export default function UserManagement({
       {/* Users table */}
       <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden">
         <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
-          <table className="w-full table-fixed text-left text-sm text-gray-300">
+          <table className="w-full table-fixed text-start text-sm text-gray-300">
             <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937] sticky top-0 z-10">
               <tr>
                 <th className="px-5 py-3 w-1/2">{t.tableColUserInfo}</th>
-                <th className="px-5 py-3 w-1/2 text-right">{t.tableColDetails}</th>
+                <th className="px-5 py-3 w-1/2 text-end">{t.tableColDetails}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#1f2937]">
@@ -519,7 +519,7 @@ export default function UserManagement({
                         </div>
                       </td>
                       
-                      <td className="px-5 py-4 text-right">
+                      <td className="px-5 py-4 text-end">
                          <button
                            onClick={() => setExpandedUserId(isExpanded ? null : user.userId)}
                            className="p-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition inline-flex items-center justify-center cursor-pointer"
