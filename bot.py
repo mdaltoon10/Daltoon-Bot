@@ -1360,6 +1360,41 @@ def apply_premium_emojis(text):
         text = text.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
     return text
 
+PREMIUM_EMOJI_MAPPING = {
+    "🛒": "5449640306352655512", # Premium Cart
+    "🎁": "5368324170671202286",
+    "👤": "5368324170671202287",
+    "🎧": "5368324170671202288",
+    "🚀": "5368324170671202289",
+    "✅": "5368324170671202290",
+    "❌": "5368324170671202291",
+    "⚠️": "5368324170671202292",
+    "💎": "5368324170671202293",
+    "💰": "5368324170671202294",
+    "📊": "5368324170671202295",
+    "🔄": "5368324170671202296",
+    "🎫": "5368324170671202297",
+    "⚡": "5368324170671202298",
+    "💳": "5368324170671202299",
+    "📝": "5368324170671202300",
+    "⏳": "5368324170671202301",
+    "🌐": "5368324170671202302",
+    "⚙️": "5368324170671202303",
+    "🔌": "5368324170671202304",
+    "🔋": "5368324170671202305",
+    "💡": "5368324170671202306",
+    "🔒": "5368324170671202307",
+    "🔓": "5368324170671202308",
+    "🔑": "5368324170671202309",
+}
+
+def apply_premium_emojis(text):
+    if not text or not isinstance(text, str):
+        return text
+    for std, custom_id in PREMIUM_EMOJI_MAPPING.items():
+        text = text.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
+    return text
+
 orig_send_message = bot.send_message
 def wrapped_send_message(*args, **kwargs):
     cfg = get_config()
