@@ -205,6 +205,22 @@ def write_sqlite_db(data):
         except: pass
         return False
 
+def get_local_server_port():
+    import os
+    if os.environ.get("PORT") and os.environ.get("PORT").isdigit():
+        return int(os.environ.get("PORT"))
+    try:
+        db = read_sqlite_db()
+        settings = db.get("settings", {})
+        pc = settings.get("panel_config", "{}")
+        if isinstance(pc, str):
+            pc = json.loads(pc)
+        if pc and pc.get("serverPort") and str(pc.get("serverPort")).isdigit():
+            return int(pc["serverPort"])
+    except Exception as e:
+        print(f"[Error loading local server port in bot.py] {e}")
+    return 3000
+
 def normalize_xui_url(url):
     if not url:
         return ""
@@ -692,15 +708,17 @@ class ReceiptBotManager:
                 
                 if action == "tx_approve":
                     try:
-                        
+                        self.r_bot.answer_callback_query(call.id, "⏳ در حال تایید تراکنش و ساخت کانفیگ... لطفا چند لحظه صبور باشید.", show_alert=False)
+                    except Exception:
+                        pass
+                    try:
                         import requests
                         with open("receipt_debug.log", "a") as dbg:
                             dbg.write(f"\n--- TX APPROVE: {tx_id} ---\n")
-                        resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                        resp = requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/transactions/approve", json={"id": tx_id}, timeout=30)
                         with open("receipt_debug.log", "a") as dbg:
                             dbg.write(f"API Response: {resp.status_code} - {resp.text}\n")
                         if resp.status_code == 200:
-
                             data = resp.json()
                             if data.get("success"):
                                 orig_text = call.message.caption or call.message.text or ""
@@ -717,32 +735,47 @@ class ReceiptBotManager:
                                 try:
                                     self.r_bot.answer_callback_query(call.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", show_alert=True)
                                 except Exception:
-                                    pass
+                                    try:
+                                        self.r_bot.send_message(call.message.chat.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", reply_to_message_id=call.message.message_id)
+                                    except Exception:
+                                        pass
                             else:
                                 msg = data.get("message", "خطای ناشناخته از سمت سرور")
                                 try:
                                     self.r_bot.answer_callback_query(call.id, f"❌ خطا در تایید: {msg}", show_alert=True)
                                 except Exception:
-                                    pass
+                                    try:
+                                        self.r_bot.send_message(call.message.chat.id, f"❌ خطا در تایید: {msg}", reply_to_message_id=call.message.message_id)
+                                    except Exception:
+                                        pass
                         else:
                             try:
                                 self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
                             except Exception:
-                                pass
+                                try:
+                                    self.r_bot.send_message(call.message.chat.id, f"❌ خطای سرور: کد {resp.status_code}", reply_to_message_id=call.message.message_id)
+                                except Exception:
+                                    pass
                     
                     except Exception as e:
                         with open("receipt_debug.log", "a") as dbg:
                             dbg.write(f"Exception in tx_approve: {e}\n")
                         try:
-
                             self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
                         except Exception:
-                            pass
+                            try:
+                                self.r_bot.send_message(call.message.chat.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
                 
                 elif action == "tx_reject":
                     try:
+                        self.r_bot.answer_callback_query(call.id, "⏳ در حال رد کردن تراکنش... لطفا صبور باشید.", show_alert=False)
+                    except Exception:
+                        pass
+                    try:
                         import requests
-                        resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                        resp = requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/transactions/reject", json={"id": tx_id}, timeout=30)
                         if resp.status_code == 200:
                             data = resp.json()
                             if data.get("success"):
@@ -760,27 +793,38 @@ class ReceiptBotManager:
                                 try:
                                     self.r_bot.answer_callback_query(call.id, "❌ تراکنش با موفقیت رد شد.", show_alert=True)
                                 except Exception:
-                                    pass
+                                    try:
+                                        self.r_bot.send_message(call.message.chat.id, "❌ تراکنش با موفقیت رد شد.", reply_to_message_id=call.message.message_id)
+                                    except Exception:
+                                        pass
                             else:
                                 msg = data.get("message", "خطای ناشناخته")
                                 try:
                                     self.r_bot.answer_callback_query(call.id, f"❌ خطا در رد تراکنش: {msg}", show_alert=True)
                                 except Exception:
-                                    pass
+                                    try:
+                                        self.r_bot.send_message(call.message.chat.id, f"❌ خطا در رد تراکنش: {msg}", reply_to_message_id=call.message.message_id)
+                                    except Exception:
+                                        pass
                         else:
                             try:
                                 self.r_bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
                             except Exception:
-                                pass
+                                try:
+                                    self.r_bot.send_message(call.message.chat.id, f"❌ خطای سرور: کد {resp.status_code}", reply_to_message_id=call.message.message_id)
+                                except Exception:
+                                    pass
                     
                     except Exception as e:
                         with open("receipt_debug.log", "a") as dbg:
-                            dbg.write(f"Exception in tx_approve: {e}\n")
+                            dbg.write(f"Exception in tx_reject: {e}\n")
                         try:
-
                             self.r_bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
                         except Exception:
-                            pass
+                            try:
+                                self.r_bot.send_message(call.message.chat.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
 
             # Start polling thread
             def poll_worker():
@@ -1241,12 +1285,61 @@ def get_button_style(btn_text, cfg):
         
     # If not a primary button, check general custom styles (extra buttons mapping)
     custom_styles = cfg.get("BUTTON_STYLES_MAPPING") or BUTTON_STYLES
+    import re
+    matches = []
+    
     for style, keywords in custom_styles.items():
         if keywords and isinstance(keywords, list):
             for kw in keywords:
-                if kw and kw in btn_text:
-                    return style
+                if not kw:
+                    continue
+                # Exact match check
+                if kw == btn_text or kw.strip() == btn_text.strip():
+                    matches.append({
+                        "style": style,
+                        "kw": kw,
+                        "exact": True,
+                        "word_boundary": True,
+                        "substring": True
+                    })
+                    continue
+                # Word boundary check (supports Persian letters with unicode \w)
+                pattern = r'(?<!\w)' + re.escape(kw) + r'(?!\w)'
+                if re.search(pattern, btn_text):
+                    matches.append({
+                        "style": style,
+                        "kw": kw,
+                        "exact": False,
+                        "word_boundary": True,
+                        "substring": True
+                    })
+                    continue
+                # Substring check
+                if kw in btn_text:
+                    matches.append({
+                        "style": style,
+                        "kw": kw,
+                        "exact": False,
+                        "word_boundary": False,
+                        "substring": True
+                    })
                     
+    if matches:
+        # Filter out substring-only matches for very short keywords to prevent false positives (e.g. 'رد' in 'استاندارد')
+        valid_matches = []
+        for m in matches:
+            if m["exact"] or m["word_boundary"] or len(m["kw"]) >= 4:
+                valid_matches.append(m)
+                
+        if valid_matches:
+            def get_match_priority(m):
+                exact_score = 2 if m["exact"] else 0
+                word_score = 1 if m["word_boundary"] else 0
+                return (exact_score, word_score, len(m["kw"]))
+                
+            best_match = max(valid_matches, key=get_match_priority)
+            return best_match["style"]
+            
     return None
 
 def translate_markup(markup, lang):
@@ -1356,9 +1449,41 @@ def apply_premium_emojis(text):
         return text
     cfg = get_config()
     custom_emojis = cfg.get("PREMIUM_EMOJI_MAPPING") or PREMIUM_EMOJI_MAPPING
+    
+    # Filter custom_emojis to only valid, non-empty, digit-only custom IDs
+    valid_emojis = {}
     for std, custom_id in custom_emojis.items():
-        text = text.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
-    return text
+        if std and custom_id and str(custom_id).strip().isdigit():
+            valid_emojis[std] = str(custom_id).strip()
+            
+    if not valid_emojis:
+        return text
+
+    # Split by any HTML tags safely using regular expressions
+    import re
+    parts = re.split(r'(<[^>]+>)', text)
+    in_tg_emoji = False
+    
+    for i in range(len(parts)):
+        part = parts[i]
+        if not part:
+            continue
+        # If it is an HTML tag
+        if part.startswith('<') and part.endswith('>'):
+            tag_lower = part.lower()
+            if '<tg-emoji' in tag_lower:
+                in_tg_emoji = True
+            elif '</tg-emoji>' in tag_lower:
+                in_tg_emoji = False
+        else:
+            # It's plain text outside of tags
+            # Only apply replacement if not already inside a tg-emoji block
+            if not in_tg_emoji:
+                for std, custom_id in valid_emojis.items():
+                    part = part.replace(std, f'<tg-emoji emoji-id="{custom_id}">{std}</tg-emoji>')
+                parts[i] = part
+                
+    return "".join(parts)
 
 orig_send_message = bot.send_message
 def wrapped_send_message(*args, **kwargs):
@@ -2924,6 +3049,129 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
 
     session.last_error = last_err_msg
     return None, None
+
+
+def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, server_id=None):
+    """ Safely extend a client's traffic and expiration without deleting them """
+    import json, re, time
+    cfg = get_config()
+    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
+    
+    server = None
+    if server_id:
+        server = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+    if not server and servers:
+        server = next((s for s in servers if s.get("status") == "active"), servers[0])
+        
+    if server:
+        base_url = normalize_xui_url(server.get("panelUrl", ""))
+    else:
+        base_url = cfg.get("XUI_URL", "")
+        
+    if not base_url: return False
+    if base_url.endswith("/"): base_url = base_url[:-1]
+    
+    if not login_xui(server_id):
+        print("[Extend API] Login failed")
+        return False
+        
+    session = get_session(server_id=server_id)
+    
+    safe_email = ""
+    if client_email:
+        safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
+        safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
+        
+    success = False
+    
+    try:
+        # First get the client to read current limits
+        client_data = None
+        inbound_id = None
+        
+        list_url = f"{base_url}/panel/api/inbounds/list"
+        list_res = session.get(list_url, timeout=20, verify=False)
+        if list_res.ok:
+            res_json = list_res.json()
+            if res_json.get("success") and isinstance(res_json.get("obj"), list):
+                for inbound in res_json["obj"]:
+                    clients_str = inbound.get("settings", "{}")
+                    try:
+                        c_json = json.loads(clients_str)
+                        for c in c_json.get("clients", []):
+                            if (client_uuid and str(c.get("id")) == str(client_uuid)) or (safe_email and c.get("email") == safe_email):
+                                client_data = c
+                                inbound_id = inbound.get("id")
+                                break
+                        if client_data:
+                            break
+                    except:
+                        pass
+        
+        if not client_data:
+            print(f"[Extend API] Client {safe_email} / {client_uuid} not found in panel.")
+            return False
+            
+        current_total = int(client_data.get("total", 0))
+        current_expiry = int(client_data.get("expiryTime", 0))
+        
+        # Calculate additions
+        add_bytes = int(float(add_gb) * 1024 * 1024 * 1024)
+        add_ms = int(float(add_days) * 24 * 60 * 60 * 1000)
+        
+        new_total = current_total + add_bytes
+        
+        # If current expiry is 0 (unlimited) or in the past, calculate from NOW
+        now_ms = int(time.time() * 1000)
+        if current_expiry == 0 or current_expiry < now_ms:
+            new_expiry = now_ms + add_ms
+        else:
+            new_expiry = current_expiry + add_ms
+            
+        # Prepare merged client
+        merged_c = client_data.copy()
+        merged_c["total"] = new_total
+        merged_c["expiryTime"] = new_expiry
+        merged_c["enable"] = True
+        
+        uid = merged_c.get("id")
+        
+        # Try unified update endpoint
+        email_upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
+        try:
+            res_email = session.post(email_upd_url, json=merged_c, timeout=20, verify=False)
+            if res_email.ok and res_email.json().get("success"):
+                 print(f"[Extend API] Successfully extended {safe_email} via /panel/api/clients/update/{{email}}")
+                 return True
+        except: pass
+        
+        uuid_upd_url = f"{base_url}/panel/api/clients/update/{uid}"
+        try:
+            res_uuid = session.post(uuid_upd_url, json=merged_c, timeout=20, verify=False)
+            if res_uuid.ok and res_uuid.json().get("success"):
+                 print(f"[Extend API] Successfully extended {uid} via /panel/api/clients/update/{{uuid}}")
+                 return True
+        except: pass
+        
+        # Fallback to classic updateClient
+        payload = {
+            "id": inbound_id, 
+            "settings": json.dumps({"clients": [merged_c]})
+        }
+        upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
+        upd_res = session.post(upd_url, data=payload, timeout=20, verify=False)
+        if upd_res.ok and upd_res.json().get("success"):
+            print(f"[Extend API] Successfully extended client {uid} via /updateClient/{{uuid}}")
+            return True
+            
+        upd_res_json = session.post(upd_url, json=payload, timeout=20, verify=False)
+        if upd_res_json.ok and upd_res_json.json().get("success"):
+            return True
+            
+    except Exception as e:
+        print(f"[Extend API Error] {e}")
+        
+    return False
 
 def update_vpn_client_enabled_api(client_email, enable, client_uuid=None, server_id=None):
     """ Call Sanaei 3x-ui API to update client enabled status """
@@ -5615,7 +5863,10 @@ def callback_handler(call):
         is_admin = int(tg_id) in cfg.get("ADMINS", [])
         
         if not (is_owner or is_admin):
-            bot.answer_callback_query(call.id, "❌ شما دسترسی لازم جهت انجام این عملیات را ندارید.", show_alert=True)
+            try:
+                bot.answer_callback_query(call.id, "❌ شما دسترسی لازم جهت انجام این عملیات را ندارید.", show_alert=True)
+            except Exception:
+                pass
             return
             
         parts = call.data.split(":")
@@ -5624,8 +5875,12 @@ def callback_handler(call):
         
         if action == "tx_approve":
             try:
+                bot.answer_callback_query(call.id, "⏳ در حال تایید تراکنش و ساخت کانفیگ... لطفا چند لحظه صبور باشید.", show_alert=False)
+            except Exception:
+                pass
+            try:
                 import requests
-                resp = requests.post("http://127.0.0.1:3000/api/transactions/approve", json={"id": tx_id}, timeout=30)
+                resp = requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/transactions/approve", json={"id": tx_id}, timeout=30)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("success"):
@@ -5640,19 +5895,47 @@ def callback_handler(call):
                         except Exception as e:
                             print(f"[Error editing approved message caption] {e}")
                             
-                        bot.answer_callback_query(call.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", show_alert=True)
+                        try:
+                            bot.answer_callback_query(call.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", show_alert=True)
+                        except Exception:
+                            try:
+                                bot.send_message(call.message.chat.id, "✅ تراکنش با موفقیت تایید و اعمال شد.", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
                     else:
                         msg = data.get("message", "خطای ناشناخته از سمت سرور")
-                        bot.answer_callback_query(call.id, f"❌ خطا در تایید: {msg}", show_alert=True)
+                        try:
+                            bot.answer_callback_query(call.id, f"❌ خطا در تایید: {msg}", show_alert=True)
+                        except Exception:
+                            try:
+                                bot.send_message(call.message.chat.id, f"❌ خطا در تایید: {msg}", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
                 else:
-                    bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                    try:
+                        bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                    except Exception:
+                        try:
+                            bot.send_message(call.message.chat.id, f"❌ خطای سرور: کد {resp.status_code}", reply_to_message_id=call.message.message_id)
+                        except Exception:
+                            pass
             except Exception as e:
-                bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                try:
+                    bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                except Exception:
+                    try:
+                        bot.send_message(call.message.chat.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", reply_to_message_id=call.message.message_id)
+                    except Exception:
+                        pass
         
         elif action == "tx_reject":
             try:
+                bot.answer_callback_query(call.id, "⏳ در حال رد کردن تراکنش... لطفا صبور باشید.", show_alert=False)
+            except Exception:
+                pass
+            try:
                 import requests
-                resp = requests.post("http://127.0.0.1:3000/api/transactions/reject", json={"id": tx_id}, timeout=30)
+                resp = requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/transactions/reject", json={"id": tx_id}, timeout=30)
                 if resp.status_code == 200:
                     data = resp.json()
                     if data.get("success"):
@@ -5667,14 +5950,38 @@ def callback_handler(call):
                         except Exception as e:
                             print(f"[Error editing rejected message caption] {e}")
                             
-                        bot.answer_callback_query(call.id, "❌ تراکنش با موفقیت رد شد.", show_alert=True)
+                        try:
+                            bot.answer_callback_query(call.id, "❌ تراکنش با موفقیت رد شد.", show_alert=True)
+                        except Exception:
+                            try:
+                                bot.send_message(call.message.chat.id, "❌ تراکنش با موفقیت رد شد.", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
                     else:
                         msg = data.get("message", "خطای ناشناخته")
-                        bot.answer_callback_query(call.id, f"❌ خطا در رد تراکنش: {msg}", show_alert=True)
+                        try:
+                            bot.answer_callback_query(call.id, f"❌ خطا در رد تراکنش: {msg}", show_alert=True)
+                        except Exception:
+                            try:
+                                bot.send_message(call.message.chat.id, f"❌ خطا در رد تراکنش: {msg}", reply_to_message_id=call.message.message_id)
+                            except Exception:
+                                pass
                 else:
-                    bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                    try:
+                        bot.answer_callback_query(call.id, f"❌ خطای سرور: کد {resp.status_code}", show_alert=True)
+                    except Exception:
+                        try:
+                            bot.send_message(call.message.chat.id, f"❌ خطای سرور: کد {resp.status_code}", reply_to_message_id=call.message.message_id)
+                        except Exception:
+                            pass
             except Exception as e:
-                bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                try:
+                    bot.answer_callback_query(call.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", show_alert=True)
+                except Exception:
+                    try:
+                        bot.send_message(call.message.chat.id, f"❌ خطا در برقراری ارتباط با سرور: {e}", reply_to_message_id=call.message.message_id)
+                    except Exception:
+                        pass
         return
 
     # Buy Pay Selection Handler
@@ -5748,7 +6055,7 @@ def callback_handler(call):
                     "id": target_sub_id,
                     "status": "active" if new_status == "active" else "suspended"
                 }
-                requests.post("http://127.0.0.1:3000/api/subscription-keys/toggle", json=payload, timeout=10)
+                requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/subscription-keys/toggle", json=payload, timeout=10)
             except Exception as e:
                 print(f"Error calling local toggle API: {e}")
             
@@ -6082,8 +6389,11 @@ def callback_handler(call):
                 new_exp_days = (new_exp_dt - datetime.now()).days
                 new_exp_days = max(1, new_exp_days)
                 
-                delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
-                _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"), server_id=k.get("serverId"))
+                # Use extend_vpn_client_api instead of delete/add
+                extended = extend_vpn_client_api(client_name, spec['traffic'], spec['duration'], k.get("clientUuid"), server_id=k.get("serverId"))
+                sub_link = k.get("subLink", "")
+                if not extended:
+                    sub_link = None
                 
                 if not sub_link:
                     if not is_privileged:
@@ -6514,7 +6824,7 @@ def callback_handler(call):
                     "id": sub_id,
                     "status": "active" if new_status == "active" else "suspended"
                 }
-                requests.post("http://127.0.0.1:3000/api/subscription-keys/toggle", json=payload, timeout=10)
+                requests.post(f"http://127.0.0.1:{get_local_server_port()}/api/subscription-keys/toggle", json=payload, timeout=10)
             except Exception as e:
                 print(f"Error calling local toggle API: {e}")
             
@@ -7312,8 +7622,11 @@ def callback_handler(call):
             new_exp_days = (new_exp_dt - datetime.now()).days
             new_exp_days = max(1, new_exp_days)
             
-            delete_vpn_client_api(client_name, k.get("clientUuid"), server_id=k.get("serverId"))
-            _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, k.get("clientUuid"), server_id=k.get("serverId"))
+            # Use extend_vpn_client_api instead of delete/add
+            extended = extend_vpn_client_api(client_name, gb, days, k.get("clientUuid"), server_id=k.get("serverId"))
+            sub_link = k.get("subLink", "")
+            if not extended:
+                sub_link = None
             
             if not sub_link:
                 if not is_privileged:
@@ -8369,8 +8682,11 @@ def process_col_renew_days(message, acc, sub, add_gb):
         new_exp_days = max(1, new_exp_days)
         
         client_name = live_sub.get("clientName") or live_sub.get("planName", "")
-        delete_vpn_client_api(client_name, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
-        _, sub_link = add_vpn_client_api(client_name, new_limit_gb, new_exp_days, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
+        # Use extend_vpn_client_api instead of delete/add
+        extended = extend_vpn_client_api(client_name, extra_gb, extra_days, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
+        sub_link = live_sub.get("subLink", "")
+        if not extended:
+            sub_link = None
         
         if not sub_link:
             # Revert deduction
@@ -9219,15 +9535,35 @@ def handle_receipt_upload(message):
             
             tx_description = f"شارژ انتخابی تلگرام. کپشن فیش: '{caption}'" if caption else f"شارژ انتخابی {extracted_amount:,} تومان بدون کپشن."
             if pending_plan_id:
+                # Find server name
+                server_name = "نامشخص"
+                if pending_server_id:
+                    servers = cfg.get("SERVERS", []) + cfg.get("COLLEAGUE_SERVERS", [])
+                    srv = next((s for s in servers if str(s.get("id")) == str(pending_server_id)), None)
+                    if srv:
+                        server_name = srv.get("remark") or srv.get("name") or str(pending_server_id)
+                    else:
+                        server_name = str(pending_server_id)
+
                 if pending_plan_id == "custom_vol":
-                    tx_description = f"خرید دلخواه: {p_gb}GB/{p_days}روز, نام کاربری: {pending_username}, سرور: {pending_server_id}"
+                    tx_description = f"خرید دلخواه: {p_gb}GB/{p_days}روز, نام کاربری: {pending_username}, سرور: {server_name}"
                 elif pending_plan_id == "custom_renew":
                     sub_keys = db.get("subscription_keys", [])
                     sk = next((s for s in sub_keys if s["id"] == pending_username), None)
                     sub_client_name = sk.get("clientName", "سرویس") if sk else "سرویس"
                     tx_description = f"تمدید دلخواه: {p_gb}GB/{p_days}روز, سرویس: {sub_client_name} (شناسه: {pending_username})"
                 else:
-                    tx_description = f"خرید پلان: {pending_plan_id}, نام کاربری: {pending_username}"
+                    # Regular plan: find plan name and category
+                    db_plans = db.get("vpn_plans", [])
+                    db_plan = next((dp for dp in db_plans if dp["id"] == pending_plan_id), None)
+                    category_name = ""
+                    if db_plan and db_plan.get("category"):
+                        cat_obj = next((c for c in db.get("plan_categories", []) if c.get("id") == db_plan["category"]), None)
+                        if cat_obj:
+                            category_name = cat_obj.get("name", "")
+                    
+                    plan_disp = f"{category_name} - {db_plan.get('name')}" if category_name and db_plan else (db_plan.get('name') if db_plan else pending_plan_id)
+                    tx_description = f"خرید پلان: {plan_disp}, نام کاربری: {pending_username}, سرور: {server_name}"
 
             new_tx = {
                 "id": tx_id,
@@ -9479,7 +9815,7 @@ def process_custom_vol_days(message, server_id, gb):
         if days < min_days or days > 365:
             raise ValueError()
     except ValueError:
-        _, min_days = get_custom_pricing_limits(server_id)
+        min_gb, min_days = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
             f"❌ <b>خطا: تعداد روزها نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
@@ -9737,7 +10073,13 @@ def process_renew_gb(message, target_sub_id):
     db = read_sqlite_db()
     k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
     server_id = k.get("serverId") if k else None
-        
+    if not server_id:
+        cfg = get_config()
+        servers = cfg.get("SERVERS", [])
+        active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        if active:
+            server_id = active.get("id")
+            
     try:
         gb = int(text)
         min_gb, _ = get_custom_pricing_limits(server_id)
@@ -9773,14 +10115,20 @@ def process_renew_days(message, target_sub_id, gb):
     db = read_sqlite_db()
     k = next((s for s in db.get("subscription_keys", []) if s["id"] == target_sub_id), None)
     server_id = k.get("serverId") if k else None
-        
+    if not server_id:
+        cfg = get_config()
+        servers = cfg.get("SERVERS", [])
+        active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        if active:
+            server_id = active.get("id")
+            
     try:
         days = int(text)
         _, min_days = get_custom_pricing_limits(server_id)
         if days < min_days or days > 365:
             raise ValueError()
     except ValueError:
-        _, min_days = get_custom_pricing_limits(server_id)
+        min_gb, min_days = get_custom_pricing_limits(server_id)
         msg = bot.reply_to(
             message,
             f"❌ <b>خطا: تعداد روزها نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
@@ -9798,6 +10146,12 @@ def process_renew_days(message, target_sub_id, gb):
         return
         
     server_id = k.get("serverId")
+    if not server_id:
+        cfg = get_config()
+        servers = cfg.get("SERVERS", [])
+        active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+        if active:
+            server_id = active.get("id")
     cfg = get_config()
     settings_data = db.get("settings", {})
     

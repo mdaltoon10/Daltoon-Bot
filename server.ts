@@ -4099,7 +4099,27 @@ app.post("/api/transactions/approve", async (req, res) => {
                   linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
                 }
 
-                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n📦 پلان: <b>${plan.name}</b>\n\n${linksDisplay}`;
+                let planDetailsText = `📦 پلان: <b>${plan.name}</b>`;
+                if (plan.category) {
+                  const categoryObj = (db.plan_categories || []).find((c: any) => c.id === plan.category);
+                  const categoryName = categoryObj ? categoryObj.name : plan.category;
+                  if (categoryName) {
+                    planDetailsText = `📦 پلان: <b>${categoryName} - ${plan.name}</b>`;
+                  }
+                }
+
+                let serverDetailsText = "";
+                const activeServers = getActiveServers(settings);
+                let selectedServer = activeServers.find((s: any) => s.id === tx.serverId);
+                if (!selectedServer && activeServers.length > 0) {
+                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
+                }
+                if (selectedServer) {
+                  const serverName = selectedServer.remark || selectedServer.name || "نامشخص";
+                  serverDetailsText = `🌐 سرور: <b>${serverName}</b>\n\n`;
+                }
+
+                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n${planDetailsText}\n${serverDetailsText}${linksDisplay}`;
 
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId =
@@ -4205,7 +4225,18 @@ app.post("/api/transactions/approve", async (req, res) => {
                   linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
                 }
 
-                messageTextForNotif = `✅ <b>کانفیگ دلخواه شما آماده شد!</b>\n\n📦 حجم: <b>${customGb} گیگابایت</b> | زمان: <b>${customDays} روز</b>\n\n${linksDisplay}`;
+                let serverDetailsText = "";
+                const activeServers = getActiveServers(settings);
+                let selectedServer = activeServers.find((s: any) => s.id === tx.serverId);
+                if (!selectedServer && activeServers.length > 0) {
+                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
+                }
+                if (selectedServer) {
+                  const serverName = selectedServer.remark || selectedServer.name || "نامشخص";
+                  serverDetailsText = `🌐 سرور: <b>${serverName}</b>\n\n`;
+                }
+
+                messageTextForNotif = `✅ <b>کانفیگ دلخواه شما آماده شد!</b>\n\n📦 حجم: <b>${customGb} گیگابایت</b> | زمان: <b>${customDays} روز</b>\n${serverDetailsText}${linksDisplay}`;
 
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId =
@@ -4296,6 +4327,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                   settings,
                   k.clientUuid,
                   serverId,
+                  true
                 );
 
                 if (addResult.success && addResult.subLink) {

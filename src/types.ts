@@ -20,6 +20,7 @@ export interface PanelSettings {
   currency?: string; // Custom currency string (e.g. "تومان", "USD", "$", etc.)
   botNickname?: string;
   usePremiumEmojis?: boolean;
+  useButtonColors?: boolean;
   baseUrl: string; // Deprecated, kept for backward compatibility
   subUrl?: string; // Deprecated
   panelUrl: string; // Deprecated
@@ -66,6 +67,11 @@ export interface PanelSettings {
   btnTextFeedback?: string;
   btnTextWallet?: string;
   hideBtnWallet?: boolean;
+  buttonStylesMapping?: Record<string, string[]>;
+  primaryButtonColors?: Record<string, string>;
+  extraButtonColors?: {keyword: string; color: string}[];
+  premiumEmojiList?: {emoji: string; customId: string}[];
+  premiumEmojiMapping?: Record<string, string>;
   btnTextReferral?: string;
   hideBtnReferral?: boolean;
   btnTextColleagues?: string;

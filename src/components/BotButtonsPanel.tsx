@@ -24,6 +24,7 @@ import {
   Film,
   Mic,
   Paperclip,
+  Palette,
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
@@ -920,174 +921,198 @@ export default function BotButtonsPanel({
                 });
               })()}
             </div>
-            
-            {/* Part B: Extra Words Colors */}
-            <div className="mt-6 pt-6 border-t border-gray-800">
-              <button
-                type="button"
-                onClick={() => setIsExtraWordsOpen(!isExtraWordsOpen)}
-                className="w-full flex items-center justify-between text-left focus:outline-none"
-              >
-                <label className="text-xs uppercase tracking-wider text-gray-400 font-semibold cursor-pointer">
-                  {translateText("🎨 Custom Colored Words (Inline Buttons)", "🎨 کلمات رنگی سفارشی (برای دکمه‌های شیشه‌ای)", lang)}
-                </label>
-                <span className="text-gray-500">
-                  {isExtraWordsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </span>
-              </button>
-              
-              {isExtraWordsOpen && (
-              <div className="bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl space-y-4 mt-3 animate-fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {extraButtonColors.map((item, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="text"
-                        className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500"
-                        placeholder={translateText("Keyword", "کلمه", lang)}
-                        value={item.keyword}
-                        onChange={(e) => {
-                          const newList = [...extraButtonColors];
-                          newList[idx].keyword = e.target.value;
-                          setExtraButtonColors(newList);
-                        }}
-                      />
-                      <select
-                        className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-[90px] shrink-0"
-                        value={item.color}
-                        onChange={(e) => {
-                          const newList = [...extraButtonColors];
-                          newList[idx].color = e.target.value;
-                          setExtraButtonColors(newList);
-                        }}
-                        dir={lang === "fa" ? "rtl" : "ltr"}
-                      >
-                        <option value="none">{translateText("None", "بدون رنگ", lang)}</option>
-                        <option value="success">{translateText("Green", "سبز", lang)}</option>
-                        <option value="danger">{translateText("Red", "قرمز", lang)}</option>
-                        <option value="primary">{translateText("Blue", "آبی", lang)}</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newList = extraButtonColors.filter((_, i) => i !== idx);
-                          setExtraButtonColors(newList);
-                        }}
-                        className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExtraButtonColors([...extraButtonColors, { keyword: "", color: "none" }])}
-                    className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    {translateText("Add New Word", "افزودن کلمه جدید", lang)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExtraButtonColors(extraButtonColors.map(item => ({ ...item, color: "none" })))}
-                    className="py-2.5 px-4 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg hover:bg-amber-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
-                    {translateText("Remove All Colors", "بدون رنگ کردن همه کلمات", lang)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExtraButtonColors([])}
-                    className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                    {translateText("Clear All Words", "حذف همه کلمات از لیست", lang)}
-                  </button>
-                </div>
-              </div>
-              )}
-            </div>
-
-            {/* Part C: Premium Emojis */}
-            <div className="mt-6 pt-6 border-t border-gray-800 space-y-3">
-              <button
-                type="button"
-                onClick={() => setIsPremiumEmojisOpen(!isPremiumEmojisOpen)}
-                className="w-full flex items-center justify-between text-left focus:outline-none"
-              >
-                <label className="block text-xs uppercase tracking-wider text-gray-400 font-semibold cursor-pointer">
-                  {translateText("✨ Premium Animated Emojis", "✨ جایگزین‌های ایموجی متحرک تلگرام", lang)}
-                </label>
-                <span className="text-gray-500">
-                  {isPremiumEmojisOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </span>
-              </button>
-              
-              {isPremiumEmojisOpen && (
-              <div className="bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl space-y-4 mt-3 animate-fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {premiumEmojiList.map((item, idx) => (
-                    <div key={idx} className="flex gap-2">
-                      <input
-                        type="text"
-                        className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-center text-white focus:ring-1 focus:ring-indigo-500 w-12 shrink-0"
-                        placeholder="✨"
-                        value={item.emoji}
-                        onChange={(e) => {
-                          const newList = [...premiumEmojiList];
-                          newList[idx].emoji = e.target.value;
-                          setPremiumEmojiList(newList);
-                        }}
-                      />
-                      <input
-                        type="text"
-                        className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-left text-white focus:ring-1 focus:ring-indigo-500 font-mono tracking-wider"
-                        placeholder="Custom Emoji ID (e.g. 5449...)"
-                        value={item.customId}
-                        onChange={(e) => {
-                          const newList = [...premiumEmojiList];
-                          newList[idx].customId = e.target.value;
-                          setPremiumEmojiList(newList);
-                        }}
-                        dir="ltr"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const newList = premiumEmojiList.filter((_, i) => i !== idx);
-                          setPremiumEmojiList(newList);
-                        }}
-                        className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPremiumEmojiList([...premiumEmojiList, { emoji: "", customId: "" }])}
-                    className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                    {translateText("Add Emoji Mapping", "افزودن ایموجی جدید", lang)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPremiumEmojiList([])}
-                    className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                    {translateText("Clear All Emojis", "حذف همه ایموجی‌ها از لیست", lang)}
-                  </button>
-                </div>
-              </div>
-              )}
-            </div>
           </div>
+        </div>
+
+        {/* Part B: Extra Words Colors */}
+        <div className="bg-[#111827] border border-emerald-500/25 p-5 rounded-xl space-y-4 shadow-lg shadow-emerald-500/5">
+          <button
+            type="button"
+            onClick={() => setIsExtraWordsOpen(!isExtraWordsOpen)}
+            className="w-full flex items-center justify-between text-left focus:outline-none pb-2 border-b border-gray-800"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Palette className="w-5 h-5" />
+              </div>
+              <div className="text-right">
+                <h4 className="font-display font-medium text-base text-white">
+                  {translateText("🎨 Custom Colored Words (Inline Buttons)", "🎨 کلمات رنگی سفارشی (برای دکمه‌های شیشه‌ای)", lang)}
+                </h4>
+                <p className="text-xs text-gray-400 mt-1">
+                  {translateText("Define custom colors (Green, Red, Blue) for inline/keyboard button keywords with smart matching.", "تعیین رنگ‌های سفارشی (سبز، قرمز، آبی) برای کلمات دکمه‌ها با کادربندی واضح و خوانا.", lang)}
+                </p>
+              </div>
+            </div>
+            <span className="text-gray-500 bg-gray-800/40 p-1.5 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition">
+              {isExtraWordsOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </span>
+          </button>
+          
+          {isExtraWordsOpen && (
+            <div className="space-y-4 mt-3 animate-fade-in">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
+                {extraButtonColors.map((item, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500"
+                      placeholder={translateText("Keyword", "کلمه", lang)}
+                      value={item.keyword}
+                      onChange={(e) => {
+                        const newList = [...extraButtonColors];
+                        newList[idx].keyword = e.target.value;
+                        setExtraButtonColors(newList);
+                      }}
+                    />
+                    <select
+                      className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-[90px] shrink-0"
+                      value={item.color}
+                      onChange={(e) => {
+                        const newList = [...extraButtonColors];
+                        newList[idx].color = e.target.value;
+                        setExtraButtonColors(newList);
+                      }}
+                      dir={lang === "fa" ? "rtl" : "ltr"}
+                    >
+                      <option value="none">{translateText("None", "بدون رنگ", lang)}</option>
+                      <option value="success">{translateText("Green", "سبز", lang)}</option>
+                      <option value="danger">{translateText("Red", "قرمز", lang)}</option>
+                      <option value="primary">{translateText("Blue", "آبی", lang)}</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newList = extraButtonColors.filter((_, i) => i !== idx);
+                        setExtraButtonColors(newList);
+                      }}
+                      className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setExtraButtonColors([...extraButtonColors, { keyword: "", color: "none" }])}
+                  className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  {translateText("Add New Word", "افزودن کلمه جدید", lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExtraButtonColors(extraButtonColors.map(item => ({ ...item, color: "none" })))}
+                  className="py-2.5 px-4 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-lg hover:bg-amber-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>
+                  {translateText("Remove All Colors", "بدون رنگ کردن همه کلمات", lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExtraButtonColors([])}
+                  className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  {translateText("Clear All Words", "حذف همه کلمات از لیست", lang)}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Part C: Premium Emojis */}
+        <div className="bg-[#111827] border border-amber-500/25 p-5 rounded-xl space-y-4 shadow-lg shadow-amber-500/5">
+          <button
+            type="button"
+            onClick={() => setIsPremiumEmojisOpen(!isPremiumEmojisOpen)}
+            className="w-full flex items-center justify-between text-left focus:outline-none pb-2 border-b border-gray-800"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                <Sparkles className="w-5 h-5 animate-pulse" />
+              </div>
+              <div className="text-right">
+                <h4 className="font-display font-medium text-base text-white">
+                  {translateText("✨ Premium Animated Emojis", "✨ جایگزین‌های ایموجی متحرک تلگرام", lang)}
+                </h4>
+                <p className="text-xs text-gray-400 mt-1">
+                  {translateText("Map plain emojis to custom high-quality Telegram Premium animated emoji IDs.", "تعریف شناسه‌های ایموجی پرمیوم متحرک تلگرام به کدهای عددی در کادری مجزا و خوانا.", lang)}
+                </p>
+              </div>
+            </div>
+            <span className="text-gray-500 bg-gray-800/40 p-1.5 rounded-lg border border-gray-700/50 hover:bg-gray-800 transition">
+              {isPremiumEmojisOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </span>
+          </button>
+          
+          {isPremiumEmojisOpen && (
+            <div className="space-y-4 mt-3 animate-fade-in">
+              <div className="bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl text-xs text-amber-400/90 leading-tight space-y-1">
+                <p>💡 {translateText("How to get Premium Emoji IDs?", "راهنمای به دست آوردن شناسه ایموجی متحرک:", lang)}</p>
+                <p>{translateText("You can send any premium emoji to the @ShowJsonBot or @ShowIdBot in Telegram, get the long numeric 'custom_emoji_id' value, and map it here.", "شما می‌توانید هر ایموجی پریمیوم را به ربات @ShowJsonBot در تلگرام بفرستید، مقدار عددی طولانی custom_emoji_id را برداشته و در کادرهای زیر تنظیم کنید.", lang)}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 bg-[#0a0e17] p-4 border border-gray-800/60 rounded-xl">
+                {premiumEmojiList.map((item, idx) => (
+                  <div key={idx} className="flex gap-2">
+                    <input
+                      type="text"
+                      className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-center text-white focus:ring-1 focus:ring-indigo-500 w-12 shrink-0"
+                      placeholder="✨"
+                      value={item.emoji}
+                      onChange={(e) => {
+                        const newList = [...premiumEmojiList];
+                        newList[idx].emoji = e.target.value;
+                        setPremiumEmojiList(newList);
+                      }}
+                    />
+                    <input
+                      type="text"
+                      className="flex-1 bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-left text-white focus:ring-1 focus:ring-indigo-500 font-mono tracking-wider"
+                      placeholder="Custom Emoji ID (e.g. 5449...)"
+                      value={item.customId}
+                      onChange={(e) => {
+                        const newList = [...premiumEmojiList];
+                        newList[idx].customId = e.target.value;
+                        setPremiumEmojiList(newList);
+                      }}
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newList = premiumEmojiList.filter((_, i) => i !== idx);
+                        setPremiumEmojiList(newList);
+                      }}
+                      className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white p-2.5 rounded-lg transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPremiumEmojiList([...premiumEmojiList, { emoji: "", customId: "" }])}
+                  className="py-2.5 px-4 bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 rounded-lg hover:bg-indigo-600 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                  {translateText("Add Emoji Mapping", "افزودن ایموجی جدید", lang)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPremiumEmojiList([])}
+                  className="py-2.5 px-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500 hover:text-white transition text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                  {translateText("Clear All Emojis", "حذف همه ایموجی‌ها از لیست", lang)}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Client Video Tutorials Section */}

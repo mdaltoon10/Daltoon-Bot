@@ -3348,11 +3348,30 @@ ${linksText}
 
 \u{1F4A1} \u0644\u06CC\u0646\u06A9 \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 v2rayNG \u06CC\u0627 V2box \u062E\u0648\u062F \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>Subscription (\u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646)</b> \u0648\u0627\u0631\u062F \u06A9\u0631\u062F\u0647 \u0648 \u0628\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (Update) \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u0647\u0645\u0647 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0648\u0646\u062F.`;
                 }
+                let planDetailsText = `\u{1F4E6} \u067E\u0644\u0627\u0646: <b>${plan.name}</b>`;
+                if (plan.category) {
+                  const categoryObj = (db.plan_categories || []).find((c) => c.id === plan.category);
+                  const categoryName = categoryObj ? categoryObj.name : plan.category;
+                  if (categoryName) {
+                    planDetailsText = `\u{1F4E6} \u067E\u0644\u0627\u0646: <b>${categoryName} - ${plan.name}</b>`;
+                  }
+                }
+                let serverDetailsText = "";
+                const activeServers = getActiveServers(settings);
+                let selectedServer = activeServers.find((s) => s.id === tx.serverId);
+                if (!selectedServer && activeServers.length > 0) {
+                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
+                }
+                if (selectedServer) {
+                  const serverName = selectedServer.remark || selectedServer.name || "\u0646\u0627\u0645\u0634\u062E\u0635";
+                  serverDetailsText = `\u{1F310} \u0633\u0631\u0648\u0631: <b>${serverName}</b>
+
+`;
+                }
                 messageTextForNotif = `\u2705 <b>\u06A9\u0627\u0646\u0641\u06CC\u06AF \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u0634\u062F!</b>
 
-\u{1F4E6} \u067E\u0644\u0627\u0646: <b>${plan.name}</b>
-
-${linksDisplay}`;
+${planDetailsText}
+${serverDetailsText}${linksDisplay}`;
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
                 const expireTimestamp = Date.now() + planDuration * 24 * 60 * 60 * 1e3;
@@ -3456,11 +3475,22 @@ ${linksText}
 
 \u{1F4A1} \u0644\u06CC\u0646\u06A9 \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 v2rayNG \u06CC\u0627 V2box \u062E\u0648\u062F \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>Subscription (\u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646)</b> \u0648\u0627\u0631\u062F \u06A9\u0631\u062F\u0647 \u0648 \u0628\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (Update) \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u0647\u0645\u0647 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0648\u0646\u062F.`;
                 }
+                let serverDetailsText = "";
+                const activeServers = getActiveServers(settings);
+                let selectedServer = activeServers.find((s) => s.id === tx.serverId);
+                if (!selectedServer && activeServers.length > 0) {
+                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
+                }
+                if (selectedServer) {
+                  const serverName = selectedServer.remark || selectedServer.name || "\u0646\u0627\u0645\u0634\u062E\u0635";
+                  serverDetailsText = `\u{1F310} \u0633\u0631\u0648\u0631: <b>${serverName}</b>
+
+`;
+                }
                 messageTextForNotif = `\u2705 <b>\u06A9\u0627\u0646\u0641\u06CC\u06AF \u062F\u0644\u062E\u0648\u0627\u0647 \u0634\u0645\u0627 \u0622\u0645\u0627\u062F\u0647 \u0634\u062F!</b>
 
 \u{1F4E6} \u062D\u062C\u0645: <b>${customGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A</b> | \u0632\u0645\u0627\u0646: <b>${customDays} \u0631\u0648\u0632</b>
-
-${linksDisplay}`;
+${serverDetailsText}${linksDisplay}`;
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
                 const expireDate = new Date(
@@ -3543,7 +3573,8 @@ ${linksDisplay}`;
                   remainingDays,
                   settings,
                   k.clientUuid,
-                  serverId
+                  serverId,
+                  true
                 );
                 if (addResult.success && addResult.subLink) {
                   k.expireDate = newExpireDateStr;

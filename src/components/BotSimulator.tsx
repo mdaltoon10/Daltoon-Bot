@@ -163,6 +163,252 @@ export default function BotSimulator({
 
   const currentUser = simulatedUsers.find(u => u.userId === activeUserId) || users.find(u => u.userId === activeUserId) || users[0] || { userId: 6536288293, username: "GuestUser", walletBalance: 0 };
 
+  const formatPremiumEmojis = (text: string): React.ReactNode => {
+    if (!text) return "";
+    if (!settings?.usePremiumEmojis) return text;
+
+    const emojiMapping = settings?.premiumEmojiMapping || {};
+    const emojis = Object.keys(emojiMapping).filter(
+      (e) => e && e.trim().length > 0 && emojiMapping[e]
+    );
+    if (emojis.length === 0) return text;
+
+    emojis.sort((a, b) => b.length - a.length);
+    const escaped = emojis.map(e => e.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|');
+    const pattern = new RegExp(`(${escaped})`, 'g');
+
+    const parts = text.split(pattern);
+    return parts.map((part, index) => {
+      if (emojiMapping[part]) {
+        const customId = emojiMapping[part];
+        return (
+          <span 
+            key={index} 
+            className="inline-flex items-center cursor-help gap-0.5"
+            title={`Telegram Custom Emoji ID: ${customId}`}
+          >
+            {part}
+            <span className="text-[9px] text-amber-400 font-bold select-none animate-pulse">✨</span>
+          </span>
+        );
+      }
+      return part;
+    });
+  };
+
+  const matchCustomStyle = (textVal: string, farsiTextVal: string) => {
+    const mapping = settings?.buttonStylesMapping || {};
+    const isWordChar = (c: string) => /[\w\u0600-\u06FF\uFB50-\uFDFF\uFE70-\uFEFF\u0750-\u077F]/.test(c);
+    
+    const hasWordBoundary = (kw: string, t: string): boolean => {
+      let idx = t.indexOf(kw);
+      while (idx !== -1) {
+        const before = idx > 0 ? t[idx - 1] : "";
+        const after = idx + kw.length < t.length ? t[idx + kw.length] : "";
+        const beforeIsWord = before ? isWordChar(before) : false;
+        const afterIsWord = after ? isWordChar(after) : false;
+        if (!beforeIsWord && !afterIsWord) return true;
+        idx = t.indexOf(kw, idx + 1);
+      }
+      return false;
+    };
+
+    const matches: { color: string; kw: string; exact: boolean; wordBoundary: boolean; substring: boolean }[] = [];
+
+    for (const [color, words] of Object.entries(mapping)) {
+      if (words && Array.isArray(words)) {
+        for (const w of words) {
+          if (!w) continue;
+          const targets = [farsiTextVal, textVal];
+          for (const target of targets) {
+            const isExact = w === target || w.trim() === target.trim();
+            if (isExact) {
+              matches.push({ color, kw: w, exact: true, wordBoundary: true, substring: true });
+              break;
+            }
+            const isWord = hasWordBoundary(w, target);
+            if (isWord) {
+              matches.push({ color, kw: w, exact: false, wordBoundary: true, substring: true });
+              break;
+            }
+            const isSub = target.includes(w);
+            if (isSub) {
+              matches.push({ color, kw: w, exact: false, wordBoundary: false, substring: true });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (matches.length > 0) {
+      const validMatches = matches.filter(m => m.exact || m.wordBoundary || m.kw.length >= 4);
+      if (validMatches.length > 0) {
+        validMatches.sort((a, b) => {
+          const exactA = a.exact ? 2 : 0;
+          const exactB = b.exact ? 2 : 0;
+          if (exactA !== exactB) return exactB - exactA;
+
+          const wordA = a.wordBoundary ? 1 : 0;
+          const wordB = b.wordBoundary ? 1 : 0;
+          if (wordA !== wordB) return wordB - wordA;
+
+          return b.kw.length - a.kw.length;
+        });
+        return validMatches[0].color;
+      }
+    }
+    return null;
+  };
+
+  const getButtonColorClass = (text: string) => {
+    if (!settings?.useButtonColors) return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+    
+    const keyToProp: Record<string, string> = {
+      btnBuyNew: "btnTextBuyNew",
+      btnMySubs: "btnTextMySubs",
+      btnGuides: "btnTextGuides",
+      btnProfile: "btnTextProfile",
+      btnSupport: "btnTextSupport",
+      btnTicketSupport: "btnTextTicketSupport",
+      btnFreeTest: "btnTextFreeTest",
+      btnInstantSupport: "btnTextInstantSupport",
+      btnFeedback: "btnTextFeedback",
+      btnReferral: "btnTextReferral",
+      btnWallet: "btnTextWallet",
+      btnColleagues: "btnTextColleagues",
+      btnAiChat: "btnTextAiChat",
+      btnAi: "btnTextAi",
+    };
+
+    // Find key by checking settings value and all localized fallbacks
+    const key = Object.keys(keyToProp).find(k => {
+      const prop = keyToProp[k];
+      const customVal = settings?.[prop];
+      if (customVal && text === customVal) return true;
+      
+      const faVal = translations.fa?.[k];
+      if (faVal && text === faVal) return true;
+      
+      const enVal = translations.en?.[k];
+      if (enVal && text === enVal) return true;
+      
+      const ruVal = translations.ru?.[k];
+      if (ruVal && text === ruVal) return true;
+      
+      return false;
+    });
+
+    // Obtain the Farsi text representation for keyword matching
+    let farsiText = text;
+    if (key) {
+      const prop = keyToProp[key];
+      farsiText = settings?.[prop] || translations.fa?.[key] || text;
+    }
+
+    if (key) {
+      const color = settings?.primaryButtonColors?.[key];
+      if (color === "success") {
+        return "bg-emerald-950/45 border-emerald-500/30 hover:bg-emerald-900/40 hover:border-emerald-500/50 text-emerald-300";
+      }
+      if (color === "danger") {
+        return "bg-rose-950/45 border-rose-500/30 hover:bg-rose-900/40 hover:border-rose-500/50 text-rose-300";
+      }
+      if (color === "primary") {
+        return "bg-indigo-950/45 border-indigo-500/30 hover:bg-indigo-900/40 hover:border-indigo-500/50 text-indigo-300";
+      }
+      return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+    }
+
+    const customColor = matchCustomStyle(text, farsiText);
+    if (customColor) {
+      if (customColor === "success") {
+        return "bg-emerald-950/45 border-emerald-500/30 hover:bg-emerald-900/40 hover:border-emerald-500/50 text-emerald-300";
+      }
+      if (customColor === "danger") {
+        return "bg-rose-950/45 border-rose-500/30 hover:bg-rose-900/40 hover:border-rose-500/50 text-rose-300";
+      }
+      if (customColor === "primary") {
+        return "bg-indigo-950/45 border-indigo-500/30 hover:bg-indigo-900/40 hover:border-indigo-500/50 text-indigo-300";
+      }
+    }
+    return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+  };
+
+  const getKeyboardButtonColorClass = (text: string) => {
+    if (!settings?.useButtonColors) return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+    
+    const keyToProp: Record<string, string> = {
+      btnBuyNew: "btnTextBuyNew",
+      btnMySubs: "btnTextMySubs",
+      btnGuides: "btnTextGuides",
+      btnProfile: "btnTextProfile",
+      btnSupport: "btnTextSupport",
+      btnTicketSupport: "btnTextTicketSupport",
+      btnFreeTest: "btnTextFreeTest",
+      btnInstantSupport: "btnTextInstantSupport",
+      btnFeedback: "btnTextFeedback",
+      btnReferral: "btnTextReferral",
+      btnWallet: "btnTextWallet",
+      btnColleagues: "btnTextColleagues",
+      btnAiChat: "btnTextAiChat",
+      btnAi: "btnTextAi",
+    };
+
+    // Find key by checking settings value and all localized fallbacks
+    const key = Object.keys(keyToProp).find(k => {
+      const prop = keyToProp[k];
+      const customVal = settings?.[prop];
+      if (customVal && text === customVal) return true;
+      
+      const faVal = translations.fa?.[k];
+      if (faVal && text === faVal) return true;
+      
+      const enVal = translations.en?.[k];
+      if (enVal && text === enVal) return true;
+      
+      const ruVal = translations.ru?.[k];
+      if (ruVal && text === ruVal) return true;
+      
+      return false;
+    });
+
+    // Obtain the Farsi text representation for keyword matching
+    let farsiText = text;
+    if (key) {
+      const prop = keyToProp[key];
+      farsiText = settings?.[prop] || translations.fa?.[key] || text;
+    }
+
+    if (key) {
+      const color = settings?.primaryButtonColors?.[key];
+      if (color === "success") {
+        return "bg-emerald-950/45 border-emerald-500/30 hover:bg-emerald-900/40 hover:border-emerald-500/50 text-emerald-300 font-bold";
+      }
+      if (color === "danger") {
+        return "bg-rose-950/45 border-rose-500/30 hover:bg-rose-900/40 hover:border-rose-500/50 text-rose-300 font-bold";
+      }
+      if (color === "primary") {
+        return "bg-indigo-950/45 border-indigo-500/30 hover:bg-indigo-900/40 hover:border-indigo-500/50 text-indigo-300 font-bold";
+      }
+      return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+    }
+
+    const customColor = matchCustomStyle(text, farsiText);
+    if (customColor) {
+      if (customColor === "success") {
+        return "bg-emerald-950/45 border-emerald-500/30 hover:bg-emerald-900/40 hover:border-emerald-500/50 text-emerald-300 font-bold";
+      }
+      if (customColor === "danger") {
+        return "bg-rose-950/45 border-rose-500/30 hover:bg-rose-900/40 hover:border-rose-500/50 text-rose-300 font-bold";
+      }
+      if (customColor === "primary") {
+        return "bg-indigo-950/45 border-indigo-500/30 hover:bg-indigo-900/40 hover:border-indigo-500/50 text-indigo-300 font-bold";
+      }
+    }
+    return "bg-slate-900 border-slate-800 text-gray-200 hover:bg-slate-800 hover:text-white";
+  };
+
   useEffect(() => {
     // Scroll to bottom
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2069,12 +2315,12 @@ export default function BotSimulator({
                                 </code>
                               );
                             }
-                            if (isBold) return <strong key={i} className="font-extrabold text-[#f3f4f6]">{part}</strong>;
-                            return part;
+                            if (isBold) return <strong key={i} className="font-extrabold text-[#f3f4f6]">{formatPremiumEmojis(part)}</strong>;
+                            return formatPremiumEmojis(part);
                           });
                         })()
                       ) : (
-                        m.text
+                        formatPremiumEmojis(m.text)
                       )}
                     </div>
 
@@ -2109,10 +2355,10 @@ export default function BotSimulator({
                               <button
                                 key={subIndex}
                                 onClick={() => handleInlineClick(subBtn.action)}
-                                className="flex-1 text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 font-semibold rounded-lg text-[11px] border border-slate-800 cursor-pointer transition flex items-center justify-center gap-1.5"
+                                className={`flex-1 text-center py-2 px-3 font-semibold rounded-lg text-[11px] border cursor-pointer transition flex items-center justify-center gap-1.5 ${getButtonColorClass(subBtn.text)}`}
                               >
                                 {subBtn.text.includes("ارسال") || subBtn.text.includes("Upload") || subBtn.text.includes("upload") ? <Camera className="w-3.5 h-3.5 text-emerald-400" /> : null}
-                                {subBtn.text}
+                                {formatPremiumEmojis(subBtn.text)}
                               </button>
                             ))}
                           </div>
@@ -2122,10 +2368,10 @@ export default function BotSimulator({
                         <button
                           key={index}
                           onClick={() => handleInlineClick(btn.action)}
-                          className="w-full text-center py-2 px-3 bg-slate-900 hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 font-semibold rounded-lg text-[11px] border border-slate-800 cursor-pointer transition flex items-center justify-center gap-1.5"
+                          className={`w-full text-center py-2 px-3 font-semibold rounded-lg text-[11px] border cursor-pointer transition flex items-center justify-center gap-1.5 ${getButtonColorClass(btn.text)}`}
                         >
                           {btn.text.includes("ارسال") || btn.text.includes("Upload") || btn.text.includes("upload") ? <Camera className="w-3.5 h-3.5 text-emerald-400" /> : null}
-                          {btn.text}
+                          {formatPremiumEmojis(btn.text)}
                         </button>
                       );
                     })}
@@ -2208,29 +2454,20 @@ export default function BotSimulator({
           {/* Interactive Bot Navigation Menu Keyboard */}
           <div className="bg-[#111827] border-t border-[#1f2937] p-3 space-y-2 shrink-0 z-10 select-none">
             {messages.length > 0 && messages[messages.length - 1].keyboard ? (
-              <div className={
-                settings?.keyboardLayout === "vertical"
-                  ? "grid grid-cols-1 gap-1.5"
-                  : "grid grid-cols-2 gap-1.5"
-              }>
-                {(() => {
-                  const keyboardRows = messages[messages.length - 1].keyboard || [];
-                  const flatButtons = keyboardRows.flatMap(row => row);
-                  const isStepped = settings?.keyboardLayout === "stepped";
-                  
-                  return flatButtons.map((buttonText, idx) => {
-                    const colSpanClass = isStepped && idx % 3 === 0 ? "col-span-2" : "";
-                    return (
+              <div className="flex flex-col gap-1.5">
+                {(messages[messages.length - 1].keyboard || []).map((row, rIdx) => (
+                  <div key={rIdx} className="flex gap-1.5 w-full">
+                    {row.map((buttonText, bIdx) => (
                       <button
-                        key={buttonText}
+                        key={`${buttonText}-${rIdx}-${bIdx}`}
                         onClick={() => handleKeyboardClick(buttonText)}
-                        className={`py-2.5 px-2 bg-slate-900 border border-slate-800 rounded-lg text-[10px] text-gray-200 font-semibold hover:bg-slate-800 hover:text-white transition cursor-pointer text-center ${colSpanClass}`}
+                        className={`flex-1 py-2.5 px-2 rounded-lg text-[10px] transition cursor-pointer text-center border ${getKeyboardButtonColorClass(buttonText)}`}
                       >
-                        {buttonText}
+                        {formatPremiumEmojis(buttonText)}
                       </button>
-                    );
-                  });
-                })()}
+                    ))}
+                  </div>
+                ))}
               </div>
             ) : null}
 
