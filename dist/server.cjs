@@ -5189,56 +5189,23 @@ async function autoSyncTrafficUsage() {
           Cookie: loginResult.cookie,
           Accept: "application/json"
         };
+        if (loginResult.csrfToken) {
+          headers["X-Csrf-Token"] = loginResult.csrfToken;
+        }
         let trafficJson = null;
-        let isSessionExpired = false;
         try {
-          const ctRes = await xuiFetch(
-            `${cleanedUrl}/panel/api/inbounds/getClientTraffics`,
-            { method: "GET", headers },
-            8e3
-          );
+          const ctRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/getClientTraffics`, { method: "GET", headers }, 8e3);
           if (ctRes.ok) {
             const contentType = ctRes.headers.get("content-type") || "";
-            if (ctRes.redirected || contentType.includes("text/html")) {
-              isSessionExpired = true;
-            } else {
+            if (!ctRes.redirected && !contentType.includes("text/html")) {
               const ctText = await ctRes.text();
               try {
                 trafficJson = JSON.parse(ctText);
               } catch (e) {
-                isSessionExpired = true;
               }
             }
           }
         } catch (e) {
-          isSessionExpired = true;
-        }
-        if (isSessionExpired) {
-          console.log(`[XUI Cache] Session expired for ${cleanedUrl} in autoSyncTrafficUsage. Retrying with fresh login...`);
-          clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
-          const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
-          if (freshLogin.success && freshLogin.cookie) {
-            loginResult = freshLogin;
-            headers.Cookie = freshLogin.cookie;
-            if (freshLogin.csrfToken) {
-              headers["X-Csrf-Token"] = freshLogin.csrfToken;
-            }
-            try {
-              const ctResRetry = await xuiFetch(
-                `${cleanedUrl}/panel/api/inbounds/getClientTraffics`,
-                { method: "GET", headers },
-                8e3
-              );
-              if (ctResRetry.ok) {
-                const ctTextRetry = await ctResRetry.text();
-                try {
-                  trafficJson = JSON.parse(ctTextRetry);
-                } catch (e) {
-                }
-              }
-            } catch (err2) {
-            }
-          }
         }
         if (trafficJson && trafficJson.success && Array.isArray(trafficJson.obj)) {
           for (let cs of trafficJson.obj) {
