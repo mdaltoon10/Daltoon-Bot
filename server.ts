@@ -2122,8 +2122,17 @@ app.post("/api/settings", async (req, res) => {
       }
     }
 
-    // Dynamic restart of the Python bot to reload newly added parameters/token
-    startPythonBot();
+    // Compare critical settings to decide if we need a full bot restart
+    const tokenChanged = prevSettings.botToken !== finalPayload.botToken;
+    const receiptTokenChanged = prevSettings.receiptBotToken !== finalPayload.receiptBotToken;
+    const isBotRunning = botProcess !== null;
+
+    if (tokenChanged || receiptTokenChanged || !isBotRunning) {
+      console.log("[Bot Manager] Critical token change or bot not running. Restarting Python bot...");
+      startPythonBot();
+    } else {
+      console.log("[Bot Manager] Non-critical settings updated. Skipping bot restart to prevent Telegram 409 conflict. Changes applied instantly on-the-fly!");
+    }
 
     res.json({
       success: true,
@@ -6151,6 +6160,142 @@ async function sendTelegramMessage(
   replyMarkup?: any,
 ) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
+  
+  try {
+    const db = readSqliteDb();
+    const settings = db.settings || {};
+    const usePremium = String(settings.usePremiumEmojis || "false") === "true";
+    const useButtonColors = String(settings.useButtonColors || "false") === "true";
+    const customEmojis = settings.premiumEmojiMapping || {
+      "🛒": "5449640306352655512",
+      "🎁": "5368324170671202286",
+      "👤": "5368324170671202287",
+      "🎧": "5368324170671202288",
+      "🚀": "5368324170671202289",
+      "✅": "5368324170671202290",
+      "❌": "5368324170671202291",
+      "⚠️": "5368324170671202292",
+      "💎": "5368324170671202293",
+      "💰": "5368324170671202294",
+      "📊": "5368324170671202295",
+      "🔄": "5368324170671202296",
+      "🎫": "5368324170671202297",
+      "⚡": "5368324170671202298",
+      "💳": "5368324170671202299",
+      "📝": "5368324170671202300",
+      "⏳": "5368324170671202301",
+      "🌐": "5368324170671202302",
+      "⚙️": "5368324170671202303",
+      "🔌": "5368324170671202304",
+      "🔋": "5368324170671202305",
+      "💡": "5368324170671202306",
+      "🔒": "5368324170671202307",
+      "🔓": "5368324170671202308",
+      "🔑": "5368324170671202309",
+      "🇯🇵": "5368324170671202331",
+      "🇰🇷": "5368324170671202332",
+      "🇦🇺": "5368324170671202333",
+      "🇿🇦": "5368324170671202334",
+      "🇲🇽": "5368324170671202335",
+      "🇦🇷": "5368324170671202336",
+      "🇸🇦": "5368324170671202337",
+      "🇮🇶": "5368324170671202338",
+    };
+
+    if (usePremium && text) {
+      for (const [std, customId] of Object.entries(customEmojis)) {
+        text = text.split(std).join(`<tg-emoji emoji-id="${customId}">${std}</tg-emoji>`);
+      }
+    }
+
+    if (replyMarkup) {
+      const isInline = !!replyMarkup.inline_keyboard;
+      const rows = replyMarkup.inline_keyboard || replyMarkup.keyboard || [];
+      
+      const primaryColors = settings.primaryButtonColors || {};
+      const primaryTexts: Record<string, string> = {
+        [settings.btnTextBuyNew || "🛒 خرید اشتراک جدید"]: "btnBuyNew",
+        [settings.btnTextMySubs || "🗂 اشتراک های من / تمدید"]: "btnMySubs",
+        [settings.btnTextGuides || "💡 آموزش ها"]: "btnGuides",
+        [settings.btnTextProfile || "👤 حساب کاربری"]: "btnProfile",
+        [settings.btnTextSupport || "📞 پشتیبانی"]: "btnSupport",
+        [settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی"]: "btnTicketSupport",
+        [settings.btnTextFreeTest || "🎁 موجودی رایگان"]: "btnFreeTest",
+        [settings.btnTextInstantSupport || "🤖 پشتیبانی آنی"]: "btnInstantSupport",
+        [settings.btnTextFeedback || "💌 بازخورد کاربر ها"]: "btnFeedback",
+        [settings.btnTextReferral || "👥 زیرمجموعه گیری"]: "btnReferral",
+        [settings.btnTextWallet || "شارژ کیف پول 💳"]: "btnWallet",
+        [settings.btnTextColleagues || "بسته ویژه همکاران"]: "btnColleagues",
+        [settings.btnTextAiChat || "🤖 چت با ربات"]: "btnAiChat",
+        [settings.btnTextAi || "🧠 هوش مصنوعی"]: "btnAi",
+      };
+
+      const cleanBtnText = (t: string) => {
+        if (!t) return "";
+        return Array.from(t).filter(c => c.charCodeAt(0) < 0x2000 || (c.charCodeAt(0) >= 0xFB00 && c.charCodeAt(0) <= 0xFEFF)).join("").trim();
+      };
+
+      const getButtonStyle = (btnText: string) => {
+        const cleaned = cleanBtnText(btnText);
+        let matchedKey = null;
+        for (const [txt, key] of Object.entries(primaryTexts)) {
+          if (txt === btnText || cleanBtnText(txt) === cleaned) {
+            matchedKey = key;
+            break;
+          }
+        }
+        if (matchedKey) {
+          const color = primaryColors[matchedKey];
+          if (color && color !== "none") return color;
+          return null;
+        }
+        const customStyles = settings.buttonStylesMapping || { "success": [], "danger": [], "primary": [] };
+        for (const [style, keywords] of Object.entries(customStyles)) {
+          if (Array.isArray(keywords)) {
+            for (const kw of keywords) {
+              if (kw && btnText.includes(kw)) return style;
+            }
+          }
+        }
+        return null;
+      };
+
+      for (const row of rows) {
+        for (let i = 0; i < row.length; i++) {
+          let btn = row[i];
+          if (typeof btn === "string") continue;
+          
+          if (btn.text) {
+            const originalText = btn.text;
+            
+            if (isInline && useButtonColors) {
+              const assignedStyle = getButtonStyle(originalText);
+              if (assignedStyle) {
+                btn.style = assignedStyle;
+              }
+            }
+            
+            if (isInline && usePremium) {
+              let hasCustom = false;
+              for (const [std, customId] of Object.entries(customEmojis)) {
+                if (originalText.includes(std) || btn.text.includes(std)) {
+                  if (!hasCustom) {
+                    btn.icon_custom_emoji_id = String(customId);
+                    hasCustom = true;
+                  }
+                  btn.text = btn.text.split(std).join("").split("  ").join(" ").trim();
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+  } catch(e) {
+    console.error("Error applying styles to msg:", e);
+  }
+
   try {
     const fetchRef = globalThis.fetch || fetch;
     const body: any = {
