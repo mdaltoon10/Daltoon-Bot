@@ -1833,24 +1833,26 @@ function getActiveServers(settings) {
   return [];
 }
 function normalizeXuiUrl(url) {
+  if (!url) return "";
   let cleaned = `${url}`.trim();
-  cleaned = cleaned.replace(/^[\s./]+/, "");
+  if (/^https?:\/\//i.test(cleaned)) {
+    const protoMatch = cleaned.match(/^(https?:\/\/)/i);
+    const proto = protoMatch ? protoMatch[1].toLowerCase() : "http://";
+    let rest = cleaned.substring(proto.length).replace(/^[\s./]+/, "");
+    cleaned = proto + rest;
+  } else {
+    cleaned = cleaned.replace(/^[\s./]+/, "");
+    if (/:(8443|2096|2083|2087|2053|443)($|\/|\?)/.test(cleaned) || /ssl|https/i.test(cleaned)) {
+      cleaned = "https://" + cleaned;
+    } else {
+      cleaned = "http://" + cleaned;
+    }
+  }
+  cleaned = cleaned.replace(/(https?:\/\/)\/+/gi, "$1");
+  cleaned = cleaned.replace(/([^:]\/)\/+/g, "$1");
   cleaned = cleaned.replace(/\/+$/, "");
   cleaned = cleaned.replace(/\/(dashboard|panel|admin)$/i, "");
   cleaned = cleaned.replace(/\/+$/, "");
-  if (cleaned.includes("://")) {
-    const parts = cleaned.split("://");
-    const protocolGroup = parts[0].toLowerCase();
-    if (protocolGroup !== "http" && protocolGroup !== "https") {
-      if (protocolGroup.includes("http") || protocolGroup.endsWith("s") || protocolGroup.endsWith("ps")) {
-        cleaned = "https://" + parts.slice(1).join("://");
-      } else {
-        cleaned = "http://" + parts.slice(1).join("://");
-      }
-    }
-  } else {
-    cleaned = "http://" + cleaned;
-  }
   return cleaned;
 }
 async function loginReebekaPasarguard(baseUrl, username, password) {
@@ -2933,68 +2935,99 @@ app.post("/api/xui/test-connection", async (req, res) => {
     if (loginResult.success && loginResult.cookie) {
       try {
         const listHeaders = {
-          Cookie: loginResult.cookie
+          Cookie: loginResult.cookie,
+          Accept: "application/json, text/plain, */*"
         };
         if (loginResult.csrfToken) {
           listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
-        const listRes = await xuiFetch(
+        const listCandidates = [
           `${cleanedUrl}/panel/api/inbounds/list`,
-          {
-            method: "GET",
-            headers: listHeaders
-          },
-          4e3
-        );
-        if (listRes.ok) {
-          const listText = await listRes.text();
-          const listJson = JSON.parse(listText);
-          if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-            const freshInbounds = listJson.obj.map((item) => {
-              let totalClientsCount = 0;
-              try {
-                const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
-                if (settingsObj && Array.isArray(settingsObj.clients)) {
-                  totalClientsCount = settingsObj.clients.length;
+          `${cleanedUrl}/xui/API/inbounds/list`,
+          `${cleanedUrl}/xui/api/inbounds/list`,
+          `${cleanedUrl}/panel/inbound/list`,
+          `${cleanedUrl}/panel/api/inbound/list`,
+          `${cleanedUrl}/api/inbounds/list`,
+          `${cleanedUrl}/api/inbounds`
+        ];
+        let rawInboundList = null;
+        for (const candidateUrl of listCandidates) {
+          try {
+            const listRes = await xuiFetch(
+              candidateUrl,
+              {
+                method: "GET",
+                headers: listHeaders
+              },
+              5e3
+            );
+            if (listRes.ok) {
+              const contentType = listRes.headers.get("content-type") || "";
+              if (!listRes.redirected && !contentType.includes("text/html")) {
+                const listText = await listRes.text();
+                let listJson = null;
+                try {
+                  listJson = JSON.parse(listText);
+                } catch (e) {
                 }
-              } catch (e) {
+                if (listJson) {
+                  if (Array.isArray(listJson.obj)) {
+                    rawInboundList = listJson.obj;
+                    break;
+                  } else if (Array.isArray(listJson.inbounds)) {
+                    rawInboundList = listJson.inbounds;
+                    break;
+                  } else if (Array.isArray(listJson)) {
+                    rawInboundList = listJson;
+                    break;
+                  }
+                }
               }
-              const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
-              const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
-              return {
-                id: item.id,
-                remark: item.remark || `Inbound #${item.id}`,
-                protocol: item.protocol || "vless",
-                port: item.port || 1234,
-                totalClients: totalClientsCount,
-                trafficUsed: usedGb,
-                trafficLimit: limitGb,
-                status: item.enable ? "active" : "inactive"
-              };
-            });
-            const db = readSqliteDb();
-            db.inbounds = freshInbounds;
-            writeSqliteDb(db);
-            return res.json({
-              success: true,
-              message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u062F\u0631\u06CC\u0627\u0641\u062A \u06AF\u0631\u062F\u06CC\u062F!",
-              inbounds: freshInbounds
-            });
+            }
+          } catch (err) {
           }
+        }
+        if (rawInboundList !== null) {
+          const freshInbounds = rawInboundList.map((item) => {
+            let totalClientsCount = 0;
+            try {
+              const settingsObj = typeof item.settings === "string" ? JSON.parse(item.settings) : item.settings;
+              if (settingsObj && Array.isArray(settingsObj.clients)) {
+                totalClientsCount = settingsObj.clients.length;
+              }
+            } catch (e) {
+            }
+            const usedGb = ((Number(item.up || 0) + Number(item.down || 0)) / (1024 * 1024 * 1024)).toFixed(1);
+            const limitGb = item.total ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0) : "unlimited";
+            return {
+              id: item.id,
+              remark: item.remark || `Inbound #${item.id}`,
+              protocol: item.protocol || "vless",
+              port: item.port || 1234,
+              totalClients: totalClientsCount,
+              trafficUsed: usedGb,
+              trafficLimit: limitGb,
+              status: item.enable ? "active" : "inactive"
+            };
+          });
+          const db = readSqliteDb();
+          db.inbounds = freshInbounds;
+          writeSqliteDb(db);
           return res.json({
             success: true,
-            message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0627\u0631\u062A\u0628\u0627\u0637 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A!"
+            message: `\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 (${freshInbounds.length} \u0627\u06CC\u0646\u0628\u0627\u0646\u062F) \u062F\u0631\u06CC\u0627\u0641\u062A \u06AF\u0631\u062F\u06CC\u062F!`,
+            inbounds: freshInbounds
           });
         } else {
           return res.json({
-            success: false,
-            error: "\u0627\u062A\u0635\u0627\u0644 \u0627\u0648\u0644\u06CC\u0647 \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648\u0644\u06CC\u06A9\u0646 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u062F\u0645\u06CC\u0646 \u067E\u0646\u0644 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F."
+            success: true,
+            message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0627\u0631\u062A\u0628\u0627\u0637 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A!"
           });
         }
       } catch (err) {
         return res.json({
           success: true,
-          message: "\u0627\u062A\u0635\u0627\u0644 \u0627\u0648\u0644\u06CC\u0647 \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648\u0644\u06CC\u06A9\u0646 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0644\u06CC\u0633\u062A \u0627\u06CC\u0646\u0628\u0627\u0646\u062F\u0647\u0627 \u0628\u0627 \u062E\u0637\u0627 \u0645\u0648\u0627\u062C\u0647 \u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u062F\u0633\u062A\u0631\u0633\u06CC \u0627\u062F\u0645\u06CC\u0646 \u067E\u0646\u0644 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u06A9\u0646\u06CC\u062F."
+          message: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u0628\u0631\u0642\u0631\u0627\u0631 \u0634\u062F \u0648 \u0627\u0631\u062A\u0628\u0627\u0637 \u0641\u0639\u0627\u0644 \u0627\u0633\u062A!"
         });
       }
     } else {

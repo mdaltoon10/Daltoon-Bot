@@ -225,12 +225,25 @@ def normalize_xui_url(url):
     if not url:
         return ""
     import re
-    cleaned = url.strip()
+    cleaned = str(url).strip()
+    
+    if re.match(r'^https?://', cleaned, re.IGNORECASE):
+        proto_match = re.match(r'^(https?://)', cleaned, re.IGNORECASE)
+        proto = proto_match.group(1).lower()
+        rest = re.sub(r'^[\s./]+', '', cleaned[len(proto):])
+        cleaned = proto + rest
+    else:
+        cleaned = re.sub(r'^[\s./]+', '', cleaned)
+        if re.search(r':(8443|2096|2083|2087|2053|443)($|/|\?)', cleaned) or re.search(r'ssl|https', cleaned, re.IGNORECASE):
+            cleaned = "https://" + cleaned
+        else:
+            cleaned = "http://" + cleaned
+
+    cleaned = re.sub(r'(https?://)/+', r'\1', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'([^:]/)/+', r'\1', cleaned)
     cleaned = re.sub(r'/+$', '', cleaned)
     cleaned = re.sub(r'/(dashboard|panel|admin)$', '', cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r'/+$', '', cleaned)
-    if not cleaned.startswith("http://") and not cleaned.startswith("https://"):
-        cleaned = "http://" + cleaned
     return cleaned
 
 def build_subscription_url(server_sub, base_url, token):

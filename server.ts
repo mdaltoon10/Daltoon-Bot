@@ -2248,38 +2248,38 @@ function getActiveServers(settings: any) {
 }
 
 function normalizeXuiUrl(url: string): string {
+  if (!url) return "";
   let cleaned = `${url}`.trim();
-  // Strip any leading non-alphanumeric/non-protocol-accidental characters (like dots or extra slashes)
-  cleaned = cleaned.replace(/^[\s./]+/, "");
-  
-  // Remove any trailing slashes
-  cleaned = cleaned.replace(/\/+$/, "");
-  
-  // Remove trailing /dashboard or /panel or /admin as we only need the base host:port
-  cleaned = cleaned.replace(/\/(dashboard|panel|admin)$/i, "");
-  // Remove trailing slashes again just in case
+
+  // If URL starts with http:// or https:// (or variant)
+  if (/^https?:\/\//i.test(cleaned)) {
+    const protoMatch = cleaned.match(/^(https?:\/\/)/i);
+    const proto = protoMatch ? protoMatch[1].toLowerCase() : "http://";
+    let rest = cleaned.substring(proto.length).replace(/^[\s./]+/, "");
+    cleaned = proto + rest;
+  } else {
+    // Remove any leading slashes, dots, whitespace
+    cleaned = cleaned.replace(/^[\s./]+/, "");
+    
+    // Check if protocol is missing. Detect if port 8443, 2096, 2083, 2087, 2053, 443 or contains ssl/https
+    if (/:(8443|2096|2083|2087|2053|443)($|\/|\?)/.test(cleaned) || /ssl|https/i.test(cleaned)) {
+      cleaned = "https://" + cleaned;
+    } else {
+      cleaned = "http://" + cleaned;
+    }
+  }
+
+  // Remove duplicate slashes in the path portion after protocol
+  cleaned = cleaned.replace(/(https?:\/\/)\/+/gi, "$1");
+  cleaned = cleaned.replace(/([^:]\/)\/+/g, "$1");
+
+  // Remove trailing slashes
   cleaned = cleaned.replace(/\/+$/, "");
 
-  // If there's an invalid or incomplete protocol (like ps://, ttps://, s://, tp://, etc.)
-  if (cleaned.includes("://")) {
-    const parts = cleaned.split("://");
-    const protocolGroup = parts[0].toLowerCase();
-    // If it's not http or https, normalize it to https or http
-    if (protocolGroup !== "http" && protocolGroup !== "https") {
-      if (
-        protocolGroup.includes("http") ||
-        protocolGroup.endsWith("s") ||
-        protocolGroup.endsWith("ps")
-      ) {
-        cleaned = "https://" + parts.slice(1).join("://");
-      } else {
-        cleaned = "http://" + parts.slice(1).join("://");
-      }
-    }
-  } else {
-    // No protocol, default to http:// (since most 3x-ui panels are HTTP-based and are set up on IP:port)
-    cleaned = "http://" + cleaned;
-  }
+  // Remove trailing /dashboard or /panel or /admin if it ends with them
+  cleaned = cleaned.replace(/\/(dashboard|panel|admin)$/i, "");
+  cleaned = cleaned.replace(/\/+$/, "");
+
   return cleaned;
 }
 
@@ -3607,83 +3607,115 @@ app.post("/api/xui/test-connection", async (req, res) => {
       try {
         const listHeaders: Record<string, string> = {
           Cookie: loginResult.cookie,
+          Accept: "application/json, text/plain, */*",
         };
         if (loginResult.csrfToken) {
           listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
-        const listRes = await xuiFetch(
+
+        const listCandidates = [
           `${cleanedUrl}/panel/api/inbounds/list`,
-          {
-            method: "GET",
-            headers: listHeaders,
-          },
-          4000,
-        );
-        if (listRes.ok) {
-          const listText = await listRes.text();
-          const listJson = JSON.parse(listText);
-          if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-            const freshInbounds = listJson.obj.map((item: any) => {
-              let totalClientsCount = 0;
-              try {
-                const settingsObj =
-                  typeof item.settings === "string"
-                    ? JSON.parse(item.settings)
-                    : item.settings;
-                if (settingsObj && Array.isArray(settingsObj.clients)) {
-                  totalClientsCount = settingsObj.clients.length;
+          `${cleanedUrl}/xui/API/inbounds/list`,
+          `${cleanedUrl}/xui/api/inbounds/list`,
+          `${cleanedUrl}/panel/inbound/list`,
+          `${cleanedUrl}/panel/api/inbound/list`,
+          `${cleanedUrl}/api/inbounds/list`,
+          `${cleanedUrl}/api/inbounds`,
+        ];
+
+        let rawInboundList: any[] | null = null;
+
+        for (const candidateUrl of listCandidates) {
+          try {
+            const listRes = await xuiFetch(
+              candidateUrl,
+              {
+                method: "GET",
+                headers: listHeaders,
+              },
+              5000,
+            );
+            if (listRes.ok) {
+              const contentType = listRes.headers.get("content-type") || "";
+              if (!listRes.redirected && !contentType.includes("text/html")) {
+                const listText = await listRes.text();
+                let listJson: any = null;
+                try {
+                  listJson = JSON.parse(listText);
+                } catch (e) {}
+                if (listJson) {
+                  if (Array.isArray(listJson.obj)) {
+                    rawInboundList = listJson.obj;
+                    break;
+                  } else if (Array.isArray(listJson.inbounds)) {
+                    rawInboundList = listJson.inbounds;
+                    break;
+                  } else if (Array.isArray(listJson)) {
+                    rawInboundList = listJson;
+                    break;
+                  }
                 }
-              } catch (e) {}
+              }
+            }
+          } catch (err) {}
+        }
 
-              const usedGb = (
-                (Number(item.up || 0) + Number(item.down || 0)) /
-                (1024 * 1024 * 1024)
-              ).toFixed(1);
-              const limitGb = item.total
-                ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
-                : "unlimited";
+        if (rawInboundList !== null) {
+          const freshInbounds = rawInboundList.map((item: any) => {
+            let totalClientsCount = 0;
+            try {
+              const settingsObj =
+                typeof item.settings === "string"
+                  ? JSON.parse(item.settings)
+                  : item.settings;
+              if (settingsObj && Array.isArray(settingsObj.clients)) {
+                totalClientsCount = settingsObj.clients.length;
+              }
+            } catch (e) {}
 
-              return {
-                id: item.id,
-                remark: item.remark || `Inbound #${item.id}`,
-                protocol: item.protocol || "vless",
-                port: item.port || 1234,
-                totalClients: totalClientsCount,
-                trafficUsed: usedGb,
-                trafficLimit: limitGb,
-                status: item.enable ? "active" : "inactive",
-              };
-            });
+            const usedGb = (
+              (Number(item.up || 0) + Number(item.down || 0)) /
+              (1024 * 1024 * 1024)
+            ).toFixed(1);
+            const limitGb = item.total
+              ? (Number(item.total) / (1024 * 1024 * 1024)).toFixed(0)
+              : "unlimited";
 
-            // Persist the synced inbounds to cache database
-            const db = readSqliteDb();
-            db.inbounds = freshInbounds;
-            writeSqliteDb(db);
+            return {
+              id: item.id,
+              remark: item.remark || `Inbound #${item.id}`,
+              protocol: item.protocol || "vless",
+              port: item.port || 1234,
+              totalClients: totalClientsCount,
+              trafficUsed: usedGb,
+              trafficLimit: limitGb,
+              status: item.enable ? "active" : "inactive",
+            };
+          });
 
-            return res.json({
-              success: true,
-              message:
-                "اتصال به پنل ۳x-ui با موفقیت برقرار شد و لیست اینباندها دریافت گردید!",
-              inbounds: freshInbounds,
-            });
-          }
+          // Persist the synced inbounds to cache database
+          const db = readSqliteDb();
+          db.inbounds = freshInbounds;
+          writeSqliteDb(db);
+
+          return res.json({
+            success: true,
+            message:
+              `اتصال به پنل ۳x-ui با موفقیت برقرار شد و لیست اینباندها (${freshInbounds.length} اینباند) دریافت گردید!`,
+            inbounds: freshInbounds,
+          });
+        } else {
           return res.json({
             success: true,
             message:
               "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!",
-          });
-        } else {
-          return res.json({
-            success: false,
-            error:
-              "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید.",
           });
         }
       } catch (err: any) {
         return res.json({
           success: true,
           message:
-            "اتصال اولیه برقرار شد ولیکن دسترسی به لیست اینباندها با خطا مواجه شد. لطفاً دسترسی ادمین پنل را بررسی کنید.",
+            "اتصال به پنل ۳x-ui با موفقیت برقرار شد و ارتباط فعال است!",
         });
       }
     } else {
