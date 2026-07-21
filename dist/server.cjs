@@ -2357,6 +2357,107 @@ async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings, c
     return { success: false, error: e.message };
   }
 }
+async function extendVpnClientApi(clientEmail, addGb, addDays, clientUuid, serverId) {
+  try {
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+    const activeServers = getActiveServers(settings);
+    let server = null;
+    if (serverId) {
+      server = activeServers.find((s) => s.id === serverId);
+    }
+    if (!server && activeServers.length > 0) {
+      server = activeServers.find((s) => s.status === "active") || activeServers[0];
+    }
+    if (!server) return { success: false, error: "No active server" };
+    const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+    const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+    if (!loginResult.success || !loginResult.cookie) {
+      return { success: false, error: "XUI Login Failed" };
+    }
+    const headers = {
+      Cookie: loginResult.cookie,
+      Accept: "application/json",
+      "Content-Type": "application/json"
+    };
+    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+    let safeEmail = clientEmail ? clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "") : "";
+    let clientData = null;
+    let inboundId = null;
+    const listRes = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 1e4);
+    if (listRes.ok) {
+      const resJson = await listRes.json().catch(() => ({}));
+      if (resJson && resJson.success && Array.isArray(resJson.obj)) {
+        for (const inbound of resJson.obj) {
+          let clients = [];
+          try {
+            clients = JSON.parse(inbound.settings || "{}").clients || [];
+          } catch (e) {
+          }
+          for (const c of clients) {
+            if (clientUuid && String(c.id) === String(clientUuid) || safeEmail && c.email === safeEmail) {
+              clientData = c;
+              inboundId = inbound.id;
+              break;
+            }
+          }
+          if (clientData) break;
+        }
+      }
+    }
+    if (!clientData) {
+      return { success: false, error: "Client not found in panel" };
+    }
+    const currentTotal = Number(clientData.total) || 0;
+    const currentExpiry = Number(clientData.expiryTime) || 0;
+    const addBytes = Math.floor(addGb * 1024 * 1024 * 1024);
+    const addMs = Math.floor(addDays * 24 * 60 * 60 * 1e3);
+    const newTotal = currentTotal + addBytes;
+    const nowMs = Date.now();
+    let newExpiry = currentExpiry === 0 || currentExpiry < nowMs ? nowMs + addMs : currentExpiry + addMs;
+    const mergedC = { ...clientData };
+    mergedC.total = newTotal;
+    mergedC.expiryTime = newExpiry;
+    mergedC.enable = true;
+    const uid = mergedC.id;
+    try {
+      const updRes = await xuiFetch(`${cleanedUrl}/panel/api/clients/update/${uid}`, { method: "POST", headers, body: JSON.stringify(mergedC) }, 1e4);
+      if (updRes.ok) {
+        const updJson = await updRes.json().catch(() => ({}));
+        if (updJson && updJson.success) return { success: true };
+      }
+    } catch (e) {
+    }
+    try {
+      const updRes2 = await xuiFetch(`${cleanedUrl}/panel/api/clients/update/${safeEmail}`, { method: "POST", headers, body: JSON.stringify(mergedC) }, 1e4);
+      if (updRes2.ok) {
+        const updJson2 = await updRes2.json().catch(() => ({}));
+        if (updJson2 && updJson2.success) return { success: true };
+      }
+    } catch (e) {
+    }
+    if (inboundId) {
+      try {
+        const updRes3 = await xuiFetch(`${cleanedUrl}/panel/api/inbounds/${inboundId}/updateClient/${uid}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            id: inboundId,
+            settings: JSON.stringify({ clients: [mergedC] })
+          })
+        }, 1e4);
+        if (updRes3.ok) {
+          const updJson3 = await updRes3.json().catch(() => ({}));
+          if (updJson3 && updJson3.success) return { success: true };
+        }
+      } catch (e) {
+      }
+    }
+    return { success: false, error: "Failed to update client via APIs" };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
 async function deleteVpnClientApi(clientEmail, serverId) {
   try {
     const db = readSqliteDb();
@@ -3566,20 +3667,16 @@ ${serverDetailsText}${linksDisplay}`;
                 )
               );
               try {
-                await deleteVpnClientApi(clientName, serverId);
-                const addResult = await addVpnClientApi(
+                const addResult = await extendVpnClientApi(
                   clientName,
-                  newLimitGb,
-                  remainingDays,
-                  settings,
+                  customGb,
+                  customDays,
                   k.clientUuid,
-                  serverId,
-                  true
+                  serverId
                 );
-                if (addResult.success && addResult.subLink) {
+                if (addResult.success) {
                   k.expireDate = newExpireDateStr;
                   k.trafficLimitGb = newLimitGb;
-                  k.subLink = addResult.subLink;
                   messageTextForNotif = `\u{1F389} <b>\u0627\u0634\u062A\u0631\u0627\u06A9 \u0634\u0645\u0627 \u0628\u0627 \u0645\u0648\u0641\u0642\u06CC\u062A \u062A\u0645\u062F\u06CC\u062F \u0634\u062F! (\u062A\u0627\u06CC\u06CC\u062F \u0641\u06CC\u0634)</b>
 
 \u{1F464} \u0633\u0631\u0648\u06CC\u0633: <code>${clientName}</code>
@@ -3589,7 +3686,7 @@ ${serverDetailsText}${linksDisplay}`;
 \u{1F4C5} \u062A\u0627\u0631\u06CC\u062E \u0627\u0646\u0642\u0636\u0627\u06CC \u062C\u062F\u06CC\u062F: <b>${newExpireDateStr}</b>
 \u{1F4CA} \u062D\u062C\u0645 \u06A9\u0644 \u062C\u062F\u06CC\u062F: <b>${newLimitGb} \u06AF\u06CC\u06AF\u0627\u0628\u0627\u06CC\u062A</b>`;
                   tx._generatedSubId = k.id;
-                  tx._generatedSubLink = addResult.subLink;
+                  tx._generatedSubLink = k.subLink;
                   if (!db.logs) db.logs = [];
                   db.logs.push({
                     id: Math.random().toString(36).substring(2, 9),
@@ -3980,15 +4077,12 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     const new_expire_date_str = expDt.toISOString().split("T")[0];
     const new_limit_gb = Number(key.trafficLimitGb || 0) + Number(addGb);
     const new_exp_days = Math.max(1, Math.ceil((expDt.getTime() - Date.now()) / (1e3 * 60 * 60 * 24)));
-    await deleteVpnClientApi(clientName, key.serverId);
-    const addResult = await addVpnClientApi(
+    const addResult = await extendVpnClientApi(
       clientName,
-      new_limit_gb,
-      new_exp_days,
-      settings,
+      Number(addGb),
+      Number(addDays),
       key.clientUuid,
-      key.serverId,
-      true
+      key.serverId
     );
     if (!addResult.success) {
       return res.status(500).json({ success: false, error: addResult.error || "Failed to renew on X-UI panel" });
