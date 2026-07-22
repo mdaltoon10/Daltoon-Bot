@@ -2452,7 +2452,7 @@ async function loginXuiPanel(
     );
 
     // 1. Try GET on the base URL first (this matches Python bot's successful approach)
-    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 6000).catch(
+    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 2500).catch(
       () => null,
     );
 
@@ -2462,7 +2462,7 @@ async function loginXuiPanel(
       console.log(
         `[Diagnostic] GET handshake to base URL failed or returned bad status. Trying direct login page: ${loginUrl}`,
       );
-      getRes = await xuiFetch(loginUrl, { method: "GET" }, 6000).catch(
+      getRes = await xuiFetch(loginUrl, { method: "GET" }, 2500).catch(
         () => null,
       );
     }
@@ -3633,7 +3633,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
                 method: "GET",
                 headers: listHeaders,
               },
-              5000,
+              1500,
             );
             if (listRes.ok) {
               const contentType = listRes.headers.get("content-type") || "";

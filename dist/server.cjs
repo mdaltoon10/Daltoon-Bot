@@ -2002,7 +2002,7 @@ async function loginXuiPanel(cleanedUrl, username, password, forceFresh = false)
     console.log(
       `[Diagnostic] Executing initial GET handshake to base URL: ${cleanedUrl}`
     );
-    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 6e3).catch(
+    let getRes = await xuiFetch(cleanedUrl, { method: "GET" }, 2500).catch(
       () => null
     );
     if (!getRes || !getRes.ok) {
@@ -2010,7 +2010,7 @@ async function loginXuiPanel(cleanedUrl, username, password, forceFresh = false)
       console.log(
         `[Diagnostic] GET handshake to base URL failed or returned bad status. Trying direct login page: ${loginUrl2}`
       );
-      getRes = await xuiFetch(loginUrl2, { method: "GET" }, 6e3).catch(
+      getRes = await xuiFetch(loginUrl2, { method: "GET" }, 2500).catch(
         () => null
       );
     }
@@ -2959,7 +2959,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
                 method: "GET",
                 headers: listHeaders
               },
-              5e3
+              1500
             );
             if (listRes.ok) {
               const contentType = listRes.headers.get("content-type") || "";

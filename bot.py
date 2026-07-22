@@ -1670,7 +1670,7 @@ def get_api_prefix(base_url, session):
             if "Authorization" in session.headers:
                 temp_session.headers["Authorization"] = session.headers["Authorization"]
             
-            res = temp_session.get(url, timeout=5, verify=False)
+            res = temp_session.get(url, timeout=1.5, verify=False)
             if res.status_code != 404:
                 print(f"[API Path Auto-Detect] Found working API path prefix: '{prefix}' for URL: {base_url}")
                 _api_prefix_cache[base_url] = prefix
@@ -4069,7 +4069,7 @@ def get_custom_keyboard():
 
 def get_cancel_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+    markup.add(types.InlineKeyboardButton(cfg.get("BTN_HOME", "🏠 بازگشت به منوی اصلی"), callback_data="btn_back_home"))
     return markup
 
 def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, price, sub_id):
@@ -5017,8 +5017,8 @@ def handle_main_menu_callback(call):
             import urllib.parse
             qr_url = get_qr_code_url(sub_link)
             markup = types.InlineKeyboardMarkup(row_width=1)
-            add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
-            markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
+            add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
+            markup.add(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
             markup.row(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
             safe_send_qr_photo(message.chat.id, qr_url, success_text, markup)
         except Exception as e:
@@ -5259,6 +5259,10 @@ def handle_buy_pay(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         if not is_privileged and (not user or user.get("walletBalance", 0) < spec["price"]):
             bot.answer_callback_query(call.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.", show_alert=True)
@@ -5368,10 +5372,10 @@ def handle_buy_pay(call):
             f"{configs_block}{note_append}"
         )
         markup = types.InlineKeyboardMarkup(row_width=1)
-        add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
-        markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
-        markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
-        markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+        add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
+        markup.row(types.InlineKeyboardButton(cfg.get("BTN_CONFIG_LINKS", "🔗 لینک‌های کانفیگ"), callback_data=f"mysub_vless_{sub_id}"))
+        markup.add(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
+        markup.add(types.InlineKeyboardButton(cfg.get("BTN_HOME", "🏠 بازگشت به منوی اصلی"), callback_data="btn_back_home"))
         
         try:
             import urllib.parse
@@ -5663,6 +5667,10 @@ def process_purchase_username(message, plan_id, spec):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         if is_privileged:
             new_balance = int(user['walletBalance'])
@@ -5757,9 +5765,9 @@ def process_purchase_username(message, plan_id, spec):
         
         # Build markup with copy button at the top, and append custom menu keys
         markup = types.InlineKeyboardMarkup(row_width=1)
-        add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
+        add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
         markup.row(types.InlineKeyboardButton("🔗 پنل مدیریت (لینک‌های کانفیگ)", callback_data=f"mysub_manage_{sub_id}"))
-        markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
+        markup.add(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
         
         from_kbd = get_custom_keyboard()
         if from_kbd and hasattr(from_kbd, 'keyboard'):
@@ -6680,7 +6688,7 @@ def callback_handler(call):
             )
 
             markup = types.InlineKeyboardMarkup(row_width=2)
-            add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
+            add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
 
             try:
                 import urllib.parse
@@ -6999,6 +7007,10 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         if not is_privileged and bal < package["price"]:
             shortage = package["price"] - bal
@@ -7049,6 +7061,10 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         if method == "wallet":
             bot.answer_callback_query(call.id, "در حال پردازش...")
@@ -7336,6 +7352,10 @@ def callback_handler(call):
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
 
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
+
         if method == "card":
             if is_privileged:
                 bot.answer_callback_query(call.id, "✅ تایید مستقیم ادمین ثبت شد.")
@@ -7483,10 +7503,10 @@ def callback_handler(call):
                 )
                 
                 markup = types.InlineKeyboardMarkup(row_width=1)
-                add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
-                markup.row(types.InlineKeyboardButton("🔗 لینک‌های کانفیگ", callback_data=f"mysub_vless_{sub_id}"))
-                markup.add(types.InlineKeyboardButton("💡 آموزش ها", callback_data="mm_btnGuides"))
-                markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+                add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
+                markup.row(types.InlineKeyboardButton(cfg.get("BTN_CONFIG_LINKS", "🔗 لینک‌های کانفیگ"), callback_data=f"mysub_vless_{sub_id}"))
+                markup.add(types.InlineKeyboardButton(cfg.get("BTN_GUIDES", "💡 آموزش ها"), callback_data="mm_btnGuides"))
+                markup.add(types.InlineKeyboardButton(cfg.get("BTN_HOME", "🏠 بازگشت به منوی اصلی"), callback_data="btn_back_home"))
                 
                 try:
                     import urllib.parse
@@ -7561,6 +7581,10 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         if method == "card":
             if is_privileged:
@@ -7739,6 +7763,10 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
+
+        servers = cfg.get("SERVERS", [])
+        srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+        server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
         
         # PRE-CHECK: Ensure server is available before proceeding
         if not login_xui(server_id):
@@ -8587,7 +8615,7 @@ def process_col_create_days(message, acc, name, gb):
     
     # Build markup with copy button at the top
     markup = types.InlineKeyboardMarkup(row_width=2)
-    add_copy_button_to_markup(markup, "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)", sub_link)
+    add_copy_button_to_markup(markup, cfg.get("BTN_COPY_SUB", "📋 کپی آسان لینک سابسکریپشن (کلیک کنید)"), sub_link)
     
     # Do NOT append custom menu keys here as this is colleague flow
     # markup.add(types.InlineKeyboardButton("🔙 بازگشت به پنل همکار", callback_data=f"col_panel_{live_acc['id']}"))
@@ -9086,7 +9114,7 @@ def show_ticket_main_menu(chat_id):
         types.InlineKeyboardButton("✍️ ثبت تیکت جدید", callback_data="tkt_new"),
         types.InlineKeyboardButton("🔍 پیگیری پرونده / تیکت‌ها", callback_data="tkt_track")
     )
-    markup.add(types.InlineKeyboardButton("🏠 بازگشت به منوی اصلی", callback_data="btn_back_home"))
+    markup.add(types.InlineKeyboardButton(cfg.get("BTN_HOME", "🏠 بازگشت به منوی اصلی"), callback_data="btn_back_home"))
     
     msg_text = (
         f"🎫 <b>بخش پشتیبانی و تیکتینگ {nickname}</b>\n\n"
