@@ -7419,6 +7419,12 @@ def callback_handler(call):
         import threading
         def run_creation():
             cfg = get_config()
+            
+            # Explicitly define server_name here to avoid any closure/NameError issues
+            servers = cfg.get("SERVERS", [])
+            srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
+            server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
+            
             try:
                 if not is_privileged:
                     new_balance = user.get("walletBalance", 0) - price
