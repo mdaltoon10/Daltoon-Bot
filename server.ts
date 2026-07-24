@@ -6150,33 +6150,57 @@ app.post("/api/system/update", async (req, res) => {
         const statusResult = await runCommandAsync("git status");
         writeLog(`Git status before update:\n${statusResult.stdout}\n${statusResult.stderr}`);
 
+        let updateSuccess = false;
+
         if (channel === 'dev') {
           writeLog(`Step 1: Pulling latest changes from dev branch...`);
-          const gitCmd = `git checkout main && git fetch origin main && git reset --hard origin/main`;
-          const gitResult = await runCommandAsync(gitCmd);
-          writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
+          let gitResult = { success: false, stdout: "", stderr: "" };
+          if (isGit) {
+            const gitCmd = `git fetch origin main && git reset --hard origin/main`;
+            gitResult = await runCommandAsync(gitCmd);
+            writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
+          }
           
-          writeLog(`Step 2: Installing dependencies...`);
-          const npmInstallResult = await runCommandAsync("npm install");
-          writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
-
-          writeLog(`Step 3: Building project...`);
-          const buildResult = await runCommandAsync(`npm run build`);
-          writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
+          if (!gitResult.success || !isGit) {
+            writeLog(`Git update failed or not git repo. Trying tarball fallback...`);
+            const tarCmd = `curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/heads/main.tar.gz | tar -xz --overwrite --strip-components=1`;
+            const tarResult = await runCommandAsync(tarCmd);
+            writeLog(`Tarball output:\n${tarResult.stdout}\n${tarResult.stderr}`);
+            updateSuccess = tarResult.success;
+          } else {
+            updateSuccess = true;
+          }
         } else {
           writeLog(`Step 1: Pulling latest changes from stable branch (tag ${targetTag})...`);
-          const gitCmd = `git fetch origin --tags && git checkout -f ${targetTag}`;
-          const gitResult = await runCommandAsync(gitCmd);
-          writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
+          let gitResult = { success: false, stdout: "", stderr: "" };
+          if (isGit) {
+            const gitCmd = `git fetch origin --tags && git reset --hard ${targetTag} || git checkout -f ${targetTag}`;
+            gitResult = await runCommandAsync(gitCmd);
+            writeLog(`Git output:\n${gitResult.stdout}\n${gitResult.stderr}`);
+          }
           
-          writeLog(`Step 2: Installing dependencies...`);
-          const npmInstallResult = await runCommandAsync("npm install");
-          writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
-
-          writeLog(`Step 3: Building project...`);
-          const buildResult = await runCommandAsync(`npm run build`);
-          writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
+          if (!gitResult.success || !isGit) {
+            writeLog(`Git update failed or not git repo. Trying tarball fallback...`);
+            const tarCmd = `curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/tags/${targetTag}.tar.gz | tar -xz --overwrite --strip-components=1`;
+            const tarResult = await runCommandAsync(tarCmd);
+            writeLog(`Tarball output:\n${tarResult.stdout}\n${tarResult.stderr}`);
+            updateSuccess = tarResult.success;
+          } else {
+            updateSuccess = true;
+          }
         }
+        
+        if (!updateSuccess) {
+           writeLog(`CRITICAL: Step 1 failed to update source code. The update may not apply correctly.`);
+        }
+        
+        writeLog(`Step 2: Installing dependencies...`);
+        const npmInstallResult = await runCommandAsync("npm install");
+        writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
+
+        writeLog(`Step 3: Building project...`);
+        const buildResult = await runCommandAsync(`npm run build`);
+        writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
 
         // Step 4: Make files executable
         writeLog(`Step 4: Making executable files executable...`);
