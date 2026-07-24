@@ -140,8 +140,11 @@ if [ -d ".git" ]; then
     DEFAULT_REPO="https://github.com/mdaltoon10/Daltoon-Bot"
     REPO_URL=${1:-$DEFAULT_REPO}
     git remote set-url origin "$REPO_URL" &> /dev/null
-    git fetch --all
-    git reset --hard origin/main || git reset --hard origin/master
+    if ! git fetch --all || ! (git reset --hard origin/main || git reset --hard origin/master); then
+        echo -e "${YELLOW}Git update failed. Using tarball fallback...${NC}"
+        rm -rf .git
+        curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/heads/main.tar.gz | tar -xz --overwrite --strip-components=1
+    fi
 elif [ -d "/opt/daltoon-store/.git" ]; then
     echo -e "${GREEN}[3/6] Git repository detected at /opt/daltoon-store. Updating securely...${NC}"
     DEFAULT_REPO="https://github.com/mdaltoon10/Daltoon-Bot"
@@ -154,14 +157,10 @@ elif [ -d "/opt/daltoon-store/.git" ]; then
     git remote set-url origin "$REPO_URL" &> /dev/null
     
     echo -e "${YELLOW}Fetching latest changes...${NC}"
-    if ! git fetch --all; then
-        echo -e "${RED}Failed to fetch updates from Git! Aborting to prevent data corruption.${NC}"
-        exit 1
-    fi
-    
-    if ! (git reset --hard origin/main || git reset --hard origin/master); then
-        echo -e "${RED}Failed to reset repository to latest commit! Aborting.${NC}"
-        exit 1
+    if ! git fetch --all || ! (git reset --hard origin/main || git reset --hard origin/master); then
+        echo -e "${YELLOW}Git update failed (possibly due to index corruption). Using tarball fallback...${NC}"
+        rm -rf .git
+        curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/heads/main.tar.gz | tar -xz --overwrite --strip-components=1
     fi
     
     # Clean old dist folder to ensure fresh build
