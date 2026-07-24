@@ -3212,20 +3212,38 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
                  return True
         except: pass
         
+        # Try global api update properly
+        payload_data = {"id": inbound_id, "settings": json.dumps({"clients": [merged_c]})}
+        upd_url_global = f"{base_url}/panel/api/clients/update/{uid}"
+        try:
+            res_gl = session.post(upd_url_global, data=payload_data, timeout=20, verify=False)
+            if res_gl.ok and res_gl.json().get("success"):
+                print(f"[Extend API] Successfully extended {uid} via /panel/api/clients/update/{{uuid}} (form)")
+                return True
+        except: pass
+
         # Fallback to classic updateClient
         payload = {
             "id": inbound_id, 
             "settings": json.dumps({"clients": [merged_c]})
         }
         upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
+        
+        last_error = ""
         upd_res = session.post(upd_url, data=payload, timeout=20, verify=False)
         if upd_res.ok and upd_res.json().get("success"):
             print(f"[Extend API] Successfully extended client {uid} via /updateClient/{{uuid}}")
             return True
+        else:
+            last_error += f" | form: {upd_res.status_code} {upd_res.text}"
             
         upd_res_json = session.post(upd_url, json=payload, timeout=20, verify=False)
         if upd_res_json.ok and upd_res_json.json().get("success"):
             return True
+        else:
+            last_error += f" | json: {upd_res_json.status_code} {upd_res_json.text}"
+            
+        print(f"[Extend API Error] All attempts failed. Last errors: {last_error}")
             
     except Exception as e:
         print(f"[Extend API Error] {e}")
