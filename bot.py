@@ -3064,7 +3064,7 @@ def add_vpn_client_api(client_email, traffic_gb, duration_days, client_uuid=None
     return None, None
 
 
-def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, server_id=None):
+def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, server_id=None, sub_link=None):
     """ Safely extend a client's traffic and expiration without deleting them """
     import json, re, time
     cfg = get_config()
@@ -3094,18 +3094,29 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
     if client_email:
         safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
         safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
-    
+        
+    # Extract UUID if present in parameters or sub_link
+    target_uuid = (client_uuid or "").strip().lower()
+    if not target_uuid and client_email:
+        m = re.findall(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', str(client_email))
+        if m: target_uuid = m[0].lower()
+        
+    if not target_uuid and sub_link:
+        m = re.findall(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', str(sub_link))
+        if m: target_uuid = m[0].lower()
+
     panel_type = server.get("panelType", "sanaei") if server else "sanaei"
     if panel_type in ["rebecca", "pasarguard"]:
         try:
-            get_res = session.get(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+            username = safe_email if safe_email else target_uuid
+            get_res = session.get(f"{base_url}/api/user/{username}", headers={"Accept": "application/json"}, timeout=20, verify=False)
             if get_res.status_code == 401:
                 login_xui(server_id, force=True)
                 session = get_session(server_id=server_id)
-                get_res = session.get(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
-            
+                get_res = session.get(f"{base_url}/api/user/{username}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+                
             if not get_res.ok:
-                print(f"[{panel_type} Extend API] Failed to fetch user {safe_email}")
+                print(f"[{panel_type} Extend API] Failed to fetch user {username}")
                 return False
                 
             u_data = get_res.json()
@@ -3129,10 +3140,10 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
                 "status": "active"
             }
             
-            put_res = session.put(f"{base_url}/api/user/{safe_email}", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=20, verify=False)
+            put_res = session.put(f"{base_url}/api/user/{username}", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=20, verify=False)
             
             if put_res.ok:
-                print(f"[{panel_type} Extend API] Successfully extended user {safe_email}")
+                print(f"[{panel_type} Extend API] Successfully extended user {username}")
                 return True
             else:
                 print(f"[{panel_type} Extend API Error] HTTP {put_res.status_code} {put_res.text}")
@@ -3140,16 +3151,19 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
         except Exception as e:
             print(f"[{panel_type} Extend API Error] {e}")
             return False
-            
-    success = False
-    
+
+    # Sanaei / 3x-ui / Alireza / XUI Panels
     try:
-        # First get the client to read current limits
         client_data = None
         inbound_id = None
         
         list_url = f"{base_url}/panel/api/inbounds/list"
         list_res = session.get(list_url, timeout=20, verify=False)
+        if list_res.status_code == 401 or not list_res.ok or not list_res.json().get("success"):
+            login_xui(server_id, force=True)
+            session = get_session(server_id=server_id)
+            list_res = session.get(list_url, timeout=20, verify=False)
+            
         if list_res.ok:
             res_json = list_res.json()
             if res_json.get("success") and isinstance(res_json.get("obj"), list):
@@ -3158,7 +3172,16 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
                     try:
                         c_json = json.loads(clients_str)
                         for c in c_json.get("clients", []):
-                            if (client_uuid and str(c.get("id")) == str(client_uuid)) or (safe_email and c.get("email") == safe_email):
+                            c_id = str(c.get("id", "")).strip().lower()
+                            c_email = str(c.get("email", "")).strip().lower()
+                            c_sub = str(c.get("subId", "")).strip().lower()
+                            
+                            match_uuid = target_uuid and (c_id == target_uuid or target_uuid in c_id)
+                            match_email = safe_email and (c_email == safe_email.lower() or safe_email.lower() in c_email or c_email in safe_email.lower())
+                            match_raw = client_email and (c_email == str(client_email).strip().lower() or c_email in str(client_email).strip().lower())
+                            match_sub = sub_link and c_sub and (c_sub in str(sub_link).lower())
+                            
+                            if match_uuid or match_email or match_raw or match_sub:
                                 client_data = c
                                 inbound_id = inbound.get("id")
                                 break
@@ -3166,87 +3189,103 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
                             break
                     except:
                         pass
-        
+                        
         if not client_data:
-            print(f"[Extend API] Client {safe_email} / {client_uuid} not found in panel.")
+            print(f"[Extend API] Client not found in panel (email={client_email}, uuid={target_uuid}, sub={sub_link})")
             return False
             
-        current_total = int(client_data.get("total", 0))
+        current_total = int(client_data.get("total", client_data.get("totalGB", 0)))
         current_expiry = int(client_data.get("expiryTime", 0))
         
-        # Calculate additions
+        # Normalize expiryTime to milliseconds
+        is_seconds = False
+        if 0 < current_expiry < 10000000000:
+            is_seconds = True
+            current_expiry_ms = current_expiry * 1000
+        else:
+            current_expiry_ms = current_expiry
+            
+        now_ms = int(time.time() * 1000)
         add_bytes = int(float(add_gb) * 1024 * 1024 * 1024)
         add_ms = int(float(add_days) * 24 * 60 * 60 * 1000)
         
         new_total = current_total + add_bytes
         
-        # If current expiry is 0 (unlimited) or in the past, calculate from NOW
-        now_ms = int(time.time() * 1000)
-        if current_expiry == 0 or current_expiry < now_ms:
-            new_expiry = now_ms + add_ms
+        if current_expiry_ms <= 0 or current_expiry_ms < now_ms:
+            new_expiry_ms = now_ms + add_ms
         else:
-            new_expiry = current_expiry + add_ms
+            new_expiry_ms = current_expiry_ms + add_ms
             
-        # Prepare merged client
+        new_expiry = int(new_expiry_ms / 1000) if is_seconds else new_expiry_ms
+        
         merged_c = client_data.copy()
         merged_c["total"] = new_total
+        merged_c["totalGB"] = new_total
         merged_c["expiryTime"] = new_expiry
         merged_c["enable"] = True
         
         uid = merged_c.get("id")
+        c_email = merged_c.get("email")
         
-        # Try unified update endpoint
-        email_upd_url = f"{base_url}/panel/api/clients/update/{safe_email}"
-        try:
-            res_email = session.post(email_upd_url, json=merged_c, timeout=20, verify=False)
-            if res_email.ok and res_email.json().get("success"):
-                 print(f"[Extend API] Successfully extended {safe_email} via /panel/api/clients/update/{{email}}")
-                 return True
-        except: pass
+        last_error = ""
         
-        uuid_upd_url = f"{base_url}/panel/api/clients/update/{uid}"
-        try:
-            res_uuid = session.post(uuid_upd_url, json=merged_c, timeout=20, verify=False)
-            if res_uuid.ok and res_uuid.json().get("success"):
-                 print(f"[Extend API] Successfully extended {uid} via /panel/api/clients/update/{{uuid}}")
-                 return True
-        except: pass
-        
-        # Try global api update properly
-        payload_data = {"id": inbound_id, "settings": json.dumps({"clients": [merged_c]})}
-        upd_url_global = f"{base_url}/panel/api/clients/update/{uid}"
-        try:
-            res_gl = session.post(upd_url_global, data=payload_data, timeout=20, verify=False)
-            if res_gl.ok and res_gl.json().get("success"):
-                print(f"[Extend API] Successfully extended {uid} via /panel/api/clients/update/{{uuid}} (form)")
-                return True
-        except: pass
-
-        # Fallback to classic updateClient
+        # Try 1: Classic form POST /panel/api/inbounds/updateClient/{uuid}
+        upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
         payload = {
             "id": inbound_id, 
             "settings": json.dumps({"clients": [merged_c]})
         }
-        upd_url = f"{base_url}/panel/api/inbounds/updateClient/{uid}"
         
-        last_error = ""
-        upd_res = session.post(upd_url, data=payload, timeout=20, verify=False)
-        if upd_res.ok and upd_res.json().get("success"):
-            print(f"[Extend API] Successfully extended client {uid} via /updateClient/{{uuid}}")
-            return True
-        else:
-            last_error += f" | form: {upd_res.status_code} {upd_res.text}"
-            
-        upd_res_json = session.post(upd_url, json=payload, timeout=20, verify=False)
-        if upd_res_json.ok and upd_res_json.json().get("success"):
-            return True
-        else:
-            last_error += f" | json: {upd_res_json.status_code} {upd_res_json.text}"
-            
+        try:
+            upd_res = session.post(upd_url, data=payload, timeout=20, verify=False)
+            if upd_res.ok and upd_res.json().get("success"):
+                print(f"[Extend API] Successfully extended client {uid} via form")
+                return True
+            else:
+                last_error += f"form: {upd_res.status_code} {upd_res.text} | "
+        except Exception as e:
+            last_error += f"form_err: {e} | "
+
+        # Try 2: Classic JSON POST /panel/api/inbounds/updateClient/{uuid}
+        try:
+            upd_res_json = session.post(upd_url, json=payload, timeout=20, verify=False)
+            if upd_res_json.ok and upd_res_json.json().get("success"):
+                print(f"[Extend API] Successfully extended client {uid} via json")
+                return True
+            else:
+                last_error += f"json: {upd_res_json.status_code} {upd_res_json.text} | "
+        except Exception as e:
+            last_error += f"json_err: {e} | "
+
+        # Try 3: /panel/api/clients/update/{uuid}
+        try:
+            uuid_upd_url = f"{base_url}/panel/api/clients/update/{uid}"
+            res_uuid = session.post(uuid_upd_url, json=merged_c, timeout=20, verify=False)
+            if res_uuid.ok and res_uuid.json().get("success"):
+                print(f"[Extend API] Successfully extended {uid} via /panel/api/clients/update/{{uuid}}")
+                return True
+            else:
+                last_error += f"clients_uuid: {res_uuid.status_code} {res_uuid.text} | "
+        except Exception as e:
+            last_error += f"clients_uuid_err: {e} | "
+
+        # Try 4: /panel/api/clients/update/{email}
+        if c_email:
+            try:
+                email_upd_url = f"{base_url}/panel/api/clients/update/{c_email}"
+                res_email = session.post(email_upd_url, json=merged_c, timeout=20, verify=False)
+                if res_email.ok and res_email.json().get("success"):
+                    print(f"[Extend API] Successfully extended {c_email} via /panel/api/clients/update/{{email}}")
+                    return True
+                else:
+                    last_error += f"clients_email: {res_email.status_code} {res_email.text} | "
+            except Exception as e:
+                last_error += f"clients_email_err: {e} | "
+                
         print(f"[Extend API Error] All attempts failed. Last errors: {last_error}")
             
     except Exception as e:
-        print(f"[Extend API Error] {e}")
+        print(f"[Extend API Error] Exception: {e}")
         
     return False
 
@@ -5323,7 +5362,7 @@ def handle_buy_pay(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -5731,7 +5770,7 @@ def process_purchase_username(message, plan_id, spec):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -6475,7 +6514,7 @@ def callback_handler(call):
                 new_exp_days = max(1, new_exp_days)
                 
                 # Use extend_vpn_client_api instead of delete/add
-                extended = extend_vpn_client_api(client_name, spec['traffic'], spec['duration'], k.get("clientUuid"), server_id=k.get("serverId"))
+                extended = extend_vpn_client_api(client_name, spec['traffic'], spec['duration'], client_uuid=k.get("clientUuid"), server_id=k.get("serverId"), sub_link=k.get("subLink"))
                 sub_link = k.get("subLink", "")
                 if not extended:
                     sub_link = None
@@ -7071,7 +7110,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7125,7 +7164,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7415,7 +7454,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7651,7 +7690,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7730,7 +7769,7 @@ def callback_handler(call):
             new_exp_days = max(1, new_exp_days)
             
             # Use extend_vpn_client_api instead of delete/add
-            extended = extend_vpn_client_api(client_name, gb, days, k.get("clientUuid"), server_id=k.get("serverId"))
+            extended = extend_vpn_client_api(client_name, gb, days, client_uuid=k.get("clientUuid"), server_id=k.get("serverId"), sub_link=k.get("subLink"))
             sub_link = k.get("subLink", "")
             if not extended:
                 sub_link = None
@@ -7833,7 +7872,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-        server_id = k.get("serverId")
+
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -8794,7 +8833,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
         
         client_name = live_sub.get("clientName") or live_sub.get("planName", "")
         # Use extend_vpn_client_api instead of delete/add
-        extended = extend_vpn_client_api(client_name, extra_gb, extra_days, live_sub.get("clientUuid"), server_id=live_sub.get("serverId"))
+        extended = extend_vpn_client_api(client_name, extra_gb, extra_days, client_uuid=live_sub.get("clientUuid"), server_id=live_sub.get("serverId"), sub_link=live_sub.get("subLink"))
         sub_link = live_sub.get("subLink", "")
         if not extended:
             sub_link = None
