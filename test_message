@@ -1,0 +1,1 @@
+The first bug is fixed. Background syncing intervals are disabled so the bot will only log in when explicitly requested by users.

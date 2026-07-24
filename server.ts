@@ -4582,7 +4582,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                 inline_keyboard: [
                   [
                     {
-                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)",
+                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", style: "primary",
                       callback_data: `showlink_${token}`,
                     },
                   ],
@@ -4592,7 +4592,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                       callback_data: `mysub_vless_${tx._generatedSubId}`,
                     },
                   ],
-                  [{ text: "💡 آموزش ها", callback_data: "mm_btnGuides" }],
+                  [{ text: settings.btnTextGuides || "💡 آموزش ها", style: "primary", callback_data: "mm_btnGuides" }],
                   [
                     {
                       text: "🏠 بازگشت به منوی اصلی",
@@ -6359,8 +6359,7 @@ async function sendTelegramMessage(
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   
   try {
-    const db = readSqliteDb();
-    const settings = db.settings || {};
+    const settings = getSystemSettings();
     const usePremium = String(settings.usePremiumEmojis || "false") === "true";
     const useButtonColors = String(settings.useButtonColors || "false") === "true";
     const customEmojis = settings.premiumEmojiMapping || {
@@ -6817,15 +6816,15 @@ async function autoSyncTrafficUsage() {
             inline_keyboard: [
               [
                 {
-                  text: "🔄 تمدید سرویس",
+                  text: "🔄 تمدید سرویس", style: "success",
                   callback_data: `mysub_renew_${k.id}`,
                 },
                 {
-                  text: "🔗 دریافت لینک اتصال",
+                  text: "🔗 دریافت لینک اتصال", style: "primary",
                   callback_data: `vless_link_${k.id}`,
                 },
               ],
-              [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }],
+              [{ text: settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی", callback_data: "mm_btnTicketSupport", style: "primary" }],
             ],
           };
           await sendTelegramMessage(
@@ -6876,25 +6875,25 @@ async function autoSyncTrafficUsage() {
                 inline_keyboard: [
                   [
                     {
-                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)",
+                      text: "🔗 لینک سابسکریپشن(همه ی کانفیگ ها)", style: "primary",
                       callback_data: `vless_link_${k.id}`,
                     },
                   ],
                   [
                     {
-                      text: "🔗 لینک های تکی",
+                      text: "🔗 لینک های تکی", style: "primary",
                       callback_data: `mysub_vless_${k.id}`,
                     },
                   ],
                   [
                     {
-                      text: "💡 آموزش ها",
+                      text: settings.btnTextGuides || "💡 آموزش ها", style: "primary",
                       callback_data: "mm_btnGuides",
                     },
                   ],
                   [
                     {
-                      text: "🎫 تیکت به پشتیبانی",
+                      text: settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی", style: "primary",
                       callback_data: "mm_btnTicketSupport",
                     },
                   ],
@@ -6936,8 +6935,8 @@ async function autoSyncTrafficUsage() {
         const msg = `🔔 <b>پیام سیستم:</b>\n\nسرویس شما با موفقیت متصل شد\n\n🔰 کد سرویس: <code>${k.clientName}</code>\n🔺حجم بسته: ${(k.trafficLimitGb || 0).toFixed(2)} GB\n🔻حجم باقی مانده: ${remainingGb.toFixed(2)} GB\n📅 تاریخ انقضا: ${jalaliDate}\n🔹 نام سرویس: ${k.planName || "بدون نام"}`;
         const inlineKeyboard = {
           inline_keyboard: [
-            [{ text: "🔗 لینک اشتراک", callback_data: `vless_link_${k.id}` }],
-            [{ text: "🎫 پشتیبانی", callback_data: "mm_btnTicketSupport" }],
+            [{ text: "🔗 لینک اشتراک", callback_data: `vless_link_${k.id}`, style: "primary" }],
+            [{ text: settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی", callback_data: "mm_btnTicketSupport", style: "primary" }],
           ],
         };
         await sendTelegramMessage(

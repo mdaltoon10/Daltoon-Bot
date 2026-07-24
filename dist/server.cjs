@@ -98,9 +98,9 @@ function getServerPort() {
   try {
     const row = sqliteDb.prepare("SELECT value FROM kv WHERE key = 'settings'").get();
     if (row) {
-      const settings = JSON.parse(row.value);
-      if (settings && settings.panel_config) {
-        let pc = settings.panel_config;
+      const settings2 = JSON.parse(row.value);
+      if (settings2 && settings2.panel_config) {
+        let pc = settings2.panel_config;
         if (typeof pc === "string") pc = JSON.parse(pc);
         if (pc.serverPort && !isNaN(Number(pc.serverPort))) {
           return Number(pc.serverPort);
@@ -304,7 +304,7 @@ function getSystemSettings(db) {
       }
     }
   }
-  const settings = {
+  const settings2 = {
     botToken: process.env.BOT_TOKEN || "",
     baseUrl: process.env.XUI_URL || "",
     panelUrl: "",
@@ -351,7 +351,7 @@ function getSystemSettings(db) {
     panelConnectionActive: false,
     ...parsedSettings
   };
-  return settings;
+  return settings2;
 }
 var botProcess = null;
 var pythonDepsInstalled = false;
@@ -384,8 +384,8 @@ function spawnInternalBot() {
     botProcess = null;
   }
   const db = readSqliteDb();
-  const settings = getSystemSettings(db);
-  const token = settings.botToken;
+  const settings2 = getSystemSettings(db);
+  const token = settings2.botToken;
   if (!token || token === "DUMMY_TOKEN" || token.trim() === "") {
     console.log(
       "[Bot Manager] Bot token is empty or dummy. Python bot will not start."
@@ -722,13 +722,13 @@ app.get("/api/data", async (req, res) => {
   res.setHeader("Pragma", "no-cache");
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    if (!settings.admins || !Array.isArray(settings.admins)) {
-      settings.admins = [];
+    const settings2 = getSystemSettings(db);
+    if (!settings2.admins || !Array.isArray(settings2.admins)) {
+      settings2.admins = [];
     }
     console.log(
       "[DEBUG] /api/data returned settings.botToken:",
-      settings.botToken
+      settings2.botToken
     );
     res.json({
       success: true,
@@ -746,8 +746,8 @@ app.get("/api/data", async (req, res) => {
       colleagueCategories: db.colleague_categories || [],
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
-      settings,
-      isNewInstall: db.isNewInstall || !settings.botToken || settings.botToken.trim() === "" || settings.botToken === "DUMMY_TOKEN" || !settings.ownerId || Number(settings.ownerId) === 0
+      settings: settings2,
+      isNewInstall: db.isNewInstall || !settings2.botToken || settings2.botToken.trim() === "" || settings2.botToken === "DUMMY_TOKEN" || !settings2.ownerId || Number(settings2.ownerId) === 0
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1045,8 +1045,8 @@ app.post("/api/tickets/reply", (req, res) => {
       ticket.status = "answered";
       ticket.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSqliteDb(db);
-      const settings = getSystemSettings(db);
-      if (settings.botToken && ticket.userId) {
+      const settings2 = getSystemSettings(db);
+      if (settings2.botToken && ticket.userId) {
         const notifyMsg = `\u{1F4E8} <b>\u067E\u0627\u0633\u062E \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0628\u0647 \u062A\u06CC\u06A9\u062A \u0634\u0645\u0627!</b>
 
 \u{1F194} <b>\u0634\u0646\u0627\u0633\u0647 \u062A\u06CC\u06A9\u062A:</b> <code>${ticket.id}</code>
@@ -1065,7 +1065,7 @@ app.post("/api/tickets/reply", (req, res) => {
           ]
         };
         sendTelegramMessage(
-          settings.botToken,
+          settings2.botToken,
           ticket.userId,
           notifyMsg,
           replyMarkup
@@ -1092,16 +1092,16 @@ app.post("/api/tickets/close", (req, res) => {
       ticket.status = "closed";
       ticket.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
       writeSqliteDb(db);
-      const settings = getSystemSettings(db);
-      if (settings.botToken && ticket.userId) {
-        const nickname = settings.botNickname || "\u062F\u0627\u0644\u062A\u0648\u0646 \u0628\u0627\u062A";
+      const settings2 = getSystemSettings(db);
+      if (settings2.botToken && ticket.userId) {
+        const nickname = settings2.botNickname || "\u062F\u0627\u0644\u062A\u0648\u0646 \u0628\u0627\u062A";
         const notifyMsg = `\u{1F512} <b>\u062A\u06CC\u06A9\u062A \u0634\u0645\u0627 \u0628\u0633\u062A\u0647 \u0634\u062F!</b>
 
 \u{1F194} <b>\u0634\u0646\u0627\u0633\u0647 \u062A\u06CC\u06A9\u062A:</b> <code>${ticket.id}</code>
 
 \u{1F4AC} \u062A\u06CC\u06A9\u062A \u0634\u0645\u0627 \u062A\u0648\u0633\u0637 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0641\u0646\u06CC ${nickname} \u0628\u0631\u0631\u0633\u06CC \u0648 \u0628\u0633\u062A\u0647 \u0634\u062F.
 \u0627\u06AF\u0631 \u0647\u0645\u0686\u0646\u0627\u0646 \u0646\u06CC\u0627\u0632 \u0628\u0647 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC\u06CC \u0628\u06CC\u0634\u062A\u0631\u06CC \u062F\u0627\u0631\u06CC\u062F\u060C \u0645\u06CC\u200C\u062A\u0648\u0627\u0646\u06CC\u062F \u062A\u06CC\u06A9\u062A \u062C\u062F\u06CC\u062F\u06CC \u062F\u0631 \u0631\u0628\u0627\u062A \u062B\u0628\u062A \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`;
-        sendTelegramMessage(settings.botToken, ticket.userId, notifyMsg).catch(
+        sendTelegramMessage(settings2.botToken, ticket.userId, notifyMsg).catch(
           (err) => {
             console.error("[Telegram Ticket Close Auto-Notify Error]", err);
           }
@@ -1128,8 +1128,8 @@ app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
         const crypto2 = await import("crypto");
         const newUuid = crypto2.randomUUID();
         const newSubId = crypto2.randomBytes(8).toString("hex");
-        const settings = getSystemSettings(db);
-        const activeServers = getActiveServers(settings);
+        const settings2 = getSystemSettings(db);
+        const activeServers = getActiveServers(settings2);
         let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
         if (key.serverId) {
           const found = activeServers.find((s) => s.id === key.serverId);
@@ -1812,20 +1812,20 @@ async function xuiFetch(url, options = {}, timeoutMs = 8e3) {
     throw err;
   }
 }
-function getActiveServers(settings) {
-  if (settings.servers && Array.isArray(settings.servers) && settings.servers.length > 0) {
-    return settings.servers.filter((s) => s.status !== "inactive");
+function getActiveServers(settings2) {
+  if (settings2.servers && Array.isArray(settings2.servers) && settings2.servers.length > 0) {
+    return settings2.servers.filter((s) => s.status !== "inactive");
   }
-  if (settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+  if (settings2.panelConnectionActive && settings2.baseUrl && settings2.panelUsername && settings2.panelPassword) {
     return [
       {
         id: "legacy_server",
         name: "\u067E\u0646\u0644 \u0627\u0635\u0644\u06CC",
-        panelUrl: settings.baseUrl,
-        subUrl: settings.subUrl,
-        panelUsername: settings.panelUsername,
-        panelPassword: settings.panelPassword,
-        activeInboundIds: settings.activeInboundIds || [],
+        panelUrl: settings2.baseUrl,
+        subUrl: settings2.subUrl,
+        panelUsername: settings2.panelUsername,
+        panelPassword: settings2.panelPassword,
+        activeInboundIds: settings2.activeInboundIds || [],
         status: "active"
       }
     ];
@@ -2102,7 +2102,7 @@ async function loginXuiPanel(cleanedUrl, username, password, forceFresh = false)
     };
   }
 }
-async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings, clientUuid, serverId, bypassDuplicateCheck = false) {
+async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings2, clientUuid, serverId, bypassDuplicateCheck = false) {
   try {
     if (!bypassDuplicateCheck) {
       const db = readSqliteDb();
@@ -2117,7 +2117,7 @@ async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings, c
         }
       }
     }
-    const activeServers = getActiveServers(settings);
+    const activeServers = getActiveServers(settings2);
     if (activeServers.length === 0) {
       return {
         success: false,
@@ -2362,8 +2362,8 @@ async function addVpnClientApi(clientEmail, trafficGb, durationDays, settings, c
 async function extendVpnClientApi(clientEmail, addGb, addDays, clientUuid, serverId) {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const activeServers = getActiveServers(settings);
+    const settings2 = getSystemSettings(db);
+    const activeServers = getActiveServers(settings2);
     let server = null;
     if (serverId) {
       server = activeServers.find((s) => s.id === serverId);
@@ -2463,8 +2463,8 @@ async function extendVpnClientApi(clientEmail, addGb, addDays, clientUuid, serve
 async function deleteVpnClientApi(clientEmail, serverId) {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const activeServers = getActiveServers(settings);
+    const settings2 = getSystemSettings(db);
+    const activeServers = getActiveServers(settings2);
     const targetServers = serverId ? activeServers.filter((s) => s.id === serverId) : activeServers;
     if (targetServers.length === 0)
       return { success: false, error: "XUI disconnected" };
@@ -2507,8 +2507,8 @@ async function deleteVpnClientApi(clientEmail, serverId) {
               for (const inbound of data.obj) {
                 let clients = [];
                 try {
-                  const settings2 = JSON.parse(inbound.settings || "{}");
-                  clients = settings2.clients || [];
+                  const settings3 = JSON.parse(inbound.settings || "{}");
+                  clients = settings3.clients || [];
                 } catch (e) {
                 }
                 const clientMatch = clients.find((c) => c.email === clientEmail);
@@ -2541,8 +2541,8 @@ async function deleteVpnClientApi(clientEmail, serverId) {
 async function toggleVpnClientApi(clientEmail, enabled, clientUuid) {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const activeServers = getActiveServers(settings);
+    const settings2 = getSystemSettings(db);
+    const activeServers = getActiveServers(settings2);
     if (activeServers.length === 0)
       return { success: false, error: "XUI disconnected" };
     let toggledAtLeastOnce = false;
@@ -2614,8 +2614,8 @@ async function toggleVpnClientApi(clientEmail, enabled, clientUuid) {
               for (const inbound of data.obj) {
                 let clients = [];
                 try {
-                  const settings2 = JSON.parse(inbound.settings || "{}");
-                  clients = settings2.clients || [];
+                  const settings3 = JSON.parse(inbound.settings || "{}");
+                  clients = settings3.clients || [];
                 } catch (e) {
                 }
                 const clientMatch = clients.find(
@@ -2664,11 +2664,11 @@ async function toggleVpnClientApi(clientEmail, enabled, clientUuid) {
 async function resetVpnClientUuidApi(clientEmail, serverId) {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
+    const settings2 = getSystemSettings(db);
     const crypto2 = await import("crypto");
     const newUuid = crypto2.randomUUID();
     const newSubId = crypto2.randomBytes(8).toString("hex");
-    const activeServers = getActiveServers(settings);
+    const activeServers = getActiveServers(settings2);
     let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
     if (serverId) {
       const found = activeServers.find((s) => s.id === serverId);
@@ -2793,8 +2793,8 @@ async function resetVpnClientUuidApi(clientEmail, serverId) {
       const newUuid = crypto2.randomUUID();
       const newSubId = crypto2.randomBytes(8).toString("hex");
       const db = readSqliteDb();
-      const settings = getSystemSettings(db);
-      const activeServers = getActiveServers(settings);
+      const settings2 = getSystemSettings(db);
+      const activeServers = getActiveServers(settings2);
       let fallbackServer = activeServers.length > 0 ? activeServers[0] : null;
       const subBase = fallbackServer && fallbackServer.subUrl && fallbackServer.subUrl.trim() !== "" ? normalizeXuiUrl(fallbackServer.subUrl) : fallbackServer ? normalizeXuiUrl(fallbackServer.panelUrl) : "https://tr.sub-daltoon.ir:2096";
       const subLink = `${subBase}/sub/${newSubId}`;
@@ -3079,8 +3079,8 @@ app.post("/api/broadcast", async (req, res) => {
       }
     }
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    const settings2 = getSystemSettings(db);
+    let botToken = settings2.botToken || settings2.BOT_TOKEN || process.env.BOT_TOKEN;
     if (botToken) botToken = botToken.trim();
     const users = db.users || [];
     let count = 0;
@@ -3253,8 +3253,8 @@ app.post("/api/users/send-message", async (req, res) => {
       return res.status(400).json({ success: false, error: "\u06A9\u0627\u0631\u0628\u0631 \u06CC\u0627 \u0645\u062A\u0646 \u067E\u06CC\u0627\u0645 \u0627\u0631\u0633\u0627\u0644 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A." });
     }
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    let botToken = settings.botToken || settings.BOT_TOKEN || process.env.BOT_TOKEN;
+    const settings2 = getSystemSettings(db);
+    let botToken = settings2.botToken || settings2.BOT_TOKEN || process.env.BOT_TOKEN;
     if (botToken) botToken = botToken.trim();
     if (!botToken || botToken === "DUMMY_TOKEN") {
       return res.status(400).json({ success: false, error: "\u062A\u0648\u06A9\u0646 \u0631\u0628\u0627\u062A \u062A\u0644\u06AF\u0631\u0627\u0645 \u062A\u0646\u0638\u06CC\u0645 \u0646\u0634\u062F\u0647 \u0627\u0633\u062A \u06CC\u0627 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A." });
@@ -3437,7 +3437,7 @@ app.post("/api/transactions/approve", async (req, res) => {
           }
           if (plan) {
             const clientName = tx.clientName || `user_${tx.userId}`;
-            const settings = getSystemSettings(db);
+            const settings2 = getSystemSettings(db);
             try {
               const planTraffic = Number(plan.trafficGb) || 30;
               const planDuration = Number(plan.durationDays) || 30;
@@ -3445,7 +3445,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                 clientName,
                 planTraffic,
                 planDuration,
-                settings,
+                settings2,
                 void 0,
                 tx.serverId
               );
@@ -3491,7 +3491,7 @@ ${linksText}
                   }
                 }
                 let serverDetailsText = "";
-                const activeServers = getActiveServers(settings);
+                const activeServers = getActiveServers(settings2);
                 let selectedServer = activeServers.find((s) => s.id === tx.serverId);
                 if (!selectedServer && activeServers.length > 0) {
                   selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
@@ -3564,7 +3564,7 @@ ${serverDetailsText}${linksDisplay}`;
             }
           } else if (tx.planId === "custom_vol") {
             const clientName = tx.clientName || `user_${tx.userId}`;
-            const settings = getSystemSettings(db);
+            const settings2 = getSystemSettings(db);
             const customGb = Number(tx.customGb) || 10;
             const customDays = Number(tx.customDays) || 30;
             try {
@@ -3572,7 +3572,7 @@ ${serverDetailsText}${linksDisplay}`;
                 clientName,
                 customGb,
                 customDays,
-                settings,
+                settings2,
                 void 0,
                 tx.serverId
               );
@@ -3610,7 +3610,7 @@ ${linksText}
 \u{1F4A1} \u0644\u06CC\u0646\u06A9 \u0628\u0627\u0644\u0627 \u0631\u0627 \u06A9\u067E\u06CC \u06A9\u0631\u062F\u0647 \u0648 \u062F\u0631 \u0628\u0631\u0646\u0627\u0645\u0647 v2rayNG \u06CC\u0627 V2box \u062E\u0648\u062F \u0628\u0647 \u0639\u0646\u0648\u0627\u0646 <b>Subscription (\u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646)</b> \u0648\u0627\u0631\u062F \u06A9\u0631\u062F\u0647 \u0648 \u0628\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (Update) \u0646\u0645\u0627\u06CC\u06CC\u062F \u062A\u0627 \u0647\u0645\u0647 \u06A9\u0627\u0646\u0641\u06CC\u06AF\u200C\u0647\u0627 \u0628\u0647 \u0637\u0648\u0631 \u062E\u0648\u062F\u06A9\u0627\u0631 \u062F\u0631\u06CC\u0627\u0641\u062A \u0634\u0648\u0646\u062F.`;
                 }
                 let serverDetailsText = "";
-                const activeServers = getActiveServers(settings);
+                const activeServers = getActiveServers(settings2);
                 let selectedServer = activeServers.find((s) => s.id === tx.serverId);
                 if (!selectedServer && activeServers.length > 0) {
                   selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
@@ -3670,7 +3670,7 @@ ${serverDetailsText}${linksDisplay}`;
             }
           } else if (tx.planId === "custom_renew") {
             const targetSubId = tx.clientName;
-            const settings = getSystemSettings(db);
+            const settings2 = getSystemSettings(db);
             const customGb = Number(tx.customGb) || 10;
             const customDays = Number(tx.customDays) || 30;
             const subscription_keys = db.subscription_keys || [];
@@ -3803,6 +3803,7 @@ ${serverDetailsText}${linksDisplay}`;
                 [
                   {
                     text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646(\u0647\u0645\u0647 \u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0647\u0627)",
+                    style: "primary",
                     callback_data: `showlink_${token}`
                   }
                 ],
@@ -3812,7 +3813,7 @@ ${serverDetailsText}${linksDisplay}`;
                     callback_data: `mysub_vless_${tx._generatedSubId}`
                   }
                 ],
-                [{ text: "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627", callback_data: "mm_btnGuides" }],
+                [{ text: settings.btnTextGuides || "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627", style: "primary", callback_data: "mm_btnGuides" }],
                 [
                   {
                     text: "\u{1F3E0} \u0628\u0627\u0632\u06AF\u0634\u062A \u0628\u0647 \u0645\u0646\u0648\u06CC \u0627\u0635\u0644\u06CC",
@@ -3949,8 +3950,8 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
   try {
     const { userId, clientName, trafficLimitGb, expiryDays, planName } = req.body;
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    if (!settings.panelConnectionActive) {
+    const settings2 = getSystemSettings(db);
+    if (!settings2.panelConnectionActive) {
       return res.status(400).json({
         success: false,
         error: "\u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u067E\u0646\u0644 \u06F3x-ui \u062F\u0631 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0627\u0633\u062A."
@@ -3962,7 +3963,7 @@ app.post("/api/subscription-keys/auto-create", async (req, res) => {
       cleanClientName,
       Number(trafficLimitGb),
       durationDays,
-      settings
+      settings2
     );
     if (vpnResult.success && vpnResult.subLink) {
       const randomId = "SUB-" + Math.floor(Math.random() * 9e3 + 1e3);
@@ -4095,7 +4096,7 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     if (!key) {
       return res.status(404).json({ success: false, error: "Subscription key not found" });
     }
-    const settings = getSystemSettings(db);
+    const settings2 = getSystemSettings(db);
     const clientName = key.clientName || key.planName || "";
     let expDt;
     try {
@@ -4372,9 +4373,9 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
       return res.status(404).json({ success: false, error: "\u06A9\u0627\u0631\u0628\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F." });
     }
     const user = db.users[userIdx];
-    const settings = getSystemSettings(db);
-    const ownerId = Number(settings.ownerId || 6536288293);
-    const admins = Array.isArray(settings.admins) ? settings.admins : [];
+    const settings2 = getSystemSettings(db);
+    const ownerId = Number(settings2.ownerId || 6536288293);
+    const admins = Array.isArray(settings2.admins) ? settings2.admins : [];
     const isAdminOrOwner = Number(userId) === ownerId || admins.some((adm) => Number(adm.userId) === Number(userId)) || user.username === "daltoon_owner";
     if (!isAdminOrOwner && user.walletBalance < plan.price) {
       return res.status(400).json({ success: false, error: "\u0645\u0648\u062C\u0648\u062F\u06CC \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u0634\u0645\u0627 \u06A9\u0627\u0641\u06CC \u0646\u06CC\u0633\u062A." });
@@ -4385,7 +4386,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
     let clientUuid = "";
     if (isMockSimulator) {
       subLink = `vless://${cleanClientName}_test_id@m.daltoon-server.ir:2052?security=reality&sni=google.com&fp=chrome#Daltoon_${cleanClientName}_Test`;
-    } else if (settings.panelConnectionActive) {
+    } else if (settings2.panelConnectionActive) {
       console.log(
         `[Buy API] Connection active, creating user '${cleanClientName}' on panel...`
       );
@@ -4393,7 +4394,7 @@ app.post("/api/vpn-plans/buy", async (req, res) => {
         cleanClientName,
         plan.trafficGb,
         plan.durationDays,
-        settings
+        settings2
       );
       if (apiResult.success && apiResult.subLink) {
         subLink = apiResult.subLink;
@@ -4455,10 +4456,10 @@ app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const dbUser = settings.dashboardUsername || "Daltoon";
-    const dbPass = settings.dashboardPassword || "Daltoon10";
-    const dbAdmins = settings.admins || [];
+    const settings2 = getSystemSettings(db);
+    const dbUser = settings2.dashboardUsername || "Daltoon";
+    const dbPass = settings2.dashboardPassword || "Daltoon10";
+    const dbAdmins = settings2.admins || [];
     const isMainAdmin = username === dbUser && password === dbPass;
     const matchedSubAdmin = dbAdmins.find(
       (adm) => adm.username === username
@@ -4587,11 +4588,11 @@ app.post("/api/backup-restore", import_express.default.json({ limit: "50mb" }), 
 async function performAutoBackup() {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    if (!settings.autoBackupEnabled) return;
-    if (!settings.autoBackupInterval) return;
-    const ownerId = Number(settings.ownerId || 6536288293);
-    const botToken = settings.botToken;
+    const settings2 = getSystemSettings(db);
+    if (!settings2.autoBackupEnabled) return;
+    if (!settings2.autoBackupInterval) return;
+    const ownerId = Number(settings2.ownerId || 6536288293);
+    const botToken = settings2.botToken;
     if (!botToken || botToken === "DUMMY_TOKEN") return;
     const fileBuffer = Buffer.from(JSON.stringify(db, null, 2), "utf8");
     const dateStr = (/* @__PURE__ */ new Date()).toLocaleString("fa-IR", {
@@ -4606,7 +4607,7 @@ async function performAutoBackup() {
     const caption = `\u{1F4E6} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u200C\u06AF\u06CC\u0631\u06CC \u062E\u0648\u062F\u06A9\u0627\u0631
 
 \u{1F552} \u062A\u0627\u0631\u06CC\u062E: ${dateStr}
-\u062A\u0646\u0638\u06CC\u0645\u0627\u062A: ${periods[settings.autoBackupInterval] || settings.autoBackupInterval}
+\u062A\u0646\u0638\u06CC\u0645\u0627\u062A: ${periods[settings2.autoBackupInterval] || settings2.autoBackupInterval}
 
 #DaltoonBot`;
     const boundary = "----WebKitFormBoundaryDaltoonBackup" + Math.random().toString(36).substring(2);
@@ -4653,8 +4654,8 @@ async function performAutoBackup() {
 async function checkAutoBackup() {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    if (!settings.autoBackupEnabled || !settings.autoBackupInterval) return;
+    const settings2 = getSystemSettings(db);
+    if (!settings2.autoBackupEnabled || !settings2.autoBackupInterval) return;
     const lastBackup = Number(db.settings?.lastAutoBackup) || 0;
     const now = Date.now();
     let shouldBackup = false;
@@ -4662,7 +4663,7 @@ async function checkAutoBackup() {
       shouldBackup = true;
     } else {
       const diffMs = now - lastBackup;
-      const interval = settings.autoBackupInterval;
+      const interval = settings2.autoBackupInterval;
       if (interval === "hourly") {
         if (diffMs >= 55 * 60 * 1e3) {
           shouldBackup = true;
@@ -5282,11 +5283,10 @@ async function autoCleanExpiredFreeTrials() {
 async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   try {
-    const db = readSqliteDb();
-    const settings = db.settings || {};
-    const usePremium = String(settings.usePremiumEmojis || "false") === "true";
-    const useButtonColors = String(settings.useButtonColors || "false") === "true";
-    const customEmojis = settings.premiumEmojiMapping || {
+    const settings2 = getSystemSettings();
+    const usePremium = String(settings2.usePremiumEmojis || "false") === "true";
+    const useButtonColors = String(settings2.useButtonColors || "false") === "true";
+    const customEmojis = settings2.premiumEmojiMapping || {
       "\u{1F6D2}": "5449640306352655512",
       "\u{1F381}": "5368324170671202286",
       "\u{1F464}": "5368324170671202287",
@@ -5329,22 +5329,22 @@ async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
     if (replyMarkup) {
       const isInline = !!replyMarkup.inline_keyboard;
       const rows = replyMarkup.inline_keyboard || replyMarkup.keyboard || [];
-      const primaryColors = settings.primaryButtonColors || {};
+      const primaryColors = settings2.primaryButtonColors || {};
       const primaryTexts = {
-        [settings.btnTextBuyNew || "\u{1F6D2} \u062E\u0631\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u062F\u06CC\u062F"]: "btnBuyNew",
-        [settings.btnTextMySubs || "\u{1F5C2} \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u0627\u06CC \u0645\u0646 / \u062A\u0645\u062F\u06CC\u062F"]: "btnMySubs",
-        [settings.btnTextGuides || "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627"]: "btnGuides",
-        [settings.btnTextProfile || "\u{1F464} \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC"]: "btnProfile",
-        [settings.btnTextSupport || "\u{1F4DE} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnSupport",
-        [settings.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnTicketSupport",
-        [settings.btnTextFreeTest || "\u{1F381} \u0645\u0648\u062C\u0648\u062F\u06CC \u0631\u0627\u06CC\u06AF\u0627\u0646"]: "btnFreeTest",
-        [settings.btnTextInstantSupport || "\u{1F916} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0622\u0646\u06CC"]: "btnInstantSupport",
-        [settings.btnTextFeedback || "\u{1F48C} \u0628\u0627\u0632\u062E\u0648\u0631\u062F \u06A9\u0627\u0631\u0628\u0631 \u0647\u0627"]: "btnFeedback",
-        [settings.btnTextReferral || "\u{1F465} \u0632\u06CC\u0631\u0645\u062C\u0645\u0648\u0639\u0647 \u06AF\u06CC\u0631\u06CC"]: "btnReferral",
-        [settings.btnTextWallet || "\u0634\u0627\u0631\u0698 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u{1F4B3}"]: "btnWallet",
-        [settings.btnTextColleagues || "\u0628\u0633\u062A\u0647 \u0648\u06CC\u0698\u0647 \u0647\u0645\u06A9\u0627\u0631\u0627\u0646"]: "btnColleagues",
-        [settings.btnTextAiChat || "\u{1F916} \u0686\u062A \u0628\u0627 \u0631\u0628\u0627\u062A"]: "btnAiChat",
-        [settings.btnTextAi || "\u{1F9E0} \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC"]: "btnAi"
+        [settings2.btnTextBuyNew || "\u{1F6D2} \u062E\u0631\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u062F\u06CC\u062F"]: "btnBuyNew",
+        [settings2.btnTextMySubs || "\u{1F5C2} \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u0627\u06CC \u0645\u0646 / \u062A\u0645\u062F\u06CC\u062F"]: "btnMySubs",
+        [settings2.btnTextGuides || "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627"]: "btnGuides",
+        [settings2.btnTextProfile || "\u{1F464} \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC"]: "btnProfile",
+        [settings2.btnTextSupport || "\u{1F4DE} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnSupport",
+        [settings2.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnTicketSupport",
+        [settings2.btnTextFreeTest || "\u{1F381} \u0645\u0648\u062C\u0648\u062F\u06CC \u0631\u0627\u06CC\u06AF\u0627\u0646"]: "btnFreeTest",
+        [settings2.btnTextInstantSupport || "\u{1F916} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0622\u0646\u06CC"]: "btnInstantSupport",
+        [settings2.btnTextFeedback || "\u{1F48C} \u0628\u0627\u0632\u062E\u0648\u0631\u062F \u06A9\u0627\u0631\u0628\u0631 \u0647\u0627"]: "btnFeedback",
+        [settings2.btnTextReferral || "\u{1F465} \u0632\u06CC\u0631\u0645\u062C\u0645\u0648\u0639\u0647 \u06AF\u06CC\u0631\u06CC"]: "btnReferral",
+        [settings2.btnTextWallet || "\u0634\u0627\u0631\u0698 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u{1F4B3}"]: "btnWallet",
+        [settings2.btnTextColleagues || "\u0628\u0633\u062A\u0647 \u0648\u06CC\u0698\u0647 \u0647\u0645\u06A9\u0627\u0631\u0627\u0646"]: "btnColleagues",
+        [settings2.btnTextAiChat || "\u{1F916} \u0686\u062A \u0628\u0627 \u0631\u0628\u0627\u062A"]: "btnAiChat",
+        [settings2.btnTextAi || "\u{1F9E0} \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC"]: "btnAi"
       };
       const cleanBtnText = (t) => {
         if (!t) return "";
@@ -5364,7 +5364,7 @@ async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
           if (color && color !== "none") return color;
           return null;
         }
-        const customStyles = settings.buttonStylesMapping || { "success": [], "danger": [], "primary": [] };
+        const customStyles = settings2.buttonStylesMapping || { "success": [], "danger": [], "primary": [] };
         for (const [style, keywords] of Object.entries(customStyles)) {
           if (Array.isArray(keywords)) {
             for (const kw of keywords) {
@@ -5424,11 +5424,11 @@ async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
     console.error(`[Telegram Warning] Fail to send to ${chatId}:`, err);
   }
 }
-async function sendPurchaseSuccessNoteIfAnyServer(botToken, chatId, settings) {
+async function sendPurchaseSuccessNoteIfAnyServer(botToken, chatId, settings2) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   const fetchRef = globalThis.fetch || fetch;
-  const noteText = settings.purchaseSuccessNote || "";
-  const attachment = settings.purchaseSuccessAttachment || null;
+  const noteText = settings2.purchaseSuccessNote || "";
+  const attachment = settings2.purchaseSuccessAttachment || null;
   if (!noteText && !attachment) return;
   try {
     if (attachment && attachment.fileData) {
@@ -5471,8 +5471,8 @@ async function sendPurchaseSuccessNoteIfAnyServer(botToken, chatId, settings) {
 async function autoSyncTrafficUsage() {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const activeServers = getActiveServers(settings);
+    const settings2 = getSystemSettings(db);
+    const activeServers = getActiveServers(settings2);
     if (activeServers.length === 0) {
       return;
     }
@@ -5678,18 +5678,20 @@ async function autoSyncTrafficUsage() {
               [
                 {
                   text: "\u{1F504} \u062A\u0645\u062F\u06CC\u062F \u0633\u0631\u0648\u06CC\u0633",
+                  style: "success",
                   callback_data: `mysub_renew_${k.id}`
                 },
                 {
                   text: "\u{1F517} \u062F\u0631\u06CC\u0627\u0641\u062A \u0644\u06CC\u0646\u06A9 \u0627\u062A\u0635\u0627\u0644",
+                  style: "primary",
                   callback_data: `vless_link_${k.id}`
                 }
               ],
-              [{ text: "\u{1F3AB} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport" }]
+              [{ text: settings2.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport", style: "primary" }]
             ]
           };
           await sendTelegramMessage(
-            settings.botToken,
+            settings2.botToken,
             k.userId,
             msg,
             inlineKeyboard
@@ -5740,31 +5742,35 @@ async function autoSyncTrafficUsage() {
                   [
                     {
                       text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0633\u0627\u0628\u0633\u06A9\u0631\u06CC\u067E\u0634\u0646(\u0647\u0645\u0647 \u06CC \u06A9\u0627\u0646\u0641\u06CC\u06AF \u0647\u0627)",
+                      style: "primary",
                       callback_data: `vless_link_${k.id}`
                     }
                   ],
                   [
                     {
                       text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0647\u0627\u06CC \u062A\u06A9\u06CC",
+                      style: "primary",
                       callback_data: `mysub_vless_${k.id}`
                     }
                   ],
                   [
                     {
-                      text: "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627",
+                      text: settings2.btnTextGuides || "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627",
+                      style: "primary",
                       callback_data: "mm_btnGuides"
                     }
                   ],
                   [
                     {
-                      text: "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC",
+                      text: settings2.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC",
+                      style: "primary",
                       callback_data: "mm_btnTicketSupport"
                     }
                   ]
                 ]
               };
               await sendTelegramMessage(
-                settings.botToken,
+                settings2.botToken,
                 k.userId,
                 msg,
                 inlineKeyboard
@@ -5800,12 +5806,12 @@ async function autoSyncTrafficUsage() {
 \u{1F539} \u0646\u0627\u0645 \u0633\u0631\u0648\u06CC\u0633: ${k.planName || "\u0628\u062F\u0648\u0646 \u0646\u0627\u0645"}`;
         const inlineKeyboard = {
           inline_keyboard: [
-            [{ text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9", callback_data: `vless_link_${k.id}` }],
-            [{ text: "\u{1F3AB} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport" }]
+            [{ text: "\u{1F517} \u0644\u06CC\u0646\u06A9 \u0627\u0634\u062A\u0631\u0627\u06A9", callback_data: `vless_link_${k.id}`, style: "primary" }],
+            [{ text: settings2.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC", callback_data: "mm_btnTicketSupport", style: "primary" }]
           ]
         };
         await sendTelegramMessage(
-          settings.botToken,
+          settings2.botToken,
           k.userId,
           msg,
           inlineKeyboard
@@ -5852,8 +5858,8 @@ async function autoSyncTrafficUsage() {
 async function autoSyncInboundsList() {
   try {
     const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    const activeServers = getActiveServers(settings);
+    const settings2 = getSystemSettings(db);
+    const activeServers = getActiveServers(settings2);
     if (activeServers.length === 0) return;
     let allInbounds = [];
     for (const server of activeServers) {

@@ -6416,7 +6416,7 @@ def callback_handler(call):
                 if not extended:
                     sub_link = None
                 
-                if not sub_link:
+                if not extended:
                     if not is_privileged:
                         # Refund
                         refunded_bal = int(user['walletBalance']) # Previous balance before deduction
@@ -7671,7 +7671,7 @@ def callback_handler(call):
             if not extended:
                 sub_link = None
             
-            if not sub_link:
+            if not extended:
                 if not is_privileged:
                     refunded_bal = user.get("walletBalance", 0) + price
                     update_user_balance(tg_id, refunded_bal)
@@ -8735,7 +8735,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
         if not extended:
             sub_link = None
         
-        if not sub_link:
+        if not extended:
             # Revert deduction
             live_acc["usedTrafficGb"] = used
             accounts[acc_idx] = live_acc
