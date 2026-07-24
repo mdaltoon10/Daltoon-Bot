@@ -5098,41 +5098,63 @@ app.post("/api/system/update", async (req, res) => {
         writeLog(`Git status before update:
 ${statusResult.stdout}
 ${statusResult.stderr}`);
+        let updateSuccess = false;
         if (channel === "dev") {
           writeLog(`Step 1: Pulling latest changes from dev branch...`);
-          const gitCmd = `git checkout main && git fetch origin main && git reset --hard origin/main`;
-          const gitResult = await runCommandAsync(gitCmd);
-          writeLog(`Git output:
+          let gitResult = { success: false, stdout: "", stderr: "" };
+          if (isGit) {
+            const gitCmd = `git fetch origin main && git reset --hard origin/main`;
+            gitResult = await runCommandAsync(gitCmd);
+            writeLog(`Git output:
 ${gitResult.stdout}
 ${gitResult.stderr}`);
-          writeLog(`Step 2: Installing dependencies...`);
-          const npmInstallResult = await runCommandAsync("npm install");
-          writeLog(`npm install output:
-${npmInstallResult.stdout}
-${npmInstallResult.stderr}`);
-          writeLog(`Step 3: Building project...`);
-          const buildResult = await runCommandAsync(`npm run build`);
-          writeLog(`Build output:
-${buildResult.stdout}
-${buildResult.stderr}`);
+          }
+          if (!gitResult.success || !isGit) {
+            writeLog(`Git update failed or not git repo. Trying tarball fallback...`);
+            const tarCmd = `curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/heads/main.tar.gz | tar -xz --overwrite --strip-components=1`;
+            const tarResult = await runCommandAsync(tarCmd);
+            writeLog(`Tarball output:
+${tarResult.stdout}
+${tarResult.stderr}`);
+            updateSuccess = tarResult.success;
+          } else {
+            updateSuccess = true;
+          }
         } else {
           writeLog(`Step 1: Pulling latest changes from stable branch (tag ${targetTag})...`);
-          const gitCmd = `git fetch origin --tags && git checkout -f ${targetTag}`;
-          const gitResult = await runCommandAsync(gitCmd);
-          writeLog(`Git output:
+          let gitResult = { success: false, stdout: "", stderr: "" };
+          if (isGit) {
+            const gitCmd = `git fetch origin --tags && git reset --hard ${targetTag} || git checkout -f ${targetTag}`;
+            gitResult = await runCommandAsync(gitCmd);
+            writeLog(`Git output:
 ${gitResult.stdout}
 ${gitResult.stderr}`);
-          writeLog(`Step 2: Installing dependencies...`);
-          const npmInstallResult = await runCommandAsync("npm install");
-          writeLog(`npm install output:
+          }
+          if (!gitResult.success || !isGit) {
+            writeLog(`Git update failed or not git repo. Trying tarball fallback...`);
+            const tarCmd = `curl -sL https://github.com/mdaltoon10/Daltoon-Bot/archive/refs/tags/${targetTag}.tar.gz | tar -xz --overwrite --strip-components=1`;
+            const tarResult = await runCommandAsync(tarCmd);
+            writeLog(`Tarball output:
+${tarResult.stdout}
+${tarResult.stderr}`);
+            updateSuccess = tarResult.success;
+          } else {
+            updateSuccess = true;
+          }
+        }
+        if (!updateSuccess) {
+          writeLog(`CRITICAL: Step 1 failed to update source code. The update may not apply correctly.`);
+        }
+        writeLog(`Step 2: Installing dependencies...`);
+        const npmInstallResult = await runCommandAsync("npm install");
+        writeLog(`npm install output:
 ${npmInstallResult.stdout}
 ${npmInstallResult.stderr}`);
-          writeLog(`Step 3: Building project...`);
-          const buildResult = await runCommandAsync(`npm run build`);
-          writeLog(`Build output:
+        writeLog(`Step 3: Building project...`);
+        const buildResult = await runCommandAsync(`npm run build`);
+        writeLog(`Build output:
 ${buildResult.stdout}
 ${buildResult.stderr}`);
-        }
         writeLog(`Step 4: Making executable files executable...`);
         await runCommandAsync("chmod +x daltoon-dashboard install.sh 2>/dev/null || true");
         writeLog(`Step 5: Installing Python dependencies...`);
