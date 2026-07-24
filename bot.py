@@ -3094,7 +3094,53 @@ def extend_vpn_client_api(client_email, add_gb, add_days, client_uuid=None, serv
     if client_email:
         safe_email = client_email.replace(" ", "_").replace("\n", "").replace("/", "")
         safe_email = re.sub(r"[^A-Za-z0-9_-]", "", safe_email)
-        
+    
+    panel_type = server.get("panelType", "sanaei") if server else "sanaei"
+    if panel_type in ["rebecca", "pasarguard"]:
+        try:
+            get_res = session.get(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+            if get_res.status_code == 401:
+                login_xui(server_id, force=True)
+                session = get_session(server_id=server_id)
+                get_res = session.get(f"{base_url}/api/user/{safe_email}", headers={"Accept": "application/json"}, timeout=20, verify=False)
+            
+            if not get_res.ok:
+                print(f"[{panel_type} Extend API] Failed to fetch user {safe_email}")
+                return False
+                
+            u_data = get_res.json()
+            current_total = int(u_data.get("data_limit", 0))
+            current_expiry = int(u_data.get("expire", 0))
+            
+            add_bytes = int(float(add_gb) * 1024 * 1024 * 1024)
+            add_seconds = int(float(add_days) * 24 * 60 * 60)
+            
+            new_total = current_total + add_bytes
+            
+            now_sec = int(time.time())
+            if current_expiry == 0 or current_expiry < now_sec:
+                new_expiry = now_sec + add_seconds
+            else:
+                new_expiry = current_expiry + add_seconds
+                
+            payload = {
+                "data_limit": new_total,
+                "expire": new_expiry,
+                "status": "active"
+            }
+            
+            put_res = session.put(f"{base_url}/api/user/{safe_email}", json=payload, headers={"Accept": "application/json", "Content-Type": "application/json"}, timeout=20, verify=False)
+            
+            if put_res.ok:
+                print(f"[{panel_type} Extend API] Successfully extended user {safe_email}")
+                return True
+            else:
+                print(f"[{panel_type} Extend API Error] HTTP {put_res.status_code} {put_res.text}")
+                return False
+        except Exception as e:
+            print(f"[{panel_type} Extend API Error] {e}")
+            return False
+            
     success = False
     
     try:
