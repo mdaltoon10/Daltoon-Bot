@@ -5259,7 +5259,7 @@ def handle_buy_pay(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -5667,7 +5667,7 @@ def process_purchase_username(message, plan_id, spec):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7007,7 +7007,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7061,7 +7061,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7351,7 +7351,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7587,7 +7587,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)
@@ -7769,7 +7769,7 @@ def callback_handler(call):
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
         is_privileged = is_owner or is_admin
-
+        server_id = k.get("serverId")
         servers = cfg.get("SERVERS", [])
         srv = next((s for s in servers if str(s.get("id")) == str(server_id)), None)
         server_name = srv.get("remark") or srv.get("name") if srv else str(server_id)

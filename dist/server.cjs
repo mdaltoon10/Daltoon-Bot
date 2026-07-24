@@ -5282,6 +5282,130 @@ async function autoCleanExpiredFreeTrials() {
 async function sendTelegramMessage(botToken, chatId, text, replyMarkup) {
   if (!botToken || botToken === "DUMMY_TOKEN") return;
   try {
+    const db = readSqliteDb();
+    const settings = db.settings || {};
+    const usePremium = String(settings.usePremiumEmojis || "false") === "true";
+    const useButtonColors = String(settings.useButtonColors || "false") === "true";
+    const customEmojis = settings.premiumEmojiMapping || {
+      "\u{1F6D2}": "5449640306352655512",
+      "\u{1F381}": "5368324170671202286",
+      "\u{1F464}": "5368324170671202287",
+      "\u{1F3A7}": "5368324170671202288",
+      "\u{1F680}": "5368324170671202289",
+      "\u2705": "5368324170671202290",
+      "\u274C": "5368324170671202291",
+      "\u26A0\uFE0F": "5368324170671202292",
+      "\u{1F48E}": "5368324170671202293",
+      "\u{1F4B0}": "5368324170671202294",
+      "\u{1F4CA}": "5368324170671202295",
+      "\u{1F504}": "5368324170671202296",
+      "\u{1F3AB}": "5368324170671202297",
+      "\u26A1": "5368324170671202298",
+      "\u{1F4B3}": "5368324170671202299",
+      "\u{1F4DD}": "5368324170671202300",
+      "\u23F3": "5368324170671202301",
+      "\u{1F310}": "5368324170671202302",
+      "\u2699\uFE0F": "5368324170671202303",
+      "\u{1F50C}": "5368324170671202304",
+      "\u{1F50B}": "5368324170671202305",
+      "\u{1F4A1}": "5368324170671202306",
+      "\u{1F512}": "5368324170671202307",
+      "\u{1F513}": "5368324170671202308",
+      "\u{1F511}": "5368324170671202309",
+      "\u{1F1EF}\u{1F1F5}": "5368324170671202331",
+      "\u{1F1F0}\u{1F1F7}": "5368324170671202332",
+      "\u{1F1E6}\u{1F1FA}": "5368324170671202333",
+      "\u{1F1FF}\u{1F1E6}": "5368324170671202334",
+      "\u{1F1F2}\u{1F1FD}": "5368324170671202335",
+      "\u{1F1E6}\u{1F1F7}": "5368324170671202336",
+      "\u{1F1F8}\u{1F1E6}": "5368324170671202337",
+      "\u{1F1EE}\u{1F1F6}": "5368324170671202338"
+    };
+    if (usePremium && text) {
+      for (const [std, customId] of Object.entries(customEmojis)) {
+        text = text.split(std).join(`<tg-emoji emoji-id="${customId}">${std}</tg-emoji>`);
+      }
+    }
+    if (replyMarkup) {
+      const isInline = !!replyMarkup.inline_keyboard;
+      const rows = replyMarkup.inline_keyboard || replyMarkup.keyboard || [];
+      const primaryColors = settings.primaryButtonColors || {};
+      const primaryTexts = {
+        [settings.btnTextBuyNew || "\u{1F6D2} \u062E\u0631\u06CC\u062F \u0627\u0634\u062A\u0631\u0627\u06A9 \u062C\u062F\u06CC\u062F"]: "btnBuyNew",
+        [settings.btnTextMySubs || "\u{1F5C2} \u0627\u0634\u062A\u0631\u0627\u06A9 \u0647\u0627\u06CC \u0645\u0646 / \u062A\u0645\u062F\u06CC\u062F"]: "btnMySubs",
+        [settings.btnTextGuides || "\u{1F4A1} \u0622\u0645\u0648\u0632\u0634 \u0647\u0627"]: "btnGuides",
+        [settings.btnTextProfile || "\u{1F464} \u062D\u0633\u0627\u0628 \u06A9\u0627\u0631\u0628\u0631\u06CC"]: "btnProfile",
+        [settings.btnTextSupport || "\u{1F4DE} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnSupport",
+        [settings.btnTextTicketSupport || "\u{1F3AB} \u062A\u06CC\u06A9\u062A \u0628\u0647 \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC"]: "btnTicketSupport",
+        [settings.btnTextFreeTest || "\u{1F381} \u0645\u0648\u062C\u0648\u062F\u06CC \u0631\u0627\u06CC\u06AF\u0627\u0646"]: "btnFreeTest",
+        [settings.btnTextInstantSupport || "\u{1F916} \u067E\u0634\u062A\u06CC\u0628\u0627\u0646\u06CC \u0622\u0646\u06CC"]: "btnInstantSupport",
+        [settings.btnTextFeedback || "\u{1F48C} \u0628\u0627\u0632\u062E\u0648\u0631\u062F \u06A9\u0627\u0631\u0628\u0631 \u0647\u0627"]: "btnFeedback",
+        [settings.btnTextReferral || "\u{1F465} \u0632\u06CC\u0631\u0645\u062C\u0645\u0648\u0639\u0647 \u06AF\u06CC\u0631\u06CC"]: "btnReferral",
+        [settings.btnTextWallet || "\u0634\u0627\u0631\u0698 \u06A9\u06CC\u0641 \u067E\u0648\u0644 \u{1F4B3}"]: "btnWallet",
+        [settings.btnTextColleagues || "\u0628\u0633\u062A\u0647 \u0648\u06CC\u0698\u0647 \u0647\u0645\u06A9\u0627\u0631\u0627\u0646"]: "btnColleagues",
+        [settings.btnTextAiChat || "\u{1F916} \u0686\u062A \u0628\u0627 \u0631\u0628\u0627\u062A"]: "btnAiChat",
+        [settings.btnTextAi || "\u{1F9E0} \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC"]: "btnAi"
+      };
+      const cleanBtnText = (t) => {
+        if (!t) return "";
+        return Array.from(t).filter((c) => c.charCodeAt(0) < 8192 || c.charCodeAt(0) >= 64256 && c.charCodeAt(0) <= 65279).join("").trim();
+      };
+      const getButtonStyle = (btnText) => {
+        const cleaned = cleanBtnText(btnText);
+        let matchedKey = null;
+        for (const [txt, key] of Object.entries(primaryTexts)) {
+          if (txt === btnText || cleanBtnText(txt) === cleaned) {
+            matchedKey = key;
+            break;
+          }
+        }
+        if (matchedKey) {
+          const color = primaryColors[matchedKey];
+          if (color && color !== "none") return color;
+          return null;
+        }
+        const customStyles = settings.buttonStylesMapping || { "success": [], "danger": [], "primary": [] };
+        for (const [style, keywords] of Object.entries(customStyles)) {
+          if (Array.isArray(keywords)) {
+            for (const kw of keywords) {
+              if (kw && btnText.includes(kw)) return style;
+            }
+          }
+        }
+        return null;
+      };
+      for (const row of rows) {
+        for (let i = 0; i < row.length; i++) {
+          let btn = row[i];
+          if (typeof btn === "string") continue;
+          if (btn.text) {
+            const originalText = btn.text;
+            if (isInline && useButtonColors) {
+              const assignedStyle = getButtonStyle(originalText);
+              if (assignedStyle) {
+                btn.style = assignedStyle;
+              }
+            }
+            if (isInline && usePremium) {
+              let hasCustom = false;
+              for (const [std, customId] of Object.entries(customEmojis)) {
+                if (originalText.includes(std) || btn.text.includes(std)) {
+                  if (!hasCustom) {
+                    btn.icon_custom_emoji_id = String(customId);
+                    hasCustom = true;
+                  }
+                  btn.text = btn.text.split(std).join("").split("  ").join(" ").trim();
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error applying styles to msg:", e);
+  }
+  try {
     const fetchRef = globalThis.fetch || fetch;
     const body = {
       chat_id: chatId,
