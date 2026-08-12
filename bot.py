@@ -6111,19 +6111,28 @@ def get_custom_keyboard(user_id=None):
         mini_app_url = (cfg.get("MINI_APP_URL") or "").strip()
         if not mini_app_url:
             panel_url = (cfg.get("PANEL_URL") or cfg.get("BASE_URL") or "").rstrip("/")
-            mini_app_url = f"{panel_url}/miniapp" if panel_url else "https://daltoon.app/miniapp"
+            if panel_url:
+                mini_app_url = f"{panel_url}/miniapp" if not panel_url.endswith("/miniapp") else panel_url
+            else:
+                host = os.environ.get("APP_URL") or os.environ.get("PUBLIC_URL") or ""
+                if host:
+                    mini_app_url = f"{host.rstrip('/')}/miniapp"
+
+        if mini_app_url and not (mini_app_url.startswith("http://") or mini_app_url.startswith("https://")):
+            mini_app_url = f"https://{mini_app_url}"
         
-        btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
-        btn = types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url))
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        markup.add(btn)
-        
-        if cfg.get("USE_BUTTON_COLORS", False):
-            style = get_button_style(btn_text, cfg)
-            if style:
-                btn.style = style
-        return markup
+        if mini_app_url:
+            btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
+            btn = types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url))
+            
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            markup.add(btn)
+            
+            if cfg.get("USE_BUTTON_COLORS", False):
+                style = get_button_style(btn_text, cfg)
+                if style:
+                    btn.style = style
+            return markup
 
     layout = cfg.get("KEYBOARD_LAYOUT", "stepped")
 

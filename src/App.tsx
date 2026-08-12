@@ -74,6 +74,7 @@ import MonitoringDashboard from "./components/MonitoringDashboard";
 import { LoginScreen } from "./components/LoginScreen";
 import SetupModal from "./components/SetupModal";
 import { PwaInstallBanner } from "./components/PwaInstallBanner";
+import { TelegramMiniApp } from "./components/TelegramMiniApp";
 import { motion, AnimatePresence } from "motion/react";
 
 const LionAndSunFlag = () => {
@@ -100,6 +101,11 @@ const themeOptions = [
 ];
 
 export default function App() {
+  const isMiniApp = typeof window !== "undefined" && (window.location.pathname.startsWith('/miniapp') || window.location.hash.includes('miniapp'));
+  if (isMiniApp) {
+    return <TelegramMiniApp />;
+  }
+
   // State initialization with localStorage persistence
   const [lang, setLang] = useState<Language>(() => {
     const cached = localStorage.getItem("daltoon_lang");
