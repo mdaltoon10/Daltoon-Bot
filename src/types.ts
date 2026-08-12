@@ -86,6 +86,10 @@ export interface PanelSettings {
   hideBtnConfigDetails?: boolean;
   btnTextSearchConfig?: string;
   hideBtnSearchConfig?: boolean;
+  useMiniAppMode?: boolean;
+  btnTextMiniApp?: string;
+  miniAppUrl?: string;
+  hideBtnMiniApp?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number; // Kept as invite percent

@@ -1085,9 +1085,13 @@ def get_config():
         if "hideBtnFeedback" in panel_cfg: config["HIDE_FEEDBACK"] = bool(panel_cfg["hideBtnFeedback"])
         if "hideBtnReferral" in panel_cfg: config["HIDE_REFERRAL"] = bool(panel_cfg["hideBtnReferral"])
         if "hideBtnColleagues" in panel_cfg: config["HIDE_COLLEAGUES"] = bool(panel_cfg["hideBtnColleagues"])
-        if "hideBtnAddConfig" in panel_cfg: config["HIDE_ADD_CONFIG"] = bool(panel_cfg["hideBtnAddConfig"])
-        if "hideBtnConfigDetails" in panel_cfg: config["HIDE_CONFIG_DETAILS"] = bool(panel_cfg["hideBtnConfigDetails"])
-        if "hideBtnSearchConfig" in panel_cfg: config["HIDE_SEARCH_CONFIG"] = bool(panel_cfg["hideBtnSearchConfig"])
+        config["HIDE_ADD_CONFIG"] = bool(panel_cfg.get("hideBtnAddConfig", False))
+        config["HIDE_CONFIG_DETAILS"] = bool(panel_cfg.get("hideBtnConfigDetails", False))
+        config["HIDE_SEARCH_CONFIG"] = bool(panel_cfg.get("hideBtnSearchConfig", False))
+        config["USE_MINI_APP_MODE"] = bool(panel_cfg.get("useMiniAppMode", False))
+        config["BTN_MINI_APP"] = panel_cfg.get("btnTextMiniApp", "🚀 ورود به برنامه هوشمند")
+        config["MINI_APP_URL"] = panel_cfg.get("miniAppUrl", "")
+        config["HIDE_MINI_APP"] = bool(panel_cfg.get("hideBtnMiniApp", False))
         if "hideBtnAiChat" in panel_cfg: 
             config["HIDE_AI_CHAT"] = bool(panel_cfg["hideBtnAiChat"])
         else:
@@ -1943,6 +1947,7 @@ def get_button_style(btn_text, cfg):
         cfg.get("BTN_COLLEAGUES", "بسته ویژه همکاران"): "btnColleagues",
         cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"): "btnAiChat",
         cfg.get("BTN_AI", "🧠 هوش مصنوعی"): "btnAi",
+        cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند"): "btnMiniApp",
     }
     
     def clean_btn_text(t):
@@ -6101,6 +6106,25 @@ def get_custom_keyboard(user_id=None):
             pass
 
     cfg = get_config()
+
+    if cfg.get("USE_MINI_APP_MODE", False) and not cfg.get("HIDE_MINI_APP", False):
+        mini_app_url = (cfg.get("MINI_APP_URL") or "").strip()
+        if not mini_app_url:
+            panel_url = (cfg.get("PANEL_URL") or cfg.get("BASE_URL") or "").rstrip("/")
+            mini_app_url = f"{panel_url}/miniapp" if panel_url else "https://daltoon.app/miniapp"
+        
+        btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
+        btn = types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url))
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        markup.add(btn)
+        
+        if cfg.get("USE_BUTTON_COLORS", False):
+            style = get_button_style(btn_text, cfg)
+            if style:
+                btn.style = style
+        return markup
+
     layout = cfg.get("KEYBOARD_LAYOUT", "stepped")
 
     owner_id = cfg.get("OWNER_ID")
