@@ -101,7 +101,11 @@ const themeOptions = [
 ];
 
 export default function App() {
-  const isMiniApp = typeof window !== "undefined" && (window.location.pathname.startsWith('/miniapp') || window.location.hash.includes('miniapp'));
+  const isMiniApp = typeof window !== "undefined" && (
+    window.location.pathname.startsWith('/miniapp') ||
+    window.location.hash.includes('miniapp') ||
+    window.location.search.includes('miniapp')
+  );
   if (isMiniApp) {
     return <TelegramMiniApp />;
   }
@@ -2178,6 +2182,25 @@ export default function App() {
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
             )}
           </button>
+
+          <button
+            onClick={() => setActiveTab("miniapp")}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
+              activeTab === "miniapp"
+                ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Globe
+                className={`w-4 h-4 transition-colors duration-300 ${activeTab === "miniapp" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
+              />
+              <span>{translateText("Telegram Mini App", "پیش‌نمایش مینی‌اپ", lang)}</span>
+            </div>
+            <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-bold">
+              {translateText("New", "جدید", lang)}
+            </span>
+          </button>
         </div>
 
         <div className="p-4 border-t border-white/5 bg-black/10">
@@ -2644,6 +2667,10 @@ export default function App() {
               customButtons={customButtons}
               setCustomButtons={setCustomButtons}
             />
+          )}
+
+          {activeTab === "miniapp" && (
+            <TelegramMiniApp onBack={() => setActiveTab("dashboard")} />
           )}
 
           {/* Update Panel Modal */}

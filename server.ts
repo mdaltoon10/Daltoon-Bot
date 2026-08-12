@@ -9000,6 +9000,12 @@ async function startServer() {
   if (!isProduction) {
     console.log("[Server] Mount dev Vite middleware mode.");
 
+    // Handle /miniapp route fallback in dev
+    app.get(["/miniapp", "/miniapp/*"], (req, res, next) => {
+      req.url = "/index.html";
+      next();
+    });
+
     // Create Vite server in middleware mode
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false, allowedHosts: true },

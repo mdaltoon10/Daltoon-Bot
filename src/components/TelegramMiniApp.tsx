@@ -28,7 +28,11 @@ declare global {
   }
 }
 
-export const TelegramMiniApp: React.FC = () => {
+interface TelegramMiniAppProps {
+  onBack?: () => void;
+}
+
+export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "profile" | "support">("plans");
   const [tgUser, setTgUser] = useState<any>(null);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -55,6 +59,23 @@ export const TelegramMiniApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#0f172a] text-white flex flex-col font-sans select-none pb-20 dir-rtl" dir="rtl">
+      {/* Optional Admin Preview Banner */}
+      {onBack && (
+        <div className="bg-gradient-to-r from-indigo-900 via-purple-900 to-indigo-900 border-b border-indigo-500/30 px-4 py-2 flex items-center justify-between text-xs text-indigo-200">
+          <span className="flex items-center gap-1.5 font-medium">
+            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+            حالت پیش‌نمایش مینی‌اپ تلگرام
+          </span>
+          <button
+            onClick={onBack}
+            className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-all font-semibold active:scale-95 flex items-center gap-1"
+          >
+            <span>بازگشت به پنل مدیریت</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Header Bar */}
       <header className="sticky top-0 z-50 bg-[#1e293b]/90 backdrop-blur-md border-b border-slate-700/60 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
