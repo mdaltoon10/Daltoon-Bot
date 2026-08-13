@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 // Version of the release
-const VERSION = "3.9.55";
+const VERSION = "4.0.2";
 const REPO_OWNER = "mdaltoon10";
 const REPO_NAME = "Daltoon-Bot";
 const REPO = `${REPO_OWNER}/${REPO_NAME}`;
@@ -147,14 +147,11 @@ async function run() {
 Welcome to the stable **v${VERSION} release** of Daltoon Bot & Dashboard!
 
 #### Key Improvements & Updates:
-- **Interactive PWA Splash Screen Text**: Added "Telegram Daltoon Bot" text centered perfectly beneath the custom Faravahar badge on the white splash screen matching the user video demo layout.
-- **Interactive PWA Install Prompt Notification**: Automatically prompts users entering the dashboard to install the web app to their home screen / desktop.
-- **iOS & Android Multi-Device Support**: Native install trigger for Android/Chrome and step-by-step modal guide for iOS Safari users.
-- **Custom App Icon & White Splash Screen**: High-resolution PWA app icon with vertical burgundy card and golden Faravahar badge matching user demo video.
-- **Full PWA & Standalone App Support**: Integrated Web App Manifest (manifest.json), offline Service Worker (sw.js), high-res icons (PNG & SVG) for Add to Home Screen on mobile and desktop.
-- **Transaction Approval Fixes**: Handle normalized statuses (\`approved\`, \`rejected\`, \`refunded\`, \`failed\`) accurately in the transaction approval UI and Telegram callbacks.
-- **Zero Native SQLite Dependencies**: Pure-JS SQLite/Python bridge resolves VPS compatibility issues.
-- **Dynamic SSL/TLS Setup**: Fully integrated SSL certificate setup (Nginx & Python) for direct secure domain connections.`,
+- **Full Database-Linked Telegram Mini App**: Completely synchronized Telegram WebApp with real-time SQLite database endpoints (\`/api/miniapp/*\`).
+- **5-Step Config Purchase Workflow**: Server selection, categorized plan picker or custom volume builder (GB × days pricing formula), discount promo validation, and direct wallet or card-to-card checkout.
+- **Instant VLESS/VMess Config Delivery**: Instant QR code generation, one-click clipboard copy, and direct open protocol in v2rayNG, Streisand, and V2Box.
+- **Live User Subscriptions & Management**: Real-time traffic meter, expiry countdown, and free test config delivery.
+- **PWA & Splash Screen Enhancements**: High-resolution icons and offline service worker compatibility.`,
       draft: false,
       prerelease: false,
     };

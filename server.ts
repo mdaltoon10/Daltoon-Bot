@@ -6542,6 +6542,700 @@ app.get("/api/vpn-plans", (req, res) => {
   }
 });
 
+// ==========================================
+// TELEGRAM MINI-APP LIVE DATABASE API ROUTES
+// ==========================================
+
+// 1. Initial Aggregated Data for MiniApp (User, Plans, Servers, Categories, Configs, Settings)
+app.get("/api/miniapp/data", async (req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  try {
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    const tgIdRaw = req.query.tg_id || req.query.userId || req.headers["x-telegram-user-id"];
+    const tgUsername = (req.query.username as string) || "";
+    const tgFirstName = (req.query.first_name as string) || "";
+    const tgLastName = (req.query.last_name as string) || "";
+
+    let tgId = tgIdRaw ? Number(tgIdRaw) : 0;
+    let currentUser: any = null;
+
+    if (tgId && !isNaN(tgId) && tgId > 0) {
+      if (!Array.isArray(db.users)) db.users = [];
+      currentUser = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
+
+      if (!currentUser) {
+        // Auto-register user in DB
+        currentUser = {
+          id: tgId,
+          userId: tgId,
+          user_id: tgId,
+          username: tgUsername || `user_${tgId}`,
+          firstName: tgFirstName,
+          lastName: tgLastName,
+          fullName: `${tgFirstName} ${tgLastName}`.trim() || `User ${tgId}`,
+          walletBalance: 0,
+          wallet_balance: 0,
+          balance: 0,
+          status: "active",
+          activePlansCount: 0,
+          registeredAt: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        };
+        db.users.push(currentUser);
+        writeSqliteDb(db);
+      } else {
+        // Update user profile if changed
+        let updated = false;
+        if (tgUsername && currentUser.username !== tgUsername) {
+          currentUser.username = tgUsername;
+          updated = true;
+        }
+        if (tgFirstName && currentUser.firstName !== tgFirstName) {
+          currentUser.firstName = tgFirstName;
+          currentUser.fullName = `${tgFirstName} ${tgLastName || currentUser.lastName || ""}`.trim();
+          updated = true;
+        }
+        if (updated) {
+          writeSqliteDb(db);
+        }
+      }
+    }
+
+    // Active Servers
+    const rawServers = getActiveServers(settings);
+    const activeServers = rawServers.map((s: any) => {
+      let flag = "🌐";
+      const nameLower = (s.name || s.remark || "").toLowerCase();
+      if (nameLower.includes("germany") || nameLower.includes("آلمان") || nameLower.includes("de")) flag = "🇩🇪";
+      else if (nameLower.includes("finland") || nameLower.includes("فنلاند") || nameLower.includes("fi")) flag = "🇫🇮";
+      else if (nameLower.includes("netherlands") || nameLower.includes("هلند") || nameLower.includes("nl")) flag = "🇳🇱";
+      else if (nameLower.includes("turkey") || nameLower.includes("ترکیه") || nameLower.includes("tr")) flag = "🇹🇷";
+      else if (nameLower.includes("france") || nameLower.includes("فرانسه") || nameLower.includes("fr")) flag = "🇫🇷";
+      else if (nameLower.includes("usa") || nameLower.includes("آمریکا") || nameLower.includes("us")) flag = "🇺🇸";
+      else if (nameLower.includes("uk") || nameLower.includes("انگلیس") || nameLower.includes("gb")) flag = "🇬🇧";
+      else if (nameLower.includes("uae") || nameLower.includes("دبی") || nameLower.includes("امارات")) flag = "🇦🇪";
+
+      return {
+        id: String(s.id || s.panelUrl || Math.random().toString(36).substring(2, 8)),
+        name: s.name || s.remark || "سرور اختصاصی",
+        flag,
+        panelType: s.panelType || "sanaei",
+        planCategories: Array.isArray(s.planCategories) ? s.planCategories : [],
+        status: s.status || "active",
+        protocol: s.protocol || "VLESS",
+        inbounds: s.inbounds || [],
+      };
+    });
+
+    // Plan Categories
+    const planCategories = (db.plan_categories || []).map((c: any) => ({
+      id: c.id,
+      name: c.name,
+      emoji: c.emoji || "⚡️",
+      description: c.description || "",
+    }));
+
+    // VPN Plans
+    const vpnPlans = (db.vpn_plans || []).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category || "سایر",
+      price: Number(p.price || 0),
+      trafficGb: Number(p.trafficGb || p.traffic_gb || 30),
+      durationDays: Number(p.durationDays || p.duration_days || 30),
+      inbounds: p.inbounds || [],
+      tag: p.tag || (Number(p.trafficGb) >= 100 ? "ویژه VIP" : Number(p.trafficGb) <= 30 ? "پرفروش" : "اقتصادی"),
+      features: p.features || ["سرعت بالا و پایدار", "بدون قطعی و پینگ مناسب", "پشتیبانی از تمام اپراتورها"]
+    }));
+
+    // Custom Pricing Configuration
+    let panelConfig: any = {};
+    try {
+      panelConfig = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
+    } catch (e) {
+      panelConfig = {};
+    }
+
+    const isCustomPricingActive = settings.isCustomPricingActive !== false && panelConfig.isCustomPricingActive !== false;
+    const customPricingBoxes = panelConfig.customPricingBoxes || settings.customPricingBoxes || [];
+
+    // User Subscriptions (Configs)
+    const userSubs = tgId > 0
+      ? (db.subscription_keys || []).filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId)
+      : [];
+
+    // Check if free test used
+    const hasUsedFreeTest = tgId > 0 && userSubs.some((k: any) =>
+      k.isTest || (k.planName || "").includes("تست") || (k.planId || "").includes("test")
+    );
+
+    // User Tickets
+    const userTickets = tgId > 0
+      ? (db.tickets || []).filter((t: any) => Number(t.userId) === tgId)
+      : [];
+
+    // User Transactions
+    const userTransactions = tgId > 0
+      ? (db.transactions || []).filter((tx: any) => Number(tx.userId) === tgId).slice(-20)
+      : [];
+
+    res.json({
+      success: true,
+      user: currentUser ? {
+        id: currentUser.id || currentUser.userId,
+        userId: currentUser.userId || currentUser.id,
+        username: currentUser.username || "",
+        firstName: currentUser.firstName || "",
+        lastName: currentUser.lastName || "",
+        fullName: currentUser.fullName || currentUser.username || "کاربر گرامی",
+        walletBalance: Number(currentUser.walletBalance || currentUser.wallet_balance || currentUser.balance || 0),
+        status: currentUser.status || "active",
+        isBanned: currentUser.status === "banned",
+        activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
+        createdAt: currentUser.createdAt || currentUser.registeredAt || new Date().toISOString()
+      } : null,
+      servers: activeServers,
+      planCategories,
+      vpnPlans,
+      customPricing: {
+        enabled: isCustomPricingActive,
+        boxes: customPricingBoxes,
+        defaultPricePerGb: 3000,
+        defaultPricePerDay: 2000,
+      },
+      testAccount: {
+        enabled: !!settings.isTestAccountActive,
+        trafficGb: Number(settings.testTrafficGb || 1),
+        durationHours: Number(settings.testDurationHours || 24),
+        hasUsed: hasUsedFreeTest
+      },
+      settings: {
+        botNickname: settings.botNickname || "دالتون",
+        cardNumber: settings.cardNumber || "",
+        cardHolder: settings.cardHolder || "",
+        channelUsername: settings.channelUsername || "",
+        supportUsername: settings.supportUsername || settings.channelUsername || "",
+        panelType: settings.panelType || "sanaei"
+      },
+      subscriptions: userSubs,
+      tickets: userTickets,
+      transactions: userTransactions
+    });
+  } catch (error: any) {
+    console.error("[MiniApp Data Error]:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 2. Promo Code Validator for MiniApp
+app.post("/api/miniapp/validate-promo", async (req, res) => {
+  try {
+    const { code, userId, originalPrice } = req.body;
+    if (!code || !code.trim()) {
+      return res.status(400).json({ success: false, error: "کد تخفیف را وارد کنید." });
+    }
+
+    const cleanCode = code.trim().toUpperCase();
+    const db = readSqliteDb();
+    const promoCodes = db.promo_codes || [];
+    const promo = promoCodes.find((p: any) => (p.code || "").trim().toUpperCase() === cleanCode);
+
+    if (!promo) {
+      return res.status(404).json({ success: false, error: "کد تخفیف وارد شده معتبر نیست یا منقضی شده است." });
+    }
+
+    // Check expiry
+    if (promo.expireDate && new Date(promo.expireDate).getTime() < Date.now()) {
+      return res.status(400).json({ success: false, error: "مهلت استفاده از این کد تخفیف به پایان رسیده است." });
+    }
+
+    // Check max usage
+    const usedBy = Array.isArray(promo.usedBy) ? promo.usedBy : (promo.used_by || []);
+    if (promo.maxUsage && usedBy.length >= Number(promo.maxUsage)) {
+      return res.status(400).json({ success: false, error: "ظرفیت استفاده از این کد تخفیف تکمیل شده است." });
+    }
+
+    // Check if user already used this promo code
+    if (userId && usedBy.some((uid: any) => Number(uid) === Number(userId))) {
+      return res.status(400).json({ success: false, error: "شما قبلاً از این کد تخفیف استفاده کرده‌اید." });
+    }
+
+    const price = Number(originalPrice) || 0;
+    let discountAmount = 0;
+    if (promo.discountPercent) {
+      discountAmount = Math.floor((price * Number(promo.discountPercent)) / 100);
+    } else if (promo.discountAmount) {
+      discountAmount = Number(promo.discountAmount);
+    }
+
+    discountAmount = Math.min(price, Math.max(0, discountAmount));
+    const finalPrice = Math.max(0, price - discountAmount);
+
+    res.json({
+      success: true,
+      code: promo.code,
+      discountPercent: promo.discountPercent || Math.round((discountAmount / (price || 1)) * 100),
+      discountAmount,
+      finalPrice
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 3. Purchase Subscription via MiniApp (Wallet or Card-to-Card)
+app.post("/api/miniapp/purchase", async (req, res) => {
+  try {
+    const {
+      userId,
+      username,
+      serverId,
+      planId,
+      customGb,
+      customDays,
+      clientUsername,
+      paymentMethod,
+      promoCode,
+      receiptImage,
+    } = req.body;
+
+    if (!userId || Number(userId) <= 0) {
+      return res.status(400).json({ success: false, error: "شناسه کاربری نامعتبر است." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    // Find User
+    if (!Array.isArray(db.users)) db.users = [];
+    let user = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
+    if (!user) {
+      user = {
+        id: tgId,
+        userId: tgId,
+        user_id: tgId,
+        username: username || `user_${tgId}`,
+        walletBalance: 0,
+        status: "active",
+        activePlansCount: 0,
+        createdAt: new Date().toISOString()
+      };
+      db.users.push(user);
+    }
+
+    if (user.status === "banned") {
+      return res.status(403).json({ success: false, error: "حساب کاربری شما مسدود شده است." });
+    }
+
+    // Clean client username
+    const cleanClientName = (clientUsername || `user_${tgId}_${Math.random().toString(36).substring(2, 6)}`)
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, "");
+
+    if (cleanClientName.length < 3) {
+      return res.status(400).json({ success: false, error: "نام کاربری کانفیگ باید حداقل ۳ حرف انگلیسی یا عدد باشد." });
+    }
+
+    // Determine traffic, duration, plan name, price
+    let trafficGb = 30;
+    let durationDays = 30;
+    let planName = "اشتراک اختصاصی";
+    let originalPrice = 0;
+
+    if (planId === "custom") {
+      trafficGb = Math.max(1, Number(customGb) || 30);
+      durationDays = Math.max(1, Number(customDays) || 30);
+      planName = `کانفیگ دلخواه ${trafficGb}GB (${durationDays} روزه)`;
+
+      // Custom pricing calculation
+      let panelConfig: any = {};
+      try {
+        panelConfig = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
+      } catch (e) {
+        panelConfig = {};
+      }
+      const customBoxes = panelConfig.customPricingBoxes || settings.customPricingBoxes || [];
+      let priceGb = 3000;
+      let priceDay = 2000;
+
+      if (Array.isArray(customBoxes)) {
+        for (const box of customBoxes) {
+          if (box && Array.isArray(box.serverIds) && box.serverIds.includes(serverId)) {
+            priceGb = Number(box.pricePerGb) || priceGb;
+            priceDay = Number(box.pricePerDay) || priceDay;
+            break;
+          }
+        }
+      }
+      originalPrice = (trafficGb * priceGb) + (durationDays * priceDay);
+    } else {
+      const vpnPlans = db.vpn_plans || [];
+      const plan = vpnPlans.find((p: any) => String(p.id) === String(planId));
+      if (!plan) {
+        return res.status(404).json({ success: false, error: "پلن انتخاب شده یافت نشد." });
+      }
+      trafficGb = Number(plan.trafficGb || plan.traffic_gb || 30);
+      durationDays = Number(plan.durationDays || plan.duration_days || 30);
+      planName = plan.name || `طرح ${trafficGb}GB`;
+      originalPrice = Number(plan.price || 0);
+    }
+
+    // Promo Code discount calculation
+    let discountAmount = 0;
+    let appliedPromoObj: any = null;
+    if (promoCode && promoCode.trim()) {
+      const cleanPromo = promoCode.trim().toUpperCase();
+      const promoCodes = db.promo_codes || [];
+      appliedPromoObj = promoCodes.find((p: any) => (p.code || "").trim().toUpperCase() === cleanPromo);
+      if (appliedPromoObj) {
+        if (appliedPromoObj.discountPercent) {
+          discountAmount = Math.floor((originalPrice * Number(appliedPromoObj.discountPercent)) / 100);
+        } else if (appliedPromoObj.discountAmount) {
+          discountAmount = Number(appliedPromoObj.discountAmount);
+        }
+        discountAmount = Math.min(originalPrice, Math.max(0, discountAmount));
+      }
+    }
+
+    const finalPrice = Math.max(0, originalPrice - discountAmount);
+
+    // ==========================================
+    // PAYMENT METHOD 1: WALLET
+    // ==========================================
+    if (paymentMethod === "wallet") {
+      const userBalance = Number(user.walletBalance || user.wallet_balance || user.balance || 0);
+      if (userBalance < finalPrice) {
+        return res.status(400).json({
+          success: false,
+          error: `موجودی کیف پول شما کافی نیست. موجودی: ${userBalance.toLocaleString("fa-IR")} تومان | مبلغ فاکتور: ${finalPrice.toLocaleString("fa-IR")} تومان`
+        });
+      }
+
+      // Deduct balance
+      user.walletBalance = userBalance - finalPrice;
+      user.wallet_balance = user.walletBalance;
+      user.balance = user.walletBalance;
+
+      // Auto-create client on 3x-ui / Rebecca / Marzban
+      const vpnResult = await addVpnClientApi(
+        cleanClientName,
+        trafficGb,
+        durationDays,
+        settings,
+        undefined,
+        serverId,
+        false
+      );
+
+      if (!vpnResult.success || !vpnResult.subLink) {
+        // Refund wallet balance on error
+        user.walletBalance += finalPrice;
+        user.wallet_balance = user.walletBalance;
+        user.balance = user.walletBalance;
+        writeSqliteDb(db);
+
+        return res.status(500).json({
+          success: false,
+          error: "خطا در ساخت کانفیگ روی سرور: " + (vpnResult.error || "پاسخی از پنل سرور دریافت نشد.")
+        });
+      }
+
+      // Generate Subscription Record in DB
+      const randomSubId = "SUB-" + Date.now() + "-" + Math.floor(Math.random() * 90000 + 10000);
+      const expireDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      const newSub = {
+        id: randomSubId,
+        userId: tgId,
+        user_id: tgId,
+        serverId: serverId || "",
+        planId: planId || "plan_" + Date.now(),
+        planName,
+        clientName: cleanClientName,
+        clientUuid: vpnResult.clientUuid || "",
+        subLink: vpnResult.subLink,
+        expireDate,
+        trafficLimitGb: trafficGb,
+        trafficUsedGb: 0,
+        createdAtMs: Date.now(),
+        status: "active" as const,
+      };
+
+      if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
+      db.subscription_keys.push(newSub);
+
+      // Record Transaction
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-PUR-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        status: "approved",
+        type: "purchase",
+        date: new Date().toISOString(),
+        description: `خرید اشتراک ${planName} از طریق مینی‌اپ تلگرام`
+      };
+      db.transactions.push(newTx);
+
+      // Record Promo usage
+      if (appliedPromoObj) {
+        if (!Array.isArray(appliedPromoObj.usedBy)) appliedPromoObj.usedBy = [];
+        appliedPromoObj.usedBy.push(tgId);
+        appliedPromoObj.totalUsage = (appliedPromoObj.totalUsage || 0) + 1;
+      }
+
+      // Update user active count
+      user.activePlansCount = db.subscription_keys.filter((k: any) => Number(k.userId) === tgId && k.status === "active").length;
+
+      writeSqliteDb(db);
+
+      return res.json({
+        success: true,
+        subKey: newSub,
+        user: {
+          walletBalance: user.walletBalance,
+          activePlansCount: user.activePlansCount
+        }
+      });
+    }
+
+    // ==========================================
+    // PAYMENT METHOD 2: CARD TO CARD
+    // ==========================================
+    if (paymentMethod === "card_to_card") {
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-CARD-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        receiptImage: receiptImage || "",
+        status: "pending",
+        type: "card_to_card",
+        date: new Date().toISOString(),
+        description: `خرید اشتراک ${planName} (کارت به کارت)`,
+        pendingPurchase: {
+          serverId,
+          planId,
+          customGb: trafficGb,
+          customDays: durationDays,
+          clientUsername: cleanClientName,
+          promoCode,
+          finalPrice,
+          planName
+        }
+      };
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      return res.json({
+        success: true,
+        pendingApproval: true,
+        transactionId: newTx.id,
+        message: "رسید شما با موفقیت ثبت شد و پس از بررسی و تایید مدیریت، سرویس شما فعال خواهد شد."
+      });
+    }
+
+    return res.status(400).json({ success: false, error: "روش پرداخت انتخاب شده نامعتبر است." });
+  } catch (error: any) {
+    console.error("[MiniApp Purchase Error]:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 4. Free Test Config via MiniApp
+app.post("/api/miniapp/free-test", async (req, res) => {
+  try {
+    const { userId, username, serverId } = req.body;
+    if (!userId || Number(userId) <= 0) {
+      return res.status(400).json({ success: false, error: "شناسه کاربری نامعتبر است." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    if (!settings.isTestAccountActive) {
+      return res.status(400).json({ success: false, error: "دریافت کانفیگ تست در حال حاضر غیرفعال است." });
+    }
+
+    // Check if user already used test
+    const subs = db.subscription_keys || [];
+    const hasUsed = subs.some((k: any) =>
+      Number(k.userId) === tgId && (k.isTest || (k.planName || "").includes("تست") || (k.planId || "").includes("test"))
+    );
+
+    if (hasUsed) {
+      return res.status(400).json({ success: false, error: "شما قبلاً از اشتراک تست رایگان استفاده کرده‌اید." });
+    }
+
+    const testGb = Number(settings.testTrafficGb || 1);
+    const testHours = Number(settings.testDurationHours || 24);
+    const testDays = Math.max(1, Math.ceil(testHours / 24));
+    const cleanClientName = `test_${tgId}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const vpnResult = await addVpnClientApi(
+      cleanClientName,
+      testGb,
+      testDays,
+      settings,
+      undefined,
+      serverId,
+      false
+    );
+
+    if (!vpnResult.success || !vpnResult.subLink) {
+      return res.status(500).json({
+        success: false,
+        error: "خطا در ساخت کانفیگ تست: " + (vpnResult.error || "خطای نامشخص در اتصال به سرور.")
+      });
+    }
+
+    const randomSubId = "TEST-" + Date.now();
+    const expireDate = new Date(Date.now() + testHours * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const newSub = {
+      id: randomSubId,
+      userId: tgId,
+      user_id: tgId,
+      serverId: serverId || "",
+      planId: "free_test",
+      planName: `کانفیگ تست رایگان (${testGb}GB - ${testHours} ساعت)`,
+      clientName: cleanClientName,
+      clientUuid: vpnResult.clientUuid || "",
+      subLink: vpnResult.subLink,
+      expireDate,
+      trafficLimitGb: testGb,
+      trafficUsedGb: 0,
+      createdAtMs: Date.now(),
+      status: "active" as const,
+      isTest: true
+    };
+
+    if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
+    db.subscription_keys.push(newSub);
+
+    writeSqliteDb(db);
+    res.json({ success: true, subKey: newSub });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 5. Wallet Deposit via MiniApp (Card to Card)
+app.post("/api/miniapp/wallet/deposit", async (req, res) => {
+  try {
+    const { userId, username, amount, receiptImage } = req.body;
+    if (!userId || !amount || Number(amount) <= 0) {
+      return res.status(400).json({ success: false, error: "اطلاعات واریز نامعتبر است." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+
+    if (!Array.isArray(db.transactions)) db.transactions = [];
+    const newTx = {
+      id: "TX-DEP-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+      userId: tgId,
+      username: username || `user_${tgId}`,
+      amount: Number(amount),
+      receiptImage: receiptImage || "",
+      status: "pending",
+      type: "charge",
+      date: new Date().toISOString(),
+      description: `درخواست شارژ حساب کاربری (${Number(amount).toLocaleString("fa-IR")} تومان)`
+    };
+
+    db.transactions.push(newTx);
+    writeSqliteDb(db);
+
+    res.json({
+      success: true,
+      transactionId: newTx.id,
+      message: "رسید پرداخت با موفقیت ثبت شد و پس از بررسی توسط تیم پشتیبانی، حساب شما شارژ خواهد شد."
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 6. Create Support Ticket from MiniApp
+app.post("/api/miniapp/tickets/create", async (req, res) => {
+  try {
+    const { userId, username, subject, message } = req.body;
+    if (!userId || !message || !message.trim()) {
+      return res.status(400).json({ success: false, error: "متن تیکت نمی‌تواند خالی باشد." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+
+    const newTicket = {
+      id: "TCK-" + Date.now() + "-" + Math.floor(Math.random() * 900 + 100),
+      userId: tgId,
+      username: username || `user_${tgId}`,
+      subject: subject || "پشتیبانی سرویس",
+      status: "open",
+      createdAt: new Date().toISOString(),
+      messages: [
+        {
+          id: "MSG-1",
+          sender: "user",
+          senderName: username || `کاربر ${tgId}`,
+          text: message.trim(),
+          timestamp: new Date().toISOString()
+        }
+      ]
+    };
+
+    if (!Array.isArray(db.tickets)) db.tickets = [];
+    db.tickets.push(newTicket);
+    writeSqliteDb(db);
+
+    res.json({ success: true, ticket: newTicket });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 7. Reply to Ticket from MiniApp
+app.post("/api/miniapp/tickets/reply", async (req, res) => {
+  try {
+    const { ticketId, userId, message } = req.body;
+    if (!ticketId || !message || !message.trim()) {
+      return res.status(400).json({ success: false, error: "متن پیام نامعتبر است." });
+    }
+
+    const db = readSqliteDb();
+    const tickets = db.tickets || [];
+    const ticket = tickets.find((t: any) => String(t.id) === String(ticketId));
+
+    if (!ticket) {
+      return res.status(404).json({ success: false, error: "تیکت یافت نشد." });
+    }
+
+    if (!Array.isArray(ticket.messages)) ticket.messages = [];
+    const newMsg = {
+      id: "MSG-" + (ticket.messages.length + 1),
+      sender: "user",
+      senderName: ticket.username || `کاربر ${userId}`,
+      text: message.trim(),
+      timestamp: new Date().toISOString()
+    };
+    ticket.messages.push(newMsg);
+    ticket.status = "open";
+
+    writeSqliteDb(db);
+    res.json({ success: true, ticket });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // --- Plan Categories API ---
 app.get("/api/plan-categories", (req, res) => {
   try {
