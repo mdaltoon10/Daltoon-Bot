@@ -3392,8 +3392,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                 <input
                                   type="text"
                                   readOnly
+                                  dir="ltr"
                                   value={sub.subLink || ""}
-                                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all truncate"
+                                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all truncate text-left"
                                 />
                                 <button
                                   onClick={(e) => {
@@ -4370,8 +4371,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                     <input
                                       type="text"
                                       readOnly
+                                      dir="ltr"
                                       value={client.subLink || ""}
-                                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all truncate"
+                                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all truncate text-left"
                                     />
                                     <button
                                       onClick={(e) => {

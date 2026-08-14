@@ -3155,29 +3155,53 @@ function getActiveServers(settings: any) {
     settings.servers &&
     Array.isArray(settings.servers)
   ) {
-    allServers = allServers.concat(settings.servers.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
+    allServers = allServers.concat(settings.servers.map((s: any) => ({
+      ...s,
+      subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+      isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true
+    })));
   }
   if (
     settings.colleagueServers &&
     Array.isArray(settings.colleagueServers)
   ) {
-    allServers = allServers.concat(settings.colleagueServers.map((s: any) => ({ ...s, isColleague: true })));
+    allServers = allServers.concat(settings.colleagueServers.map((s: any) => ({
+      ...s,
+      subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+      isColleague: true
+    })));
   }
 
   if (settings.panel_config) {
     try {
       const pc = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : settings.panel_config;
       if (pc && Array.isArray(pc.SERVERS)) {
-        allServers = allServers.concat(pc.SERVERS.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
+        allServers = allServers.concat(pc.SERVERS.map((s: any) => ({
+          ...s,
+          subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+          isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true
+        })));
       }
       if (pc && Array.isArray(pc.servers)) {
-        allServers = allServers.concat(pc.servers.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
+        allServers = allServers.concat(pc.servers.map((s: any) => ({
+          ...s,
+          subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+          isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true
+        })));
       }
       if (pc && Array.isArray(pc.colleagueServers)) {
-        allServers = allServers.concat(pc.colleagueServers.map((s: any) => ({ ...s, isColleague: true })));
+        allServers = allServers.concat(pc.colleagueServers.map((s: any) => ({
+          ...s,
+          subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+          isColleague: true
+        })));
       }
       if (pc && Array.isArray(pc.COLLEAGUE_SERVERS)) {
-        allServers = allServers.concat(pc.COLLEAGUE_SERVERS.map((s: any) => ({ ...s, isColleague: true })));
+        allServers = allServers.concat(pc.COLLEAGUE_SERVERS.map((s: any) => ({
+          ...s,
+          subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || "",
+          isColleague: true
+        })));
       }
     } catch (e) {}
   }
@@ -3190,7 +3214,12 @@ function getActiveServers(settings: any) {
       const sid = s.id || s.panelUrl || s.baseUrl;
       if (sid && !seen.has(sid)) {
         seen.add(sid);
-        if (s.status !== "inactive") unique.push(s);
+        if (s.status !== "inactive") {
+          unique.push({
+            ...s,
+            subUrl: s.subUrl || s.sub_url || s.subLink || s.sub_link || s.subscriptionUrl || s.subscription_url || ""
+          });
+        }
       }
     }
     if (unique.length > 0) return unique;
@@ -3208,7 +3237,7 @@ function getActiveServers(settings: any) {
         id: "legacy_server",
         name: "پنل اصلی",
         panelUrl: settings.baseUrl,
-        subUrl: settings.subUrl,
+        subUrl: settings.subUrl || settings.sub_url || "",
         panelUsername: settings.panelUsername,
         panelPassword: settings.panelPassword,
         activeInboundIds: settings.activeInboundIds || [],
@@ -3259,6 +3288,105 @@ function getActiveServers(settings: any) {
       isColleague: true,
     }
   ];
+}
+
+function formatSubUrlWithToken(baseUrl: string, token: string): string {
+  if (!baseUrl || !token) return baseUrl || "";
+  let clean = baseUrl.trim().replace(/^['"\s]+|['"\s]+$/g, "");
+  if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+    if (/:(8443|2096|2083|2087|2053|443)($|\/|\?)/.test(clean) || /ssl|https/i.test(clean)) {
+      clean = "https://" + clean;
+    } else {
+      clean = "http://" + clean;
+    }
+  }
+  clean = clean.replace(/\/+$/, "");
+  const cleanToken = token.trim().replace(/^\/+/, "");
+  if (clean.endsWith("/sub")) {
+    return `${clean}/${cleanToken}`;
+  } else {
+    return `${clean}/sub/${cleanToken}`;
+  }
+}
+
+function buildCorrectSubLinkForClient(
+  keyOrSubLink: any,
+  serverId?: string,
+  settings?: any,
+  db?: any
+): string {
+  if (!settings && db) settings = getSystemSettings(db);
+  if (!settings) {
+    try {
+      const d = readSqliteDb();
+      settings = getSystemSettings(d);
+    } catch {}
+  }
+  settings = settings || {};
+
+  let subLink = typeof keyOrSubLink === "string" ? keyOrSubLink : (keyOrSubLink?.subLink || "");
+  let sId = serverId || (typeof keyOrSubLink === "object" ? (keyOrSubLink?.serverId || keyOrSubLink?.server_id) : "");
+  let clientUuid = typeof keyOrSubLink === "object" ? (keyOrSubLink?.clientUuid || keyOrSubLink?.uuid || keyOrSubLink?.clientName) : "";
+  let subId = typeof keyOrSubLink === "object" ? (keyOrSubLink?.subId || keyOrSubLink?.xuiSubId || keyOrSubLink?.sub_id) : "";
+  let serverName = typeof keyOrSubLink === "object" ? (keyOrSubLink?.serverName || keyOrSubLink?.planName) : "";
+
+  // Extract subId token from existing subLink or fields
+  let token = (subId || "").trim();
+  if (!token && subLink) {
+    const match = subLink.match(/\/sub\/([a-zA-Z0-9_\-\.\=\+]+)/i);
+    if (match && match[1]) {
+      token = match[1].trim();
+    } else {
+      const cleanSub = subLink.split("?")[0];
+      const parts = cleanSub.split("/");
+      const last = parts[parts.length - 1];
+      if (last && !last.includes(":") && last.length >= 3) {
+        token = last.trim();
+      }
+    }
+  }
+  if (!token) {
+    token = (clientUuid || (typeof keyOrSubLink === "object" ? (keyOrSubLink?.clientEmail || keyOrSubLink?.clientName) : "") || "user").trim();
+  }
+
+  // Find server from active servers
+  const rawServers = getActiveServers(settings);
+  let server = sId ? rawServers.find((s: any) => String(s.id) === String(sId)) : null;
+  if (!server && serverName) {
+    server = rawServers.find((s: any) => 
+      (s.name && (serverName.includes(s.name) || s.name.includes(serverName))) || 
+      (s.remark && (serverName.includes(s.remark) || s.remark.includes(serverName)))
+    );
+  }
+  if (!server && rawServers.length > 0) {
+    server = rawServers.find((s: any) => s.status === "active") || rawServers[0];
+  }
+
+  // Server-specific or global subscription base URL
+  let baseSub = (
+    server?.subUrl ||
+    server?.sub_url ||
+    server?.subLink ||
+    server?.subscriptionUrl ||
+    server?.subscription_url ||
+    settings.subUrl ||
+    settings.sub_url ||
+    ""
+  ).trim();
+
+  if (!baseSub && server?.panelUrl) {
+    baseSub = normalizeXuiUrl(server.panelUrl);
+  }
+
+  if (baseSub) {
+    return formatSubUrlWithToken(baseSub, token);
+  }
+
+  if (subLink && subLink.startsWith("http")) {
+    return subLink;
+  }
+
+  return `https://vpn.daltoon.online/sub/${token}`;
 }
 
 function normalizeXuiUrl(url: string): string {
@@ -4316,28 +4444,22 @@ async function fetchRealClientLinks(
     }
   }
 
-  if (extractedSubId) {
+  const subTokens = Array.from(new Set([extractedSubId, clientEmail, clientUuid])).filter(Boolean) as string[];
+
+  for (const token of subTokens) {
     for (const srv of activeServers) {
       if (srv.subUrl) {
-        const cleanSubUrl = srv.subUrl.replace(/\/+$/, "");
-        if (cleanSubUrl.endsWith("/sub")) {
-          candidateUrls.push(`${cleanSubUrl}/${extractedSubId}`);
-        } else {
-          candidateUrls.push(`${cleanSubUrl}/sub/${extractedSubId}`);
-        }
+        candidateUrls.push(formatSubUrlWithToken(srv.subUrl, token));
       }
       if (srv.panelUrl) {
-        const cleanPanel = normalizeXuiUrl(srv.panelUrl);
-        candidateUrls.push(`${cleanPanel}/sub/${extractedSubId}`);
+        candidateUrls.push(formatSubUrlWithToken(normalizeXuiUrl(srv.panelUrl), token));
       }
     }
     if (settings.subUrl) {
-      const cleanSettingsSub = settings.subUrl.replace(/\/+$/, "");
-      candidateUrls.push(`${cleanSettingsSub}/sub/${extractedSubId}`);
+      candidateUrls.push(formatSubUrlWithToken(settings.subUrl, token));
     }
     if (settings.baseUrl) {
-      const cleanBase = settings.baseUrl.replace(/\/+$/, "");
-      candidateUrls.push(`${cleanBase}/sub/${extractedSubId}`);
+      candidateUrls.push(formatSubUrlWithToken(settings.baseUrl, token));
     }
   }
 
@@ -7803,6 +7925,7 @@ const handleFetchSubscriptionLinks = async (req: any, res: any) => {
   try {
     const { keyId, clientName, clientUuid, serverId, subLink, forceRefresh } = req.body;
     const db = readSqliteDb();
+    const settings = getSystemSettings(db);
 
     let targetKey = (db.subscription_keys || []).find(
       (k: any) =>
@@ -7815,13 +7938,16 @@ const handleFetchSubscriptionLinks = async (req: any, res: any) => {
     const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || targetKey?.email || "";
     const cUuid = clientUuid || targetKey?.clientUuid || targetKey?.uuid || "";
     const sId = serverId || targetKey?.serverId || "";
-    const sLink = subLink || targetKey?.subLink || "";
+    const sLink = buildCorrectSubLinkForClient(targetKey || subLink, sId, settings, db);
 
     const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink, Boolean(forceRefresh));
 
-    if (liveData.vlessConfigs.length > 0 && targetKey) {
-      targetKey.vlessConfigs = liveData.vlessConfigs;
-      targetKey.vlessLinks = liveData.vlessLinks;
+    if (targetKey) {
+      targetKey.subLink = sLink;
+      if (liveData.vlessConfigs.length > 0) {
+        targetKey.vlessConfigs = liveData.vlessConfigs;
+        targetKey.vlessLinks = liveData.vlessLinks;
+      }
       writeSqliteDb(db);
     }
 
@@ -8451,14 +8577,21 @@ app.get("/api/miniapp/data", async (req, res) => {
     const customPricingBoxes = panelConfig.customPricingBoxes || settings.customPricingBoxes || [];
 
     // User Subscriptions (Configs) - Sorted newest first by default
+    let dbUpdatedSubs = false;
     const userSubs = tgId > 0
       ? (db.subscription_keys || [])
           .filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId)
           .map((k: any) => {
             const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
-            const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, k.subLink);
+            const liveSubLink = buildCorrectSubLinkForClient(k, k.serverId, settings, db);
+            if (k.subLink !== liveSubLink) {
+              k.subLink = liveSubLink;
+              dbUpdatedSubs = true;
+            }
+            const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, liveSubLink);
             return {
               ...k,
+              subLink: liveSubLink,
               serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
               serverFlag: srv ? mapServerFormat(srv).flag : "🌐",
               vlessConfigs: k.vlessConfigs && k.vlessConfigs.length > 0 ? k.vlessConfigs : vlessData.vlessConfigs,
@@ -8474,6 +8607,10 @@ app.get("/api/miniapp/data", async (req, res) => {
             return idB - idA;
           })
       : [];
+
+    if (dbUpdatedSubs) {
+      writeSqliteDb(db);
+    }
 
     // Check if free test used
     const hasUsedFreeTest = tgId > 0 && userSubs.some((k: any) =>
@@ -8655,7 +8792,7 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
         serverId: k.serverId,
         trafficLimitGb: Number(k.trafficLimitGb || 0),
         trafficUsedGb: Number(k.trafficUsedGb || 0),
-        subLink: k.subLink || "",
+        subLink: buildCorrectSubLinkForClient(k, k.serverId, settings, db),
         expireDate: k.expireDate || "نامحدود",
         status: k.status || "active",
         disabled: k.disabled || false,
