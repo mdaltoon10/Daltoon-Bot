@@ -1089,7 +1089,7 @@ def get_config():
         config["HIDE_CONFIG_DETAILS"] = bool(panel_cfg.get("hideBtnConfigDetails", False))
         config["HIDE_SEARCH_CONFIG"] = bool(panel_cfg.get("hideBtnSearchConfig", False))
         config["USE_MINI_APP_MODE"] = bool(panel_cfg.get("useMiniAppMode", False))
-        config["START_COMMAND_MODE"] = panel_cfg.get("startCommandMode", "dual_choice" if panel_cfg.get("useMiniAppMode") else "buttons")
+        config["START_COMMAND_MODE"] = panel_cfg.get("startCommandMode", "miniapp" if panel_cfg.get("useMiniAppMode") else "buttons")
         config["BTN_MINI_APP"] = panel_cfg.get("btnTextMiniApp", "🚀 ورود به برنامه هوشمند")
         config["BTN_DASH_SIMPLE"] = panel_cfg.get("btnTextDashSimple", "📱 داشبورد ساده")
         config["BTN_DASH_PRO"] = panel_cfg.get("btnTextDashPro", panel_cfg.get("btnTextMiniApp", "🚀 داشبورد حرفه‌ای"))
@@ -6491,7 +6491,7 @@ def start_cmd(message):
         print(f"Error resetting reply markup: {e}")
 
     use_miniapp = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
-    start_mode = cfg.get("START_COMMAND_MODE", "dual_choice") if use_miniapp else "buttons"
+    start_mode = cfg.get("START_COMMAND_MODE", "miniapp") if use_miniapp else "buttons"
 
     if not use_miniapp or start_mode == "buttons":
         # MiniApp is OFF -> Classic behavior with standard buttons directly
@@ -6522,15 +6522,6 @@ def start_cmd(message):
             markup.add(btn_web)
         else:
             markup.add(types.InlineKeyboardButton(btn_pro_title, callback_data="dash_mode_pro_missing"))
-            
-        hide_simple = cfg.get("HIDE_DASH_SIMPLE", False)
-        if not hide_simple:
-            btn_simple_text = cfg.get("BTN_DASH_SIMPLE", "📱 ورود به داشبورد ساده")
-            btn_simp = types.InlineKeyboardButton(btn_simple_text, callback_data="dash_mode_simple")
-            style_simple = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashSimple")
-            if style_simple and style_simple != "none":
-                btn_simp.style = style_simple
-            markup.add(btn_simp)
 
         pro_text = (
             f"<b>🚀 {btn_pro_title} {bot_nickname}</b>\n\n"
