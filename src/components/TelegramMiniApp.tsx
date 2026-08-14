@@ -164,6 +164,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [subSearchQuery, setSubSearchQuery] = useState<string>("");
   const [subSortOrder, setSubSortOrder] = useState<"newest" | "oldest" | "highest_traffic" | "expiring_soon">("newest");
   const [subStatusFilter, setSubStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [isSortModalOpen, setIsSortModalOpen] = useState<boolean>(false);
 
   // Computed filtered and sorted subscriptions (Newest first by default)
   const filteredSubscriptions = useMemo(() => {
@@ -3018,22 +3019,150 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </button>
                     </div>
 
-                    {/* Sort Selector Dropdown */}
-                    <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800/80 text-xs text-slate-300">
-                      <ArrowUpDown className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      <select
-                        value={subSortOrder}
-                        onChange={(e: any) => setSubSortOrder(e.target.value)}
-                        className="bg-transparent text-xs text-slate-200 font-bold outline-none cursor-pointer"
-                      >
-                        <option value="newest" className="bg-slate-900 text-white">⚡ جدیدترین (پیش‌فرض)</option>
-                        <option value="oldest" className="bg-slate-900 text-white">⏳ قدیمی‌ترین</option>
-                        <option value="highest_traffic" className="bg-slate-900 text-white">📊 بیشترین حجم</option>
-                        <option value="expiring_soon" className="bg-slate-900 text-white">⚠️ بیشترین مصرف</option>
-                      </select>
-                    </div>
+                    {/* Custom Sort Selector Trigger Button */}
+                    <button
+                      type="button"
+                      onClick={() => setIsSortModalOpen(true)}
+                      className="flex items-center gap-1.5 bg-slate-950 hover:bg-slate-800/80 active:scale-95 px-3 py-1.5 rounded-xl border border-slate-800 hover:border-purple-500/50 text-xs text-slate-200 font-bold transition-all shadow-sm group"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5 text-purple-400 shrink-0 group-hover:text-purple-300 transition-colors" />
+                      <span>
+                        {subSortOrder === "newest" && "⚡ جدیدترین"}
+                        {subSortOrder === "oldest" && "⏳ قدیمی‌ترین"}
+                        {subSortOrder === "highest_traffic" && "📊 بیشترین حجم"}
+                        {subSortOrder === "expiring_soon" && "⚠️ بیشترین مصرف"}
+                      </span>
+                      <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-slate-200 transition-colors" />
+                    </button>
                   </div>
                 </div>
+
+                {/* Custom Bottom Sheet / Modal for Sort Options */}
+                {isSortModalOpen && (
+                  <div
+                    className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in duration-200"
+                    onClick={() => setIsSortModalOpen(false)}
+                  >
+                    <div
+                      className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 shadow-2xl shadow-purple-950/50 animate-in slide-in-from-bottom-8 duration-250"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Pull handle bar */}
+                      <div className="w-12 h-1.5 bg-slate-700/80 rounded-full mx-auto" />
+
+                      {/* Header */}
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-400 flex items-center justify-center shadow-inner">
+                            <ArrowUpDown className="w-4.5 h-4.5" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-sm text-white">مرتب‌سازی اشتراک‌ها</h3>
+                            <p className="text-[10.5px] text-slate-400">شیوه چینش و نمایش کانفیگ‌های خود را انتخاب کنید</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setIsSortModalOpen(false)}
+                          className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Options List */}
+                      <div className="space-y-2 pt-1">
+                        {[
+                          {
+                            id: "newest",
+                            title: "جدیدترین (پیش‌فرض)",
+                            emoji: "⚡",
+                            desc: "نمایش اولویت با کانفیگ‌های تازه خریداری یا تمدید شده",
+                            badge: "پیشنهادی",
+                            badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+                          },
+                          {
+                            id: "oldest",
+                            title: "قدیمی‌ترین",
+                            emoji: "⏳",
+                            desc: "نمایش از قدیمی‌ترین اشتراک‌ها به جدیدترین",
+                          },
+                          {
+                            id: "highest_traffic",
+                            title: "بیشترین حجم",
+                            emoji: "📊",
+                            desc: "نمایش به ترتیب بالاترین سقف ترافیک (گیگابایت)",
+                          },
+                          {
+                            id: "expiring_soon",
+                            title: "بیشترین مصرف",
+                            emoji: "⚠️",
+                            desc: "اولویت با کانفیگ‌های نزدیک به اتمام حجم یا مصرف بالا",
+                          },
+                        ].map((opt) => {
+                          const isSelected = subSortOrder === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={() => {
+                                setSubSortOrder(opt.id as any);
+                                setIsSortModalOpen(false);
+                              }}
+                              className={`w-full text-right p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 active:scale-[0.99] ${
+                                isSelected
+                                  ? "bg-purple-950/40 border-purple-500/80 shadow-lg shadow-purple-950/30 text-white"
+                                  : "bg-slate-950/90 border-slate-800/80 hover:bg-slate-800/60 text-slate-300 hover:text-white"
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl shrink-0 ${
+                                    isSelected
+                                      ? "bg-purple-600 text-white shadow-md shadow-purple-600/40"
+                                      : "bg-slate-900 border border-slate-800 text-slate-200"
+                                  }`}
+                                >
+                                  {opt.emoji}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-xs text-white">{opt.title}</span>
+                                    {opt.badge && (
+                                      <span className={`text-[9.5px] px-1.5 py-0.5 rounded-md font-bold border ${opt.badgeColor}`}>
+                                        {opt.badge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10.5px] text-slate-400 leading-tight">{opt.desc}</p>
+                                </div>
+                              </div>
+
+                              {/* Radio Check Circle */}
+                              <div className="shrink-0 pl-1">
+                                {isSelected ? (
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-purple-600/40">
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  </div>
+                                ) : (
+                                  <div className="w-5 h-5 rounded-full border-2 border-slate-700 hover:border-slate-500 transition-colors" />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Footer Close Button */}
+                      <button
+                        type="button"
+                        onClick={() => setIsSortModalOpen(false)}
+                        className="w-full py-3 bg-slate-800 hover:bg-slate-700 active:scale-[0.98] text-white text-xs font-bold rounded-2xl border border-slate-700/80 transition-all shadow-md"
+                      >
+                        بستن و اعمال
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {filteredSubscriptions.length === 0 ? (
                   <div className="p-6 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-2.5">
