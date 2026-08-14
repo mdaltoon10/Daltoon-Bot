@@ -1265,7 +1265,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     <div
       id="daltoon-miniapp-root"
       dir="rtl"
-      className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-28 select-none relative selection:bg-purple-500 selection:text-white"
+      className="fixed inset-0 w-full h-[100dvh] bg-slate-950 text-slate-100 font-sans select-none flex flex-col overflow-hidden selection:bg-purple-500 selection:text-white"
     >
       <style>{getThemeStyles(activeDashboardTheme)}</style>
       {/* Background Neon Gradients */}
@@ -1278,7 +1278,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* Top Header Bar */}
       <header
         id="miniapp-header"
-        className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 shadow-lg"
+        className="shrink-0 z-30 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 shadow-lg"
       >
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -1345,7 +1345,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-md mx-auto px-4 pt-4 relative z-10">
+      <main className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-8 overflow-y-auto overscroll-contain relative z-10">
         {/* Loading State */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
@@ -4249,13 +4249,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       <nav
         id="miniapp-bottom-nav"
-        className="fixed bottom-0 left-0 right-0 z-[9999] bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800/90 py-2.5 px-2 shadow-[0_-10px_25px_rgba(0,0,0,0.6)]"
+        className="shrink-0 w-full z-[99999] bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800/90 py-2.5 px-2 shadow-[0_-10px_25px_rgba(0,0,0,0.6)]"
         style={{
-          position: "fixed",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 9999,
           paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))"
         }}
       >
