@@ -31,7 +31,12 @@ import {
   XCircle,
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Users,
+  KeyRound,
+  LogOut,
+  X,
+  Crown
 } from "lucide-react";
 
 declare global {
@@ -48,7 +53,46 @@ interface TelegramMiniAppProps {
 
 export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Main Navigation Tabs
-  const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "profile" | "support">("plans");
+  const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "colleagues" | "profile" | "support">("plans");
+
+  // Custom Modal / Alert System (Replaces Native Alert)
+  const [customModal, setCustomModal] = useState<{
+    isOpen: boolean;
+    type: "success" | "error" | "info" | "warning";
+    title: string;
+    message: string;
+    buttonText?: string;
+    onConfirm?: () => void;
+  }>({
+    isOpen: false,
+    type: "info",
+    title: "",
+    message: "",
+    buttonText: "متوجه شدم",
+  });
+
+  const showThemedModal = (title: string, message: string, type: "success" | "error" | "info" | "warning" = "info", buttonText: string = "متوجه شدم", onConfirm?: () => void) => {
+    setCustomModal({
+      isOpen: true,
+      type,
+      title,
+      message,
+      buttonText,
+      onConfirm
+    });
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      if (type === "success") window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+      else if (type === "error") window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
+      else window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
+    }
+  };
+
+  const closeThemedModal = () => {
+    if (customModal.onConfirm) {
+      customModal.onConfirm();
+    }
+    setCustomModal(prev => ({ ...prev, isOpen: false, onConfirm: undefined }));
+  };
 
   // Live Database State
   const [loading, setLoading] = useState<boolean>(true);
@@ -57,7 +101,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
   const [tgUser, setTgUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [servers, setServers] = useState<any[]>([]);
+  const [colleagueServers, setColleagueServers] = useState<any[]>([]);
   const [planCategories, setPlanCategories] = useState<any[]>([]);
   const [vpnPlans, setVpnPlans] = useState<any[]>([]);
   const [customPricing, setCustomPricing] = useState<any>({
@@ -97,7 +143,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [promoError, setPromoError] = useState<string | null>(null);
 
   // Payment Selection
-  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "card_to_card">("wallet");
+  const [paymentMethod, setPaymentMethod] = useState<"wallet" | "card_to_card" | "admin_free">("wallet");
   const [cardReceiptImage, setCardReceiptImage] = useState<string>("");
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [deliveredSubKey, setDeliveredSubKey] = useState<any>(null);
@@ -118,6 +164,22 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [submittingTicket, setSubmittingTicket] = useState<boolean>(false);
   const [activeTicketChat, setActiveTicketChat] = useState<any>(null);
   const [replyMessage, setReplyMessage] = useState<string>("");
+
+  // Colleague Portal State
+  const [colleagueLoggedIn, setColleagueLoggedIn] = useState<boolean>(false);
+  const [colleagueAccount, setColleagueAccount] = useState<any>(null);
+  const [colleagueClients, setColleagueClients] = useState<any[]>([]);
+  const [colleagueUsernameInput, setColleagueUsernameInput] = useState<string>("");
+  const [colleaguePasswordInput, setColleaguePasswordInput] = useState<string>("");
+  const [colleagueLoggingIn, setColleagueLoggingIn] = useState<boolean>(false);
+
+  // Colleague Create Client Modal/State
+  const [isColleagueCreateOpen, setIsColleagueCreateOpen] = useState<boolean>(false);
+  const [colleagueSelectedServer, setColleagueSelectedServer] = useState<any>(null);
+  const [colleagueNewClientName, setColleagueNewClientName] = useState<string>("");
+  const [colleagueNewGb, setColleagueNewGb] = useState<number>(30);
+  const [colleagueNewDays, setColleagueNewDays] = useState<number>(30);
+  const [colleagueCreatingClient, setColleagueCreatingClient] = useState<boolean>(false);
 
   // UI Utilities
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -185,7 +247,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       const data = await res.json();
       if (data.success) {
         setUserData(data.user);
+        setIsAdmin(!!data.isAdmin || !!data.user?.isAdmin);
         setServers(data.servers || []);
+        setColleagueServers(data.colleagueServers || []);
         setPlanCategories(data.planCategories || []);
         setVpnPlans(data.vpnPlans || []);
         setCustomPricing(data.customPricing || {
@@ -244,12 +308,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     return list;
   }, [vpnPlans, selectedCategory]);
 
-  // Price Calculation for Custom Volume (Matching bot.py formula)
+  // Price Calculation for Custom Volume (Matching formula)
   const customCalculatedPrice = useMemo(() => {
     let priceGb = customPricing.defaultPricePerGb || 3000;
     let priceDay = customPricing.defaultPricePerDay || 2000;
 
-    if (selectedServer && customPricing.boxes && Array.isArray(customPricing.boxes)) {
+    if (selectedServer && Array.isArray(customPricing.boxes)) {
       for (const box of customPricing.boxes) {
         if (box && Array.isArray(box.serverIds) && box.serverIds.includes(String(selectedServer.id))) {
           priceGb = Number(box.pricePerGb) || priceGb;
@@ -258,49 +322,48 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }
       }
     }
-
-    const basePrice = (customGb * priceGb) + (customDays * priceDay);
-    return Math.max(0, basePrice);
+    return customGb * priceGb + customDays * priceDay;
   }, [customGb, customDays, selectedServer, customPricing]);
 
-  // Current Base Price before discount
-  const currentBasePrice = useMemo(() => {
-    if (planMode === "custom") {
-      return customCalculatedPrice;
+  // Final Price for Checkout (After Promo & Admin check)
+  const checkoutPrice = useMemo(() => {
+    if (isAdmin) return 0; // Admin has 100% free purchases
+    const base = planMode === "custom" ? customCalculatedPrice : (selectedPlan?.price || 0);
+    if (!appliedPromo) return base;
+    let discount = 0;
+    if (appliedPromo.discountPercent) {
+      discount = Math.floor((base * Number(appliedPromo.discountPercent)) / 100);
+    } else if (appliedPromo.discountAmount) {
+      discount = Number(appliedPromo.discountAmount);
     }
-    return selectedPlan ? Number(selectedPlan.price || 0) : 0;
-  }, [planMode, customCalculatedPrice, selectedPlan]);
-
-  // Final Payable Price after promo
-  const currentFinalPrice = useMemo(() => {
-    if (!appliedPromo) return currentBasePrice;
-    const discount = appliedPromo.discountAmount || 0;
-    return Math.max(0, currentBasePrice - discount);
-  }, [currentBasePrice, appliedPromo]);
+    return Math.max(0, base - discount);
+  }, [planMode, customCalculatedPrice, selectedPlan, appliedPromo, isAdmin]);
 
   // Validate Promo Code
   const handleApplyPromo = async () => {
-    if (!promoCodeInput.trim()) return;
+    if (!promoCodeInput.trim()) {
+      setPromoError("لطفاً کد تخفیف را وارد کنید.");
+      return;
+    }
+
     setValidatingPromo(true);
     setPromoError(null);
-
     try {
+      const basePrice = planMode === "custom" ? customCalculatedPrice : (selectedPlan?.price || 0);
       const res = await fetch("/api/miniapp/validate-promo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           code: promoCodeInput.trim(),
           userId: tgUser?.id,
-          originalPrice: currentBasePrice,
+          originalPrice: basePrice,
         }),
       });
 
       const data = await res.json();
       if (data.success) {
         setAppliedPromo(data);
-        if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
-        }
+        showThemedModal("تخفیف اعمال شد", `کد تخفیف با موفقیت اعمال شد. مبلغ تخفیف: ${Number(data.discountAmount || 0).toLocaleString("fa-IR")} تومان`, "success");
       } else {
         setPromoError(data.error || "کد تخفیف نامعتبر است.");
         setAppliedPromo(null);
@@ -315,14 +378,20 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Execute Purchase
   const handlePurchase = async () => {
     if (!selectedServer) {
-      alert("لطفاً ابتدا یک سرور انتخاب کنید.");
+      showThemedModal("انتخاب سرور", "لطفاً ابتدا یک سرور انتخاب کنید.", "warning");
       setPurchaseStep(1);
       return;
     }
 
     if (planMode === "fixed" && !selectedPlan) {
-      alert("لطفاً یک پلن انتخاب کنید.");
+      showThemedModal("انتخاب پلن", "لطفاً یک پلن انتخاب کنید.", "warning");
       setPurchaseStep(2);
+      return;
+    }
+
+    // Mandatory receipt check for card-to-card
+    if (!isAdmin && paymentMethod === "card_to_card" && !cardReceiptImage.trim()) {
+      showThemedModal("شناسه تراکنش اجباری است", "لطفاً شناسه پیگیری، شماره رسید یا مشخصات واریز کارت به کارت را در فیلد مربوطه وارد فرمایید.", "warning");
       return;
     }
 
@@ -339,7 +408,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           customGb: planMode === "custom" ? customGb : undefined,
           customDays: planMode === "custom" ? customDays : undefined,
           clientUsername: clientUsername.trim() || `usr_${tgUser?.id}_${Math.random().toString(36).substring(2, 6)}`,
-          paymentMethod,
+          paymentMethod: isAdmin ? "admin_free" : paymentMethod,
           promoCode: appliedPromo?.code || undefined,
           receiptImage: cardReceiptImage || undefined,
         }),
@@ -347,25 +416,29 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
       const data = await res.json();
       if (data.success) {
-        if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
-        }
-
         if (data.subKey) {
           setDeliveredSubKey(data.subKey);
           setPurchaseStep(5); // Go to instant delivery view
           fetchMiniAppData(); // Refresh balance and subs
+          showThemedModal("🎉 سرویس با موفقیت فعال شد!", "اشتراک شما بلافاصله ساخته شد و آماده اتصال است.", "success");
         } else if (data.pendingApproval) {
-          alert(data.message || "رسید شما با موفقیت ثبت شد و در انتظار تایید مدیریت است.");
-          setPurchaseStep(1);
-          setActiveTab("wallet");
-          fetchMiniAppData();
+          showThemedModal(
+            "رسید ثبت شد",
+            data.message || "رسید شما با موفقیت ثبت شد و اعلانی جهت تایید به مدیریت ارسال گردید. پس از تایید مدیریت، سرویس شما فعال خواهد شد.",
+            "success",
+            "باشه",
+            () => {
+              setPurchaseStep(1);
+              setActiveTab("wallet");
+              fetchMiniAppData();
+            }
+          );
         }
       } else {
-        alert(data.error || "خطا در انجام تراکنش");
+        showThemedModal("خطا در پرداخت", data.error || "خطا در انجام تراکنش", "error");
       }
     } catch (err: any) {
-      alert(err.message || "خطا در برقراری ارتباط با سرور");
+      showThemedModal("خطای سرور", err.message || "خطا در برقراری ارتباط با سرور", "error");
     } finally {
       setPurchasing(false);
     }
@@ -374,7 +447,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Claim Free Test Account
   const handleClaimFreeTest = async () => {
     if (!servers || servers.length === 0) {
-      alert("سرور فعالی برای دریافت تست یافت نشد.");
+      showThemedModal("سرور یافت نشد", "سرور فعالی برای دریافت تست یافت نشد.", "warning");
       return;
     }
 
@@ -395,14 +468,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       if (data.success && data.subKey) {
         setTestSuccessSub(data.subKey);
         fetchMiniAppData();
-        if (window.Telegram?.WebApp?.HapticFeedback) {
-          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
-        }
+        showThemedModal("تبریک!", "اکانت تست رایگان شما با موفقیت فعال شد.", "success");
       } else {
-        alert(data.error || "خطا در دریافت تست رایگان");
+        showThemedModal("خطا در دریافت تست", data.error || "خطا در دریافت تست رایگان", "error");
       }
     } catch (err: any) {
-      alert(err.message || "خطا در ارتباط با سرور");
+      showThemedModal("خطای اتصال", err.message || "خطا در ارتباط با سرور", "error");
     } finally {
       setClaimingTest(false);
     }
@@ -411,7 +482,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Submit Wallet Deposit (Card to Card)
   const handleSubmitDeposit = async () => {
     if (!depositAmount || depositAmount < 10000) {
-      alert("حداقل مبلغ شارژ ۱۰,۰۰۰ تومان می‌باشد.");
+      showThemedModal("مبلغ نامعتبر", "حداقل مبلغ شارژ ۱۰,۰۰۰ تومان می‌باشد.", "warning");
+      return;
+    }
+
+    if (!depositReceipt.trim()) {
+      showThemedModal("شناسه تراکنش الزامی است", "لطفاً شماره پیگیری یا مشخصات فیش واریز را وارد فرمایید.", "warning");
       return;
     }
 
@@ -435,11 +511,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         setDepositMessage(data.message || "درخواست شارژ با موفقیت ثبت شد.");
         setDepositReceipt("");
         fetchMiniAppData();
+        showThemedModal("رسید واریز ثبت شد", data.message || "درخواست افزایش موجودی شما با موفقیت ثبت گردید و اعلان آن به مدیر ارسال شد.", "success");
       } else {
-        alert(data.error || "خطا در ثبت درخواست شارژ");
+        showThemedModal("خطا در ثبت شارژ", data.error || "خطا در ثبت درخواست شارژ", "error");
       }
     } catch (err: any) {
-      alert(err.message || "خطا در ارتباط با سرور");
+      showThemedModal("خطای شبکه", err.message || "خطا در ارتباط با سرور", "error");
     } finally {
       setDepositing(false);
     }
@@ -448,19 +525,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Submit Support Ticket
   const handleSubmitTicket = async () => {
     if (!ticketMessage.trim()) {
-      alert("لطفاً متن تیکت را وارد کنید.");
+      showThemedModal("پیام خالی است", "لطفاً متن پیام پشتیبانی را وارد کنید.", "warning");
       return;
     }
 
     setSubmittingTicket(true);
     try {
-      const res = await fetch("/api/miniapp/tickets/create", {
+      const res = await fetch("/api/miniapp/ticket/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: tgUser?.id,
           username: tgUser?.username,
-          subject: ticketSubject.trim() || "پشتیبانی سرویس",
+          subject: ticketSubject.trim() || "درخواست پشتیبانی مینی‌اپ",
           message: ticketMessage.trim(),
         }),
       });
@@ -470,27 +547,27 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         setTicketSubject("");
         setTicketMessage("");
         fetchMiniAppData();
-        alert("تیکت شما با موفقیت ثبت شد.");
+        showThemedModal("تیکت ارسال شد", "پیام پشتیبانی شما ثبت شد و به زودی پاسخ داده خواهد شد.", "success");
       } else {
-        alert(data.error || "خطا در ثبت تیکت");
+        showThemedModal("خطا در ارسال تیکت", data.error || "خطا در ارسال تیکت پشتیبانی", "error");
       }
     } catch (err: any) {
-      alert(err.message || "خطا در ارتباط با سرور");
+      showThemedModal("خطای شبکه", err.message || "خطا در ارتباط با سرور", "error");
     } finally {
       setSubmittingTicket(false);
     }
   };
 
-  // Send Reply in Ticket
-  const handleSendTicketReply = async (ticketId: string) => {
-    if (!replyMessage.trim()) return;
+  // Reply to Ticket
+  const handleReplyTicket = async () => {
+    if (!activeTicketChat || !replyMessage.trim()) return;
 
     try {
-      const res = await fetch("/api/miniapp/tickets/reply", {
+      const res = await fetch("/api/miniapp/ticket/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ticketId,
+          ticketId: activeTicketChat.id,
           userId: tgUser?.id,
           message: replyMessage.trim(),
         }),
@@ -500,243 +577,347 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       if (data.success) {
         setReplyMessage("");
         fetchMiniAppData();
-        if (activeTicketChat) {
-          setActiveTicketChat((prev: any) => ({
-            ...prev,
-            messages: [
-              ...(prev.messages || []),
-              {
-                id: "MSG-" + Date.now(),
-                sender: "user",
-                senderName: tgUser?.username || `کاربر ${tgUser?.id}`,
-                text: replyMessage.trim(),
-                timestamp: new Date().toISOString(),
-              },
-            ],
-          }));
-        }
+        if (data.ticket) setActiveTicketChat(data.ticket);
       }
     } catch (err) {
-      console.error("Ticket reply error:", err);
+      console.error(err);
     }
   };
 
-  const userBalance = Number(userData?.walletBalance || userData?.wallet_balance || 0);
+  // Colleague Login Flow
+  const handleColleagueLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!colleagueUsernameInput.trim() || !colleaguePasswordInput.trim()) {
+      showThemedModal("اطلاعات ناقص", "لطفاً نام کاربری و کلمه عبور همکار را وارد کنید.", "warning");
+      return;
+    }
+
+    setColleagueLoggingIn(true);
+    try {
+      const res = await fetch("/api/miniapp/colleague/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: colleagueUsernameInput.trim(),
+          password: colleaguePasswordInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setColleagueAccount(data.account);
+        setColleagueClients(data.clients || []);
+        setColleagueLoggedIn(true);
+        if (colleagueServers.length > 0) {
+          setColleagueSelectedServer(colleagueServers[0]);
+        } else if (servers.length > 0) {
+          setColleagueSelectedServer(servers[0]);
+        }
+        showThemedModal("ورود موفق", `همکار گرامی (${data.account.username}) خوش آمدید.`, "success");
+      } else {
+        showThemedModal("خطا در ورود", data.error || "نام کاربری یا رمز عبور همکار اشتباه است.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setColleagueLoggingIn(false);
+    }
+  };
+
+  // Colleague Create Client (Free of charge for Colleague within package allowance)
+  const handleColleagueCreateClient = async () => {
+    if (!colleagueAccount) return;
+
+    if (colleagueAccount.remainingTrafficGb < colleagueNewGb) {
+      showThemedModal(
+        "اتمام سهمیه حجم",
+        `حجم درخواستی (${colleagueNewGb} GB) بیشتر از حجم مجاز باقیمانده شما (${colleagueAccount.remainingTrafficGb.toFixed(1)} GB) است.`,
+        "error"
+      );
+      return;
+    }
+
+    const srv = colleagueSelectedServer || (colleagueServers.length > 0 ? colleagueServers[0] : servers[0]);
+    if (!srv) {
+      showThemedModal("انتخاب سرور", "لطفاً یک سرور انتخاب کنید.", "warning");
+      return;
+    }
+
+    setColleagueCreatingClient(true);
+    try {
+      const res = await fetch("/api/miniapp/colleague/create-client", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accountId: colleagueAccount.id,
+          serverId: String(srv.id),
+          clientUsername: colleagueNewClientName.trim() || `usr_${Math.random().toString(36).substring(2, 6)}`,
+          trafficGb: colleagueNewGb,
+          durationDays: colleagueNewDays,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setIsColleagueCreateOpen(false);
+        setColleagueNewClientName("");
+        if (data.client) {
+          setColleagueClients(prev => [data.client, ...prev]);
+        }
+        // Update remaining traffic locally
+        setColleagueAccount((prev: any) => ({
+          ...prev,
+          remainingTrafficGb: Math.max(0, (prev.remainingTrafficGb || 0) - colleagueNewGb),
+          allocatedTrafficGb: (prev.allocatedTrafficGb || 0) + colleagueNewGb
+        }));
+
+        showThemedModal("✅ کانفیگ همکار ساخته شد", "کانفیگ با موفقیت در پنل سرور تعریف شد و در لیست کلاینت‌های شما قرار گرفت.", "success");
+      } else {
+        showThemedModal("خطا در ساخت کانفیگ", data.error || "خطا در ایجاد سرویس همکار", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setColleagueCreatingClient(false);
+    }
+  };
+
+  // Helper for QR Code URL
+  const getQrUrl = (text: string) => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(text)}`;
+  };
 
   return (
-    <div className="min-h-screen bg-[#090d16] text-slate-100 flex flex-col font-sans select-none pb-24 dir-rtl" dir="rtl">
-      {/* Optional Admin Back Header */}
-      {onBack && (
-        <div className="bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border-b border-indigo-500/20 px-4 py-2 flex items-center justify-between text-xs text-indigo-300">
-          <span className="flex items-center gap-1.5 font-medium">
-            <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-            پیش‌نمایش زنده مینی‌اپ تلگرام (متصل به دیتابیس)
-          </span>
-          <button
-            onClick={onBack}
-            className="px-3 py-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-400/30 text-white rounded-lg transition-all font-semibold active:scale-95 flex items-center gap-1"
-          >
-            <span>بازگشت به داشبورد</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
+    <div
+      id="daltoon-miniapp-root"
+      dir="rtl"
+      className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24 select-none relative overflow-x-hidden selection:bg-purple-500 selection:text-white"
+    >
+      {/* Background Neon Gradients */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute -top-32 -left-32 w-80 h-80 bg-purple-600/15 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -right-32 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 left-1/4 w-80 h-80 bg-violet-600/15 rounded-full blur-3xl" />
+      </div>
 
-      {/* Main Top App Header */}
-      <header className="sticky top-0 z-40 bg-[#0f172a]/95 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-black text-white shadow-md shadow-indigo-600/20 text-base">
-            {tgUser?.first_name ? tgUser.first_name[0] : "D"}
+      {/* Top Header Bar */}
+      <header
+        id="miniapp-header"
+        className="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-xl border-b border-slate-800/80 px-4 py-3 shadow-lg"
+      >
+        <div className="max-w-md mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {onBack && (
+              <button
+                id="btn-miniapp-back"
+                onClick={onBack}
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                title="بازگشت"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+            <div className="relative">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-md shadow-purple-500/20 text-white font-bold">
+                <Zap className="w-5 h-5 fill-white/20" />
+              </div>
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-2 border-slate-900" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-sm tracking-tight text-white">
+                  {systemSettings.botNickname || "دالتون وی‌پی‌ان"}
+                </span>
+                {isAdmin ? (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded-full font-bold shadow-sm">
+                    <Crown className="w-3 h-3" /> مدیر کل
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded-full font-medium">
+                    نسخه مینی‌اپ
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {tgUser?.first_name || "کاربر"} {tgUser?.last_name || ""} {tgUser?.username ? `(@${tgUser.username})` : ""}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-bold text-white leading-tight flex items-center gap-1.5">
-              <span>{tgUser?.first_name ? `${tgUser.first_name} ${tgUser.last_name || ""}`.trim() : systemSettings.botNickname || "ربات دالتون"}</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            </h1>
-            <p className="text-[11px] text-slate-400 flex items-center gap-1">
-              <span>{tgUser?.username ? `@${tgUser.username}` : "کاربر گرامی"}</span>
-              <span>•</span>
-              <span className="font-mono text-[10px] text-indigo-400">ID: {tgUser?.id}</span>
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          {/* Refresh Button */}
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            className="p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 rounded-xl text-slate-300 active:scale-95 transition-all"
-            title="بروزرسانی داده‌ها"
-          >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-indigo-400" : ""}`} />
-          </button>
+          {/* Quick Balance / Refresh Pill */}
+          <div className="flex items-center gap-1.5">
+            <button
+              id="btn-header-refresh"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50 text-slate-300 transition-all active:scale-95 disabled:opacity-50"
+              title="بروزرسانی داده‌ها"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin text-purple-400" : ""}`} />
+            </button>
 
-          {/* Wallet Balance Badge */}
-          <div
-            onClick={() => setActiveTab("wallet")}
-            className="cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-black text-emerald-400 transition-all active:scale-95"
-          >
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>{userBalance.toLocaleString("fa-IR")} تومان</span>
+            <button
+              id="btn-header-wallet-badge"
+              onClick={() => setActiveTab("wallet")}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-900/40 to-indigo-900/40 border border-purple-500/30 text-purple-200 text-xs font-semibold hover:border-purple-500/60 transition-all active:scale-95 shadow-sm"
+            >
+              <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+              <span>{isAdmin ? "نامحدود" : Number(userData?.walletBalance || 0).toLocaleString("fa-IR")}</span>
+              <span className="text-[10px] text-slate-400 font-normal">{isAdmin ? "" : "تومان"}</span>
+            </button>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
-        {/* Loading Skeleton */}
+      <main className="max-w-md mx-auto px-4 pt-4 relative z-10">
+        {/* Loading State */}
         {loading && (
-          <div className="p-8 text-center space-y-3 bg-slate-900/60 border border-slate-800 rounded-2xl">
-            <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-            <p className="text-xs text-slate-400 font-medium">در حال همگام‌سازی با دیتابیس داشبورد...</p>
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="relative w-14 h-14">
+              <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 animate-ping" />
+              <div className="w-14 h-14 rounded-full border-4 border-t-purple-500 border-purple-500/20 animate-spin" />
+            </div>
+            <p className="text-sm text-slate-400 font-medium animate-pulse">
+              در حال دریافت آخرین اطلاعات سرورها و پکیج‌ها...
+            </p>
           </div>
         )}
 
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl flex items-start gap-3 text-red-400 text-xs">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="font-bold">خطا در بارگذاری اطلاعات</p>
-              <p>{errorMessage}</p>
-              <button
-                onClick={handleRefresh}
-                className="mt-2 px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-white rounded-lg text-[11px] font-semibold"
-              >
-                تلاش مجدد
-              </button>
+        {/* Global Error Banner */}
+        {errorMessage && !loading && (
+          <div className="mb-4 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between gap-2 shadow-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
-          </div>
-        )}
-
-        {/* Free Test Promo Banner (If Enabled & Not Used) */}
-        {!loading && testAccountSettings.enabled && !testAccountSettings.hasUsed && (
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-pink-500/20 border border-amber-500/30 p-4 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                  <Gift className="w-3 h-3 text-amber-300" />
-                  هدیه ویژه کاربران جدید
-                </span>
-                <h3 className="text-sm font-bold text-white">تست رایگان {testAccountSettings.trafficGb} گیگابایت</h3>
-                <p className="text-[11px] text-slate-300">
-                  تست سرعت و کیفیت سرویس به مدت {testAccountSettings.durationHours} ساعت
-                </p>
-              </div>
-              <button
-                onClick={handleClaimFreeTest}
-                disabled={claimingTest}
-                className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md transition-all shrink-0 flex items-center gap-1"
-              >
-                {claimingTest ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                <span>دریافت تست</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Test Success Popup Banner */}
-        {testSuccessSub && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/40 rounded-2xl space-y-3 animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>کانفیگ تست شما با موفقیت ساخته شد!</span>
-              </div>
-              <button
-                onClick={() => setTestSuccessSub(null)}
-                className="text-slate-400 hover:text-white text-xs"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center gap-2">
-              <input
-                type="text"
-                readOnly
-                value={testSuccessSub.subLink}
-                className="flex-1 bg-transparent text-[11px] font-mono text-slate-300 truncate outline-none"
-              />
-              <button
-                onClick={() => copyToClipboard(testSuccessSub.subLink, "test-sub")}
-                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shrink-0"
-              >
-                {copiedId === "test-sub" ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>کپی</span>
-              </button>
-            </div>
+            <button
+              onClick={() => fetchMiniAppData()}
+              className="text-[11px] bg-rose-500/20 px-2 py-1 rounded-lg text-rose-200 hover:bg-rose-500/30 font-medium"
+            >
+              تلاش مجدد
+            </button>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 1: PLANS & PURCHASE WIZARD (مراحل خرید کانفیگ دقیقا شبیه ربات تلگرام) */}
+        {/* TAB 1: PLANS & PURCHASE WIZARD                                            */}
         {/* ========================================================================= */}
         {activeTab === "plans" && !loading && (
-          <div className="space-y-4">
-            {/* Step Wizard Progress Header */}
-            <div className="bg-slate-900/80 border border-slate-800/80 p-3 rounded-2xl flex items-center justify-between text-[11px] font-bold text-slate-400">
+          <div id="view-plans-wizard" className="space-y-4">
+            {/* Free Test Account Card (If Enabled & Not Used) */}
+            {testAccountSettings.enabled && !testAccountSettings.hasUsed && !testSuccessSub && purchaseStep === 1 && (
               <div
-                onClick={() => setPurchaseStep(1)}
-                className={`flex items-center gap-1.5 cursor-pointer ${purchaseStep >= 1 ? "text-indigo-400" : ""}`}
+                id="card-free-test-banner"
+                className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900/40 via-teal-900/30 to-slate-900 border border-emerald-500/40 p-4 shadow-xl shadow-emerald-950/40"
               >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${purchaseStep === 1 ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : purchaseStep > 1 ? "bg-indigo-600/30 text-indigo-300" : "bg-slate-800"}`}>
-                  ۱
-                </span>
-                <span>سرور</span>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5">
+                      <Gift className="w-4 h-4 text-emerald-400 animate-bounce" />
+                      <span className="text-xs font-bold text-emerald-300">
+                        هدیه ویژه عضویت: تست رایگان
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      هم‌اکنون می‌توانید یک اکانت {testAccountSettings.trafficGb} گیگابایتی ({testAccountSettings.durationHours} ساعته) کاملاً رایگان دریافت کنید.
+                    </p>
+                  </div>
+                  <button
+                    id="btn-claim-free-test"
+                    onClick={handleClaimFreeTest}
+                    disabled={claimingTest}
+                    className="shrink-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {claimingTest ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
+                    )}
+                    <span>دریافت تست</span>
+                  </button>
+                </div>
               </div>
-              <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
+            )}
 
-              <div
-                onClick={() => selectedServer && setPurchaseStep(2)}
-                className={`flex items-center gap-1.5 cursor-pointer ${purchaseStep >= 2 ? "text-indigo-400" : ""}`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${purchaseStep === 2 ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : purchaseStep > 2 ? "bg-indigo-600/30 text-indigo-300" : "bg-slate-800"}`}>
-                  ۲
-                </span>
-                <span>پلن</span>
+            {/* Test Success Modal View */}
+            {testSuccessSub && (
+              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-emerald-950/30 border border-emerald-500/40 p-5 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <CheckCircle2 className="w-6 h-6" />
+                    <span className="font-extrabold text-sm">اکانت تست شما آماده شد!</span>
+                  </div>
+                  <button
+                    onClick={() => setTestSuccessSub(null)}
+                    className="text-xs text-slate-400 hover:text-white"
+                  >
+                    بستن
+                  </button>
+                </div>
+                <div className="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>لینک ساب‌اسکریپشن هوشمند:</span>
+                    <button
+                      onClick={() => copyToClipboard(testSuccessSub.subLink, "test-sub")}
+                      className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium"
+                    >
+                      {copiedId === "test-sub" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === "test-sub" ? "کپی شد" : "کپی لینک"}</span>
+                    </button>
+                  </div>
+                  <div className="text-[11px] text-slate-300 font-mono break-all bg-slate-900 p-2 rounded-xl border border-slate-800/80 select-all">
+                    {testSuccessSub.subLink}
+                  </div>
+                </div>
               </div>
-              <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
+            )}
 
-              <div
-                onClick={() => (selectedPlan || planMode === "custom") && setPurchaseStep(3)}
-                className={`flex items-center gap-1.5 cursor-pointer ${purchaseStep >= 3 ? "text-indigo-400" : ""}`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${purchaseStep === 3 ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : purchaseStep > 3 ? "bg-indigo-600/30 text-indigo-300" : "bg-slate-800"}`}>
-                  ۳
-                </span>
-                <span>مشخصات</span>
+            {/* Purchase Step Progress Header */}
+            {purchaseStep < 5 && (
+              <div className="flex items-center justify-between bg-slate-900/60 backdrop-blur-md p-2.5 rounded-2xl border border-slate-800/80">
+                {[
+                  { step: 1, label: "۱. لوکیشن" },
+                  { step: 2, label: "۲. پلن" },
+                  { step: 3, label: "۳. نام و تخفیف" },
+                  { step: 4, label: "۴. فاکتور" },
+                ].map((s) => (
+                  <button
+                    key={s.step}
+                    disabled={s.step > purchaseStep}
+                    onClick={() => setPurchaseStep(s.step)}
+                    className={`flex-1 py-1.5 text-center text-xs font-semibold rounded-xl transition-all ${
+                      purchaseStep === s.step
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                        : purchaseStep > s.step
+                        ? "text-purple-300 hover:bg-slate-800/60"
+                        : "text-slate-500 cursor-not-allowed"
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
               </div>
-              <ChevronLeft className="w-3.5 h-3.5 text-slate-600" />
-
-              <div
-                className={`flex items-center gap-1.5 ${purchaseStep >= 4 ? "text-indigo-400" : ""}`}
-              >
-                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${purchaseStep === 4 ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30" : purchaseStep > 4 ? "bg-indigo-600/30 text-indigo-300" : "bg-slate-800"}`}>
-                  ۴
-                </span>
-                <span>پرداخت</span>
-              </div>
-            </div>
+            )}
 
             {/* ------------------------------------------------------------- */}
-            {/* STEP 1: SERVER / LOCATION SELECTION (مرحله ۱: انتخاب لوکیشن) */}
+            {/* STEP 1: PUBLIC SERVER SELECTION ONLY (Colleague servers separated) */}
             {/* ------------------------------------------------------------- */}
             {purchaseStep === 1 && (
-              <div className="space-y-3 animate-fadeIn">
-                <div className="flex items-center justify-between px-1">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
                   <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Server className="w-4 h-4 text-indigo-400" />
-                    <span>مرحله ۱: انتخاب لوکیشن و سرور</span>
+                    <Server className="w-4 h-4 text-purple-400" />
+                    <span>انتخاب موقعیت و سرور (مدیریت سرورها)</span>
                   </h3>
-                  <span className="text-[11px] text-slate-400">تعداد سرورها: {servers.length}</span>
+                  <span className="text-[11px] text-slate-400">
+                    {servers.length} سرور عمومی فعال
+                  </span>
                 </div>
 
                 {servers.length === 0 ? (
-                  <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl text-center space-y-2">
-                    <AlertCircle className="w-8 h-8 text-amber-400 mx-auto" />
-                    <p className="text-xs text-slate-300 font-semibold">هیچ سرور فعالی در دیتابیس یافت نشد.</p>
-                    <p className="text-[11px] text-slate-500">لطفاً در پنل ادمین سرور جدید اضافه کنید.</p>
+                  <div className="p-8 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                    هیچ سرور عمومی فعالی یافت نشد. لطفاً از پنل مدیریت سرور اضافه فرمایید.
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-2.5">
@@ -745,109 +926,112 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       return (
                         <div
                           key={srv.id}
+                          id={`server-card-${srv.id}`}
                           onClick={() => {
                             setSelectedServer(srv);
-                            setPurchaseStep(2);
                             if (window.Telegram?.WebApp?.HapticFeedback) {
                               window.Telegram.WebApp.HapticFeedback.selectionChanged();
                             }
                           }}
-                          className={`cursor-pointer p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
+                          className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                             isSelected
-                              ? "bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-600/10"
-                              : "bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                              ? "bg-gradient-to-r from-purple-900/40 to-slate-900 border-purple-500/80 shadow-lg shadow-purple-950/50"
+                              : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <span className="text-2xl filter drop-shadow">{srv.flag || "🌐"}</span>
+                            <div className="w-10 h-10 rounded-xl bg-slate-800/80 flex items-center justify-center text-xl shadow-inner">
+                              {srv.flag}
+                            </div>
                             <div>
-                              <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                                <span>{srv.name}</span>
-                                {isSelected && <span className="text-[9px] bg-indigo-500 text-white px-1.5 py-0.2 rounded font-bold">انتخاب شده</span>}
-                              </h4>
-                              <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-2">
-                                <span className="text-emerald-400 flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                  پروتکل {srv.protocol || "VLESS"}
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm text-white">
+                                  {srv.name}
                                 </span>
-                                <span>•</span>
-                                <span>پینگ پایین</span>
+                                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
+                                  آنلاین
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-400 mt-0.5">
+                                پروتکل اختصاصی {srv.protocol || "VLESS"} • پینگ پایدار
                               </p>
                             </div>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="px-2.5 py-1 bg-slate-800 border border-slate-700/60 rounded-xl text-[11px] font-semibold text-slate-300">
-                              انتخاب
-                            </span>
-                            <ChevronLeft className="w-4 h-4 text-slate-500" />
+                            <div
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                isSelected
+                                  ? "border-purple-500 bg-purple-600 text-white"
+                                  : "border-slate-700 bg-slate-800"
+                              }`}
+                            >
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
                 )}
+
+                <button
+                  id="btn-step1-next"
+                  onClick={() => setPurchaseStep(2)}
+                  disabled={!selectedServer}
+                  className="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl font-bold text-sm shadow-xl shadow-purple-600/30 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span>مرحله بعد: انتخاب پلن</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
               </div>
             )}
 
-            {/* --------------------------------------------------------------------------------- */}
-            {/* STEP 2: CATEGORY & PLAN / CUSTOM SELECTION (مرحله ۲: انتخاب پلن ثابت یا دلخواه) */}
-            {/* --------------------------------------------------------------------------------- */}
+            {/* ------------------------------------------------------------- */}
+            {/* STEP 2: PLAN MODE (FIXED OR CUSTOM VOLUME)                    */}
+            {/* ------------------------------------------------------------- */}
             {purchaseStep === 2 && (
-              <div className="space-y-4 animate-fadeIn">
-                {/* Selected Server Summary Bar */}
-                <div className="bg-indigo-950/40 border border-indigo-500/30 p-2.5 rounded-xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{selectedServer?.flag || "🌐"}</span>
-                    <span className="text-white font-bold">{selectedServer?.name}</span>
-                  </div>
-                  <button
-                    onClick={() => setPurchaseStep(1)}
-                    className="text-[11px] text-indigo-400 hover:text-indigo-300 font-semibold"
-                  >
-                    تغییر سرور ↺
-                  </button>
-                </div>
-
-                {/* Plan Mode Switcher (پلن‌های ثابت vs حجم دلخواه) */}
-                <div className="grid grid-cols-2 gap-2 bg-slate-900 p-1 rounded-2xl border border-slate-800">
+              <div className="space-y-4">
+                {/* Mode Selector Toggle */}
+                <div className="flex items-center p-1 bg-slate-900 rounded-2xl border border-slate-800">
                   <button
                     onClick={() => setPlanMode("fixed")}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
                       planMode === "fixed"
-                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
+                        ? "bg-purple-600 text-white shadow-md"
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    <ShoppingBag className="w-4 h-4" />
-                    <span>پلن‌های استاندارد</span>
+                    <ShoppingBag className="w-3.5 h-3.5" />
+                    <span>پلن‌های آماده و پرفروش</span>
                   </button>
-
-                  <button
-                    onClick={() => setPlanMode("custom")}
-                    className={`py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                      planMode === "custom"
-                        ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/30"
-                        : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    <Sliders className="w-4 h-4" />
-                    <span>حجم و زمان دلخواه</span>
-                  </button>
+                  {customPricing.enabled && (
+                    <button
+                      onClick={() => setPlanMode("custom")}
+                      className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        planMode === "custom"
+                          ? "bg-purple-600 text-white shadow-md"
+                          : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>سفارشی و دلخواه (گیگ)</span>
+                    </button>
+                  )}
                 </div>
 
-                {/* --- MODE A: FIXED PLANS --- */}
+                {/* MODE A: FIXED PLANS */}
                 {planMode === "fixed" && (
                   <div className="space-y-3">
-                    {/* Category Filter Pills */}
+                    {/* Category Filter Chips */}
                     {planCategories.length > 0 && (
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                         <button
                           onClick={() => setSelectedCategory("all")}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                             selectedCategory === "all"
-                              ? "bg-slate-700 text-white border border-slate-600"
-                              : "bg-slate-900 text-slate-400 border border-slate-800"
+                              ? "bg-purple-600/30 text-purple-300 border border-purple-500/50"
+                              : "bg-slate-900/60 text-slate-400 border border-slate-800"
                           }`}
                         >
                           همه دسته‌ها
@@ -856,74 +1040,75 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           <button
                             key={cat.id}
                             onClick={() => setSelectedCategory(cat.name)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1 ${
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
                               selectedCategory === cat.name
-                                ? "bg-indigo-600/40 text-indigo-300 border border-indigo-500/50 font-bold"
-                                : "bg-slate-900 text-slate-400 border border-slate-800"
+                                ? "bg-purple-600/30 text-purple-300 border border-purple-500/50"
+                                : "bg-slate-900/60 text-slate-400 border border-slate-800"
                             }`}
                           >
-                            <span>{cat.emoji || "⚡️"}</span>
-                            <span>{cat.name}</span>
+                            {cat.emoji} {cat.name}
                           </button>
                         ))}
                       </div>
                     )}
 
-                    {/* Plans List from Database */}
                     {filteredPlans.length === 0 ? (
-                      <div className="p-6 bg-slate-900/50 border border-slate-800 rounded-2xl text-center space-y-2">
-                        <p className="text-xs text-slate-400 font-semibold">هیچ پلنی در این دسته‌بندی یافت نشد.</p>
+                      <div className="p-8 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                        هیچ پلنی در این دسته‌بندی تعریف نشده است.
                       </div>
                     ) : (
-                      <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 gap-2.5">
                         {filteredPlans.map((plan) => {
                           const isSelected = selectedPlan?.id === plan.id;
                           return (
                             <div
                               key={plan.id}
+                              id={`plan-card-${plan.id}`}
                               onClick={() => {
                                 setSelectedPlan(plan);
-                                setPurchaseStep(3);
                                 if (window.Telegram?.WebApp?.HapticFeedback) {
                                   window.Telegram.WebApp.HapticFeedback.selectionChanged();
                                 }
                               }}
-                              className={`cursor-pointer p-4 rounded-2xl border transition-all space-y-3 ${
+                              className={`p-4 rounded-3xl border transition-all cursor-pointer relative overflow-hidden ${
                                 isSelected
-                                  ? "bg-indigo-600/20 border-indigo-500 shadow-md shadow-indigo-600/10"
-                                  : "bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900"
+                                  ? "bg-gradient-to-r from-purple-900/40 via-slate-900 to-slate-900 border-purple-500 shadow-xl shadow-purple-950/60"
+                                  : "bg-slate-900/60 border-slate-800/80 hover:border-slate-700"
                               }`}
                             >
-                              <div className="flex items-start justify-between">
+                              <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2 py-0.5 rounded-full font-bold">
-                                    {plan.tag || plan.category || "سرویس دالتون"}
-                                  </span>
-                                  <h4 className="text-sm font-bold text-white mt-1">{plan.name}</h4>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-extrabold text-sm text-white">
+                                      {plan.name}
+                                    </span>
+                                    {plan.tag && (
+                                      <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                                        {plan.tag}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-300">
+                                    <span className="flex items-center gap-1">
+                                      <HardDrive className="w-3.5 h-3.5 text-purple-400" />
+                                      <span>{plan.trafficGb} گیگابایت</span>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                                      <span>{plan.durationDays} روزه</span>
+                                    </span>
+                                  </div>
                                 </div>
+
                                 <div className="text-left">
-                                  <span className="text-sm font-black text-emerald-400">
-                                    {Number(plan.price).toLocaleString("fa-IR")}
-                                  </span>
-                                  <span className="text-[10px] text-slate-400 block font-normal">تومان</span>
+                                  <div className="text-base font-extrabold text-purple-400">
+                                    {isAdmin ? "رایگان" : Number(plan.price).toLocaleString("fa-IR")}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400">
+                                    {isAdmin ? "ویژه مدیر کل" : "تومان"}
+                                  </div>
                                 </div>
                               </div>
-
-                              <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-                                <div className="flex items-center gap-1.5">
-                                  <HardDrive className="w-3.5 h-3.5 text-amber-400" />
-                                  <span>حجم: {plan.trafficGb} گیگابایت</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                                  <span>مدت: {plan.durationDays} روز</span>
-                                </div>
-                              </div>
-
-                              <button className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1">
-                                <span>انتخاب و مرحله بعد</span>
-                                <ChevronLeft className="w-3.5 h-3.5" />
-                              </button>
                             </div>
                           );
                         })}
@@ -932,590 +1117,613 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   </div>
                 )}
 
-                {/* --- MODE B: CUSTOM VOLUME BUILDER (ساخت کانفیگ با حجم و مدت دلخواه) --- */}
+                {/* MODE B: CUSTOM VOLUME SLIDERS */}
                 {planMode === "custom" && (
-                  <div className="space-y-4 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
+                  <div className="rounded-3xl bg-slate-900/70 border border-slate-800 p-4 space-y-5 shadow-xl">
+                    {/* Traffic Slider */}
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                          <HardDrive className="w-4 h-4 text-amber-400" />
-                          حجم درخواستی:
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-400 flex items-center gap-1">
+                          <HardDrive className="w-3.5 h-3.5 text-purple-400" />
+                          <span>حجم ترافیک:</span>
                         </span>
-                        <span className="text-base font-black text-amber-400">{customGb} گیگابایت</span>
+                        <span className="font-extrabold text-purple-300 text-sm">
+                          {customGb} گیگابایت
+                        </span>
                       </div>
                       <input
                         type="range"
                         min="5"
-                        max="200"
+                        max="300"
                         step="5"
                         value={customGb}
                         onChange={(e) => setCustomGb(Number(e.target.value))}
-                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        className="w-full accent-purple-500 bg-slate-800 rounded-lg h-2"
                       />
-                      <div className="flex justify-between gap-1.5 pt-1">
-                        {[15, 30, 50, 80, 100].map((gb) => (
-                          <button
-                            key={gb}
-                            onClick={() => setCustomGb(gb)}
-                            className={`py-1 px-2.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                              customGb === gb
-                                ? "bg-indigo-600 text-white border-indigo-500"
-                                : "bg-slate-800 text-slate-400 border-slate-700/60 hover:text-white"
-                            }`}
-                          >
-                            {gb}GB
-                          </button>
-                        ))}
+                      <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>5 GB</span>
+                        <span>100 GB</span>
+                        <span>200 GB</span>
+                        <span>300 GB</span>
                       </div>
                     </div>
 
-                    <div className="space-y-2 pt-2 border-t border-slate-800">
-                      <div className="flex justify-between items-center text-xs">
-                        <span className="font-bold text-slate-300 flex items-center gap-1.5">
-                          <Clock className="w-4 h-4 text-indigo-400" />
-                          مدت زمان اشتراک:
+                    {/* Duration Slider */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-400 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>مدت اعتبار:</span>
                         </span>
-                        <span className="text-base font-black text-indigo-400">{customDays} روز</span>
+                        <span className="font-extrabold text-indigo-300 text-sm">
+                          {customDays} روزه
+                        </span>
                       </div>
                       <input
                         type="range"
-                        min="10"
+                        min="7"
                         max="180"
-                        step="5"
+                        step="7"
                         value={customDays}
                         onChange={(e) => setCustomDays(Number(e.target.value))}
-                        className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                        className="w-full accent-indigo-500 bg-slate-800 rounded-lg h-2"
                       />
-                      <div className="flex justify-between gap-1.5 pt-1">
-                        {[15, 30, 60, 90].map((days) => (
-                          <button
-                            key={days}
-                            onClick={() => setCustomDays(days)}
-                            className={`py-1 px-2.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                              customDays === days
-                                ? "bg-indigo-600 text-white border-indigo-500"
-                                : "bg-slate-800 text-slate-400 border-slate-700/60 hover:text-white"
-                            }`}
-                          >
-                            {days} روزه
-                          </button>
-                        ))}
+                      <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                        <span>7 روز</span>
+                        <span>30 روز</span>
+                        <span>90 روز</span>
+                        <span>180 روز</span>
                       </div>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-800 flex items-center justify-between bg-slate-950 p-3 rounded-xl">
-                      <div>
-                        <span className="text-[11px] text-slate-400 block">مبلغ محاسبه شده:</span>
-                        <span className="text-base font-black text-emerald-400">
-                          {customCalculatedPrice.toLocaleString("fa-IR")} تومان
-                        </span>
-                      </div>
-                      <button
-                        onClick={() => setPurchaseStep(3)}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1"
-                      >
-                        <span>تایید و ادامه</span>
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
+                    {/* Calculated Price Summary */}
+                    <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+                      <span className="text-xs text-slate-400">قیمت محاسبه شده:</span>
+                      <span className="font-extrabold text-sm text-purple-400">
+                        {isAdmin ? "رایگان (مدیر کل)" : `${customCalculatedPrice.toLocaleString("fa-IR")} تومان`}
+                      </span>
                     </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* --------------------------------------------------------------------------------- */}
-            {/* STEP 3: USERNAME & PROMO CODE (مرحله ۳: تنظیم نام کاربری کانفیگ و کد تخفیف) */}
-            {/* --------------------------------------------------------------------------------- */}
-            {purchaseStep === 3 && (
-              <div className="space-y-4 animate-fadeIn">
-                <div className="bg-indigo-950/40 border border-indigo-500/30 p-3 rounded-2xl space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">سرور انتخابی:</span>
-                    <span className="text-white font-bold">{selectedServer?.flag} {selectedServer?.name}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">پلن درخواستی:</span>
-                    <span className="text-indigo-300 font-bold">
-                      {planMode === "custom" ? `سفارشی (${customGb}GB - ${customDays} روز)` : selectedPlan?.name}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1 border-t border-indigo-500/20">
-                    <span className="text-slate-400">قیمت پایه:</span>
-                    <span className="text-emerald-400 font-black">{currentBasePrice.toLocaleString("fa-IR")} تومان</span>
-                  </div>
-                </div>
-
-                {/* Custom Client Username Input */}
-                <div className="space-y-1.5 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
-                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <User className="w-4 h-4 text-indigo-400" />
-                    <span>نام کاربری کانفیگ (اختیاری - انگلیسی):</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder={`مثلاً: user_${tgUser?.id || "123"}`}
-                    value={clientUsername}
-                    onChange={(e) => setClientUsername(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white font-mono focus:ring-1 focus:ring-indigo-500 outline-none"
-                  />
-                  <p className="text-[10px] text-slate-500">
-                    در صورت خالی گذاشتن، نام کاربری به صورت خودکار ایجاد می‌شود.
-                  </p>
-                </div>
-
-                {/* Promo Code Input */}
-                <div className="space-y-2 bg-slate-900/80 border border-slate-800 p-4 rounded-2xl">
-                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Tag className="w-4 h-4 text-pink-400" />
-                    <span>کد تخفیف دارید؟</span>
-                  </label>
-
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="کد تخفیف را وارد کنید..."
-                      value={promoCodeInput}
-                      onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
-                      className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono uppercase focus:ring-1 focus:ring-indigo-500 outline-none"
-                    />
-                    <button
-                      onClick={handleApplyPromo}
-                      disabled={validatingPromo || !promoCodeInput.trim()}
-                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-indigo-300 rounded-xl transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      {validatingPromo ? "..." : "اعمال کد"}
-                    </button>
-                  </div>
-
-                  {promoError && (
-                    <p className="text-[11px] text-red-400 flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>{promoError}</span>
-                    </p>
-                  )}
-
-                  {appliedPromo && (
-                    <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs text-emerald-400">
-                      <span className="flex items-center gap-1 font-semibold">
-                        <Check className="w-3.5 h-3.5" />
-                        کد تخفیف {appliedPromo.code} اعمال شد ({appliedPromo.discountPercent}٪ تخفیف)
-                      </span>
-                      <span className="font-bold">
-                        -{appliedPromo.discountAmount.toLocaleString("fa-IR")} تومان
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2 pt-2">
+                {/* Back / Next Buttons */}
+                <div className="flex items-center gap-2 pt-2">
                   <button
-                    onClick={() => setPurchaseStep(2)}
-                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all"
+                    onClick={() => setPurchaseStep(1)}
+                    className="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-2xl font-bold text-xs transition-all"
                   >
-                    بازگشت
+                    مرحله قبل
                   </button>
                   <button
-                    onClick={() => setPurchaseStep(4)}
-                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5"
+                    id="btn-step2-next"
+                    onClick={() => setPurchaseStep(3)}
+                    disabled={planMode === "fixed" && !selectedPlan}
+                    className="w-2/3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl font-bold text-sm shadow-xl shadow-purple-600/30 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>مشاهده پیش‌فاکتور و پرداخت</span>
+                    <span>مرحله بعد: نام کاربری</span>
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ----------------------------------------------------------------------------------- */}
-            {/* STEP 4: INVOICE & PAYMENT CHECKOUT (مرحله ۴: پیش‌فاکتور و انتخاب روش پرداخت) */}
-            {/* ----------------------------------------------------------------------------------- */}
-            {purchaseStep === 4 && (
-              <div className="space-y-4 animate-fadeIn">
-                {/* Clean Invoice Card */}
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-xl">
-                  <h4 className="text-xs font-bold text-indigo-400 border-b border-slate-800 pb-2 flex items-center justify-between">
-                    <span>پیش‌فاکتور نهایی خرید اشتراک</span>
-                    <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded">رسمی</span>
-                  </h4>
-
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">لوکیشن سرور:</span>
-                      <span className="text-white font-bold">{selectedServer?.flag} {selectedServer?.name}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">پلن انتخابی:</span>
-                      <span className="text-white font-bold">
-                        {planMode === "custom" ? `سفارشی (${customGb}GB)` : selectedPlan?.name}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">مدت اعتبار:</span>
-                      <span className="text-white font-bold">
-                        {planMode === "custom" ? `${customDays} روز` : `${selectedPlan?.durationDays} روز`}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">نام کاربری:</span>
-                      <span className="text-indigo-300 font-mono">
-                        {clientUsername.trim() || `user_${tgUser?.id}`}
-                      </span>
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-800 flex justify-between">
-                      <span className="text-slate-400">مبلغ کل:</span>
-                      <span className="text-slate-300">{currentBasePrice.toLocaleString("fa-IR")} تومان</span>
-                    </div>
-
-                    {appliedPromo && (
-                      <div className="flex justify-between text-emerald-400">
-                        <span>تخفیف ({appliedPromo.code}):</span>
-                        <span>-{appliedPromo.discountAmount.toLocaleString("fa-IR")} تومان</span>
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
-                      <span className="font-bold text-white">مبلغ نهایی قابل پرداخت:</span>
-                      <span className="text-base font-black text-emerald-400">
-                        {currentFinalPrice.toLocaleString("fa-IR")} تومان
-                      </span>
-                    </div>
+            {/* ------------------------------------------------------------- */}
+            {/* STEP 3: CLIENT USERNAME & PROMO CODE                          */}
+            {/* ------------------------------------------------------------- */}
+            {purchaseStep === 3 && (
+              <div className="space-y-4">
+                <div className="rounded-3xl bg-slate-900/70 border border-slate-800 p-4 space-y-4 shadow-xl">
+                  {/* Custom Client Username */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-purple-400" />
+                      <span>نام دلخواه برای کانفیگ (اختیاری):</span>
+                    </label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      placeholder={`user_${tgUser?.id || "vpn"}`}
+                      value={clientUsername}
+                      onChange={(e) => setClientUsername(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                    <p className="text-[10px] text-slate-500">
+                      تنها از حروف انگلیسی و اعداد استفاده کنید. در صورت خالی بودن، به صورت خودکار ایجاد می‌شود.
+                    </p>
                   </div>
-                </div>
 
-                {/* Payment Method Selector */}
-                <div className="space-y-2.5">
-                  <label className="text-xs font-bold text-slate-300 block">انتخاب روش پرداخت:</label>
-
-                  {/* Option 1: Wallet */}
-                  <div
-                    onClick={() => setPaymentMethod("wallet")}
-                    className={`cursor-pointer p-3.5 rounded-2xl border transition-all flex items-center justify-between ${
-                      paymentMethod === "wallet"
-                        ? "bg-indigo-600/20 border-indigo-500 shadow-md"
-                        : "bg-slate-900/80 border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                        <CreditCard className="w-4 h-4" />
+                  {/* Promo Code Input (Hidden for Admin) */}
+                  {!isAdmin && (
+                    <div className="space-y-1.5 pt-2 border-t border-slate-800/80">
+                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>کد تخفیف:</span>
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          dir="ltr"
+                          placeholder="مثلاً: DALTOON"
+                          value={promoCodeInput}
+                          onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono uppercase text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                        />
+                        <button
+                          onClick={handleApplyPromo}
+                          disabled={validatingPromo || !promoCodeInput.trim()}
+                          className="bg-purple-600/30 border border-purple-500/50 hover:bg-purple-600/50 text-purple-200 px-4 rounded-xl text-xs font-bold active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {validatingPromo ? "..." : "اعمال"}
+                        </button>
                       </div>
-                      <div>
-                        <h5 className="text-xs font-bold text-white">کیف پول دالتون (تحویل آنی)</h5>
-                        <p className="text-[10px] text-slate-400">
-                          موجودی شما: {userBalance.toLocaleString("fa-IR")} تومان
+
+                      {promoError && (
+                        <p className="text-[11px] text-rose-400 font-medium">{promoError}</p>
+                      )}
+                      {appliedPromo && (
+                        <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>کد {appliedPromo.code} فعال شد ({appliedPromo.discountPercent ? `${appliedPromo.discountPercent}%` : `${appliedPromo.discountAmount} تومان`} تخفیف)</span>
                         </p>
-                      </div>
+                      )}
                     </div>
-                    {userBalance >= currentFinalPrice ? (
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">
-                        موجود
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-red-500/20 text-red-300 px-2 py-0.5 rounded font-bold">
-                        کسری موجودی
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Option 2: Card to Card */}
-                  <div
-                    onClick={() => setPaymentMethod("card_to_card")}
-                    className={`cursor-pointer p-3.5 rounded-2xl border transition-all space-y-3 ${
-                      paymentMethod === "card_to_card"
-                        ? "bg-indigo-600/20 border-indigo-500 shadow-md"
-                        : "bg-slate-900/80 border-slate-800 hover:border-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400">
-                          <CreditCard className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <h5 className="text-xs font-bold text-white">کارت به کارت مستقیم</h5>
-                          <p className="text-[10px] text-slate-400">واریز به حساب و ثبت رسید</p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded font-bold">
-                        تایید ادمین
-                      </span>
-                    </div>
-
-                    {paymentMethod === "card_to_card" && (
-                      <div className="pt-2 border-t border-slate-800/80 space-y-2 text-xs">
-                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                          <div>
-                            <span className="text-[10px] text-slate-400 block">شماره کارت مقصد:</span>
-                            <span className="font-mono text-xs font-bold text-white tracking-wider">
-                              {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-۱۲۳۴-۵۶۷۸"}
-                            </span>
-                            <span className="text-[10px] text-indigo-300 block mt-0.5">
-                              به نام: {systemSettings.cardHolder || "مدیریت سرور"}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => copyToClipboard(systemSettings.cardNumber || "6037997512345678", "card-num")}
-                            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs flex items-center gap-1"
-                          >
-                            {copiedId === "card-num" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>کپی</span>
-                          </button>
-                        </div>
-
-                        <div className="space-y-1">
-                          <label className="text-[11px] text-slate-300 block">شماره پیگیری یا لینک رسید واریز:</label>
-                          <input
-                            type="text"
-                            placeholder="مثلا: شماره پیگیری ۱۲۳۴۵۶ یا نام واریزکننده"
-                            value={cardReceiptImage}
-                            onChange={(e) => setCardReceiptImage(e.target.value)}
-                            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
 
-                {/* Insufficient Wallet Warning */}
-                {paymentMethod === "wallet" && userBalance < currentFinalPrice && (
-                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-center justify-between text-xs text-amber-300">
-                    <span>موجودی کیف پول شما کافی نیست.</span>
-                    <button
-                      onClick={() => setActiveTab("wallet")}
-                      className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg font-bold text-[11px]"
-                    >
-                      افزایش موجودی 💳
-                    </button>
-                  </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="flex gap-2 pt-2">
+                {/* Back / Next Buttons */}
+                <div className="flex items-center gap-2 pt-2">
                   <button
-                    onClick={() => setPurchaseStep(3)}
-                    className="py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition-all"
+                    onClick={() => setPurchaseStep(2)}
+                    className="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-2xl font-bold text-xs transition-all"
                   >
-                    بازگشت
+                    مرحله قبل
                   </button>
                   <button
-                    onClick={handlePurchase}
-                    disabled={purchasing || (paymentMethod === "wallet" && userBalance < currentFinalPrice)}
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-1.5"
+                    id="btn-step3-next"
+                    onClick={() => setPurchaseStep(4)}
+                    className="w-2/3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl font-bold text-sm shadow-xl shadow-purple-600/30 active:scale-98 transition-all flex items-center justify-center gap-2"
                   >
-                    {purchasing ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>در حال ساخت کانفیگ روی سرور...</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>پرداخت نهایی و دریافت کانفیگ</span>
-                      </>
-                    )}
+                    <span>مرحله بعد: پیش‌فاکتور نهایی</span>
+                    <ChevronLeft className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ----------------------------------------------------------------------------------- */}
-            {/* STEP 5: INSTANT DELIVERY & CONFIG DETAILS (مرحله ۵: تحویل آنی و نمایش کانفیگ) */}
-            {/* ----------------------------------------------------------------------------------- */}
-            {purchaseStep === 5 && deliveredSubKey && (
-              <div className="space-y-4 animate-fadeIn">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-center space-y-2 shadow-lg">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                    <Check className="w-6 h-6 stroke-[3]" />
+            {/* ------------------------------------------------------------- */}
+            {/* STEP 4: FINAL INVOICE & PAYMENT METHOD                        */}
+            {/* ------------------------------------------------------------- */}
+            {purchaseStep === 4 && (
+              <div className="space-y-4">
+                {/* Admin Special Notification Banner */}
+                {isAdmin && (
+                  <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-950/60 to-slate-900 border border-amber-500/60 shadow-xl shadow-amber-950/40 space-y-2">
+                    <div className="flex items-center gap-2 text-amber-300 font-extrabold text-sm">
+                      <Crown className="w-5 h-5 text-amber-400" />
+                      <span>دسترسی ویژه مدیر کل - ساخت ۱۰۰٪ رایگان</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed">
+                      شما به عنوان مدیر ربات شناسایی شدید. ایجاد هرگونه کانفیگ برای شما بدون نیاز به کسر موجودی یا فیش بانکی، کاملاً فوری و نامحدود انجام می‌گردد.
+                    </p>
                   </div>
-                  <h3 className="text-sm font-black text-white">سرویس شما با موفقیت فعال شد!</h3>
-                  <p className="text-xs text-slate-300">
-                    اشتراک شما روی سرور ساخته شد و آماده اتصال می‌باشد.
+                )}
+
+                {/* Invoice Summary Card */}
+                <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
+                  <h4 className="text-xs font-bold text-slate-400 pb-2 border-b border-slate-800">
+                    پیش‌فاکتور نهایی خرید اشتراک
+                  </h4>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">سرور و لوکیشن:</span>
+                      <span className="font-bold text-white flex items-center gap-1">
+                        <span>{selectedServer?.flag}</span>
+                        <span>{selectedServer?.name}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">پلن انتخابی:</span>
+                      <span className="font-bold text-purple-300">
+                        {planMode === "custom"
+                          ? `کانفیگ دلخواه (${customGb} گیگ - ${customDays} روز)`
+                          : selectedPlan?.name}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between text-slate-300">
+                      <span className="text-slate-400">نام کاربری کانفیگ:</span>
+                      <span className="font-mono text-slate-200">
+                        {clientUsername.trim() || `user_${tgUser?.id || "vpn"}`}
+                      </span>
+                    </div>
+
+                    {appliedPromo && !isAdmin && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>تخفیف اعمال شده:</span>
+                        <span>
+                          {appliedPromo.discountAmount
+                            ? `-${Number(appliedPromo.discountAmount).toLocaleString("fa-IR")} تومان`
+                            : `-${appliedPromo.discountPercent}%`}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-800 flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-300">مبلغ قابل پرداخت:</span>
+                      <span className="text-base font-extrabold text-purple-400">
+                        {isAdmin ? "۰ تومان (رایگان ویژه مدیر)" : `${checkoutPrice.toLocaleString("fa-IR")} تومان`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Normal User Payment Method Selector */}
+                {!isAdmin && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-slate-300">انتخاب روش پرداخت:</h4>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {/* Wallet Method */}
+                      <button
+                        onClick={() => setPaymentMethod("wallet")}
+                        className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between space-y-2 ${
+                          paymentMethod === "wallet"
+                            ? "bg-purple-900/30 border-purple-500 shadow-md shadow-purple-950/40"
+                            : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <CreditCard className="w-4 h-4 text-purple-400" />
+                          <div
+                            className={`w-4 h-4 rounded-full border-2 ${
+                              paymentMethod === "wallet" ? "border-purple-500 bg-purple-600" : "border-slate-700"
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-white">کیف پول داخلی</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            موجودی: {Number(userData?.walletBalance || 0).toLocaleString("fa-IR")} ت
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Card to Card Method */}
+                      <button
+                        onClick={() => setPaymentMethod("card_to_card")}
+                        className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between space-y-2 ${
+                          paymentMethod === "card_to_card"
+                            ? "bg-purple-900/30 border-purple-500 shadow-md shadow-purple-950/40"
+                            : "bg-slate-900/60 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <ExternalLink className="w-4 h-4 text-indigo-400" />
+                          <div
+                            className={`w-4 h-4 rounded-full border-2 ${
+                              paymentMethod === "card_to_card" ? "border-purple-500 bg-purple-600" : "border-slate-700"
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-white">کارت به کارت</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">ثبت رسید و تایید فوری</div>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Card to Card Details Box & MANDATORY Receipt ID */}
+                    {paymentMethod === "card_to_card" && (
+                      <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/30 p-3.5 space-y-3">
+                        <div className="space-y-1">
+                          <div className="text-xs font-bold text-indigo-300 flex items-center justify-between">
+                            <span>اطلاعات حساب جهت واریز:</span>
+                            {systemSettings.cardNumber && (
+                              <button
+                                onClick={() => copyToClipboard(systemSettings.cardNumber, "card-num")}
+                                className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-mono"
+                              >
+                                {copiedId === "card-num" ? "کپی شد" : "کپی شماره کارت"}
+                              </button>
+                            )}
+                          </div>
+                          <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">شماره کارت:</span>
+                              <span className="font-mono font-bold text-white tracking-wider">
+                                {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-****-****"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">به نام:</span>
+                              <span className="font-bold text-slate-200">
+                                {systemSettings.cardHolder || "مدیریت سرور"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* MANDATORY Receipt Input */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-amber-300 flex items-center justify-between">
+                            <span>شماره پیگیری یا لینک رسید واریز: <strong className="text-rose-400 font-extrabold">(اجباری *)</strong></span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="مثلاً: شماره پیگیری ۱۲۳۴۵۶ یا نام واریزکننده"
+                            value={cardReceiptImage}
+                            onChange={(e) => setCardReceiptImage(e.target.value)}
+                            className={`w-full bg-slate-950 border rounded-xl px-3 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none transition-colors ${
+                              !cardReceiptImage.trim()
+                                ? "border-amber-500/50 focus:border-amber-400"
+                                : "border-emerald-500/50 focus:border-emerald-400"
+                            }`}
+                          />
+                          {!cardReceiptImage.trim() ? (
+                            <p className="text-[11px] text-amber-400 flex items-center gap-1">
+                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                              <span>تا زمانی که شناسه یا مشخصات واریز را وارد نکنید، دکمه پرداخت فعال نمی‌شود.</span>
+                            </p>
+                          ) : (
+                            <p className="text-[11px] text-emerald-400 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                              <span>مشخصات واریز وارد شد.</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Back / Pay Actions */}
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => setPurchaseStep(3)}
+                    disabled={purchasing}
+                    className="w-1/3 bg-slate-800 hover:bg-slate-700 text-slate-300 py-3.5 rounded-2xl font-bold text-xs transition-all disabled:opacity-50"
+                  >
+                    مرحله قبل
+                  </button>
+
+                  <button
+                    id="btn-final-purchase"
+                    onClick={handlePurchase}
+                    disabled={
+                      purchasing ||
+                      (!isAdmin && paymentMethod === "card_to_card" && !cardReceiptImage.trim()) ||
+                      (!isAdmin && paymentMethod === "wallet" && Number(userData?.walletBalance || 0) < checkoutPrice)
+                    }
+                    className={`w-2/3 py-3.5 rounded-2xl font-bold text-sm shadow-xl active:scale-98 transition-all flex items-center justify-center gap-2 ${
+                      isAdmin
+                        ? "bg-gradient-to-r from-amber-500 via-emerald-500 to-teal-500 text-slate-950 shadow-amber-500/20 hover:brightness-110"
+                        : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-600/30"
+                    } disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none`}
+                  >
+                    {purchasing ? (
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                    ) : isAdmin ? (
+                      <Crown className="w-4 h-4 fill-slate-950" />
+                    ) : (
+                      <ShieldCheck className="w-4 h-4" />
+                    )}
+                    <span>
+                      {purchasing
+                        ? "در حال پردازش..."
+                        : isAdmin
+                        ? "⚡ ساخت فوری و رایگان (ویژه مدیر)"
+                        : paymentMethod === "card_to_card"
+                        ? "ثبت نهایی رسید کارت به کارت"
+                        : "پرداخت نهایی و دریافت کانفیگ"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ------------------------------------------------------------- */}
+            {/* STEP 5: INSTANT DELIVERY VIEW (QR CODE & CONFIG / SUB LINK)   */}
+            {/* ------------------------------------------------------------- */}
+            {purchaseStep === 5 && deliveredSubKey && (
+              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-purple-950/30 border border-purple-500/50 p-5 space-y-4 shadow-2xl animate-fade-in">
+                <div className="text-center space-y-1">
+                  <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-extrabold text-base text-white mt-2">
+                    اشتراک شما با موفقیت ساخته شد!
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    لینک ساب‌اسکریپشن هوشمند شما آماده اتصال به تمام نرم‌افزارهاست.
                   </p>
                 </div>
 
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <div className="flex justify-between text-xs border-b border-slate-800 pb-2">
-                    <span className="text-slate-400">نام پلن:</span>
-                    <span className="text-white font-bold">{deliveredSubKey.planName}</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-b border-slate-800 pb-2">
-                    <span className="text-slate-400">نام کاربری:</span>
-                    <span className="text-indigo-300 font-mono font-bold">{deliveredSubKey.clientName}</span>
-                  </div>
-                  <div className="flex justify-between text-xs border-b border-slate-800 pb-2">
-                    <span className="text-slate-400">حجم اشتراک:</span>
-                    <span className="text-amber-400 font-bold">{deliveredSubKey.trafficLimitGb} گیگابایت</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">تاریخ انقضا:</span>
-                    <span className="text-white font-bold">{deliveredSubKey.expireDate}</span>
-                  </div>
+                {/* QR Code Display */}
+                <div className="bg-white p-3 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-lg">
+                  <img
+                    src={getQrUrl(deliveredSubKey.subLink)}
+                    alt="QR Code"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
 
-                  {/* Config Link Box */}
-                  <div className="pt-2 space-y-1.5">
-                    <label className="text-[11px] text-slate-400 block">لینک اتصال مستقیم / اشتراک:</label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={deliveredSubKey.subLink}
-                        className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-[11px] font-mono text-slate-300 truncate outline-none"
-                      />
-                      <button
-                        onClick={() => copyToClipboard(deliveredSubKey.subLink, "del-sub")}
-                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shrink-0 active:scale-95"
-                      >
-                        {copiedId === "del-sub" ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                        <span>کپی</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* QR Code Action Button */}
-                  <div className="flex gap-2 pt-2">
+                {/* Sub Link Copy Box */}
+                <div className="bg-slate-950 rounded-2xl p-3 border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>لینک اشتراک اختصاصی (Subscription):</span>
                     <button
-                      onClick={() => setActiveQrModal(deliveredSubKey.subLink)}
-                      className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all"
+                      onClick={() => copyToClipboard(deliveredSubKey.subLink, "delivered-sub")}
+                      className="text-purple-400 hover:text-purple-300 flex items-center gap-1 font-bold"
                     >
-                      <QrCode className="w-4 h-4 text-purple-400" />
-                      <span>نمایش کد QR</span>
+                      {copiedId === "delivered-sub" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedId === "delivered-sub" ? "کپی شد" : "کپی لینک"}</span>
                     </button>
+                  </div>
+                  <div className="text-[11px] text-purple-200 font-mono break-all bg-slate-900 p-2.5 rounded-xl border border-slate-800 select-all">
+                    {deliveredSubKey.subLink}
+                  </div>
+                </div>
 
+                {/* Quick App Connect Links */}
+                <div className="space-y-1.5">
+                  <div className="text-[11px] text-slate-400 font-medium">اتصال مستقیم به نرم‌افزارها:</div>
+                  <div className="grid grid-cols-3 gap-2">
                     <a
-                      href={deliveredSubKey.subLink}
-                      className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md shadow-indigo-600/20"
+                      href={`v2rayng://install-sub?url=${encodeURIComponent(deliveredSubKey.subLink)}`}
+                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-xl text-[11px] font-bold transition-all border border-slate-700/60"
                     >
-                      <ExternalLink className="w-4 h-4" />
-                      <span>اتصال سریع به برنامه</span>
+                      v2rayNG
+                    </a>
+                    <a
+                      href={`streisand://install-sub?url=${encodeURIComponent(deliveredSubKey.subLink)}`}
+                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-xl text-[11px] font-bold transition-all border border-slate-700/60"
+                    >
+                      Streisand
+                    </a>
+                    <a
+                      href={`v2box://install-sub?url=${encodeURIComponent(deliveredSubKey.subLink)}`}
+                      className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-xl text-[11px] font-bold transition-all border border-slate-700/60"
+                    >
+                      V2Box
                     </a>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setDeliveredSubKey(null);
-                    setPurchaseStep(1);
-                    setActiveTab("subs");
-                  }}
-                  className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition-all"
-                >
-                  مشاهده در لیست اشتراک‌های من
-                </button>
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={() => {
+                      setPurchaseStep(1);
+                      setActiveTab("subs");
+                    }}
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold text-xs transition-all shadow-lg"
+                  >
+                    مشاهده در سرویس‌های من
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPurchaseStep(1);
+                      setDeliveredSubKey(null);
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-3 rounded-xl font-bold text-xs transition-all"
+                  >
+                    خرید مجدد
+                  </button>
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: MY SUBSCRIPTIONS (سرویس‌ها و کانفیگ‌های فعال من از دیتابیس) */}
+        {/* TAB 2: MY SERVICES / SUBSCRIPTIONS                                        */}
         {/* ========================================================================= */}
         {activeTab === "subs" && !loading && (
-          <div className="space-y-3 animate-fadeIn">
-            <div className="flex items-center justify-between px-1">
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-emerald-400" />
-                اشتراک‌های فعال شما
+          <div id="view-my-subscriptions" className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <HardDrive className="w-4 h-4 text-purple-400" />
+                <span>سرویس‌ها و کانفیگ‌های فعال شما</span>
               </h3>
-              <span className="text-[11px] text-slate-400">{subscriptions.length} سرویس</span>
+              <span className="text-[11px] text-slate-400 font-medium">
+                {subscriptions.length} اشتراک ثبت شده
+              </span>
             </div>
 
             {subscriptions.length === 0 ? (
-              <div className="p-8 bg-slate-900/60 border border-slate-800 rounded-2xl text-center space-y-3">
-                <ShoppingBag className="w-10 h-10 text-slate-600 mx-auto" />
-                <p className="text-xs text-slate-400 font-medium">شما هنوز هیچ اشتراک فعالی ندارید.</p>
+              <div className="p-8 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">هنوز سرویسی خریداری نکرده‌اید</h4>
+                  <p className="text-xs text-slate-400">
+                    می‌توانید از بخش خرید اشتراک، بهترین پلن را انتخاب و فعال نمایید.
+                  </p>
+                </div>
                 <button
-                  onClick={() => {
-                    setActiveTab("plans");
-                    setPurchaseStep(1);
-                  }}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl shadow-md transition-all"
+                  onClick={() => setActiveTab("plans")}
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-purple-600/30"
                 >
-                  خرید اولین اشتراک ⚡
+                  مشاهده و خرید پلن‌ها
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
-                {subscriptions.map((sub, idx) => {
+                {subscriptions.map((sub) => {
                   const used = Number(sub.trafficUsedGb || 0);
                   const limit = Number(sub.trafficLimitGb || 30);
                   const percent = Math.min(100, Math.round((used / (limit || 1)) * 100));
 
                   return (
                     <div
-                      key={sub.id || idx}
-                      className="bg-slate-900/80 border border-slate-800 hover:border-slate-700 p-4 rounded-2xl space-y-3 transition-all shadow-md"
+                      key={sub.id}
+                      id={`sub-card-${sub.id}`}
+                      className="p-4 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-3 shadow-xl"
                     >
-                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-2.5">
+                      <div className="flex items-start justify-between">
                         <div>
-                          <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <span>{sub.planName || "اشتراک اختصاصی"}</span>
-                            <span className="text-[10px] font-mono text-indigo-400">({sub.clientName})</span>
-                          </h4>
-                          <p className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                            {sub.status === "active" ? "فعال و متصل" : "معلق"}
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-white">
+                              {sub.planName || "اشتراک اختصاصی"}
+                            </span>
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold">
+                              فعال
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 font-mono mt-0.5">
+                            {sub.clientName || sub.id}
                           </p>
                         </div>
-                        <span className="text-[11px] bg-slate-800 text-slate-300 px-2.5 py-1 rounded-lg font-mono">
-                          انقضا: {sub.expireDate || "نامحدود"}
-                        </span>
+
+                        <button
+                          onClick={() => setActiveQrModal(sub.subLink)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700"
+                          title="نمایش QR کد"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
                       </div>
 
-                      {/* Traffic Progress Bar */}
-                      <div className="space-y-1.5">
-                        <div className="flex justify-between text-[11px] text-slate-300 font-medium">
-                          <span>مصرف: {used.toFixed(1)} GB</span>
-                          <span>کل: {limit} GB ({percent}٪)</span>
+                      {/* Usage Progress Bar */}
+                      <div className="space-y-1 bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80">
+                        <div className="flex justify-between text-xs text-slate-400 font-medium">
+                          <span>مصرف حجم:</span>
+                          <span className="text-slate-200">
+                            {used.toFixed(1)} از {limit} گیگابایت ({percent}%)
+                          </span>
                         </div>
-                        <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden">
                           <div
-                            className={`h-2 rounded-full transition-all duration-500 ${
-                              percent > 85 ? "bg-red-500" : percent > 60 ? "bg-amber-500" : "bg-gradient-to-r from-indigo-500 to-purple-500"
+                            className={`h-full rounded-full transition-all ${
+                              percent > 85 ? "bg-rose-500" : percent > 60 ? "bg-amber-500" : "bg-purple-500"
                             }`}
                             style={{ width: `${percent}%` }}
-                          ></div>
+                          />
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-500 pt-0.5">
+                          <span>انقضا: {sub.expireDate || "۳۰ روزه"}</span>
+                          <span>وضعیت اتصال: پایدار</span>
                         </div>
                       </div>
 
-                      {/* Link and Action Buttons */}
-                      <div className="pt-1 space-y-2">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            readOnly
-                            value={sub.subLink}
-                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] font-mono text-slate-300 truncate outline-none"
-                          />
-                          <button
-                            onClick={() => copyToClipboard(sub.subLink, `sub-${idx}`)}
-                            className="bg-indigo-600 hover:bg-indigo-500 px-3 py-2 rounded-xl text-white text-xs font-semibold flex items-center gap-1 shrink-0 active:scale-95 transition-all"
-                          >
-                            {copiedId === `sub-${idx}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                            <span>کپی</span>
-                          </button>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setActiveQrModal(sub.subLink)}
-                            className="flex-1 py-1.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 rounded-xl text-[11px] font-semibold text-slate-300 flex items-center justify-center gap-1"
-                          >
-                            <QrCode className="w-3.5 h-3.5 text-purple-400" />
-                            <span>کد QR</span>
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setActiveTab("plans");
-                              setPurchaseStep(1);
-                            }}
-                            className="flex-1 py-1.5 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/30 rounded-xl text-[11px] font-semibold text-indigo-200 flex items-center justify-center gap-1"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            <span>تمدید اشتراک</span>
-                          </button>
-                        </div>
+                      {/* Sublink Copy Bar */}
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={sub.subLink || ""}
+                          className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all"
+                        />
+                        <button
+                          onClick={() => copyToClipboard(sub.subLink, `sub-${sub.id}`)}
+                          className="bg-purple-600 hover:bg-purple-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-md shadow-purple-600/30"
+                        >
+                          {copiedId === `sub-${sub.id}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedId === `sub-${sub.id}` ? "کپی شد" : "کپی"}</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -1526,399 +1734,716 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: WALLET & DEPOSIT (کیف پول و شارژ آنلاین / کارت به کارت) */}
+        {/* TAB 3: COLLEAGUES PORTAL (Specialized Login & Free Config Creation)        */}
         {/* ========================================================================= */}
-        {activeTab === "wallet" && !loading && (
-          <div className="space-y-4 animate-fadeIn">
-            <div className="bg-gradient-to-br from-indigo-900/60 via-purple-900/40 to-slate-900 border border-indigo-500/30 p-5 rounded-2xl text-center space-y-2 shadow-xl">
-              <span className="text-[11px] text-indigo-300 font-semibold uppercase tracking-wider">موجودی فعلی کیف پول</span>
-              <p className="text-3xl font-black text-emerald-400 tracking-tight">
-                {userBalance.toLocaleString("fa-IR")} <span className="text-sm font-normal text-slate-300">تومان</span>
-              </p>
-              <p className="text-[11px] text-slate-400">
-                قابل استفاده برای خرید و تمدید تمام سرویس‌ها با تحویل آنی
-              </p>
-            </div>
-
-            {/* Deposit Box */}
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-4">
-              <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                <CreditCard className="w-4 h-4 text-purple-400" />
-                افزایش موجودی (کارت به کارت)
-              </h4>
-
-              {/* Bank Card Info */}
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-400 block">شماره کارت مقصد:</span>
-                  <span className="font-mono text-xs font-bold text-white tracking-wider">
-                    {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-۱۲۳۴-۵۶۷۸"}
-                  </span>
-                  <span className="text-[10px] text-indigo-300 block mt-0.5">
-                    به نام: {systemSettings.cardHolder || "مدیریت"}
-                  </span>
+        {activeTab === "colleagues" && !loading && (
+          <div id="view-colleagues-portal" className="space-y-4">
+            {!colleagueLoggedIn ? (
+              /* Colleague Login Form */
+              <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
+                <div className="text-center space-y-1.5">
+                  <div className="w-12 h-12 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-purple-500/20">
+                    <KeyRound className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-extrabold text-base text-white">
+                    ورود به پنل اختصاصی همکاران
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    همکاران گرامی می‌توانند با وارد کردن نام کاربری و کلمه عبور اختصاصی خود، بدون پرداخت هزینه و از محل پکیج مجاز خود کانفیگ بسازند.
+                  </p>
                 </div>
-                <button
-                  onClick={() => copyToClipboard(systemSettings.cardNumber || "6037997512345678", "dep-card")}
-                  className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs flex items-center gap-1"
-                >
-                  {copiedId === "dep-card" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>کپی</span>
-                </button>
-              </div>
 
-              {/* Amount Selection */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-slate-300 block">مبلغ شارژ دلخواه (تومان):</label>
-                <input
-                  type="number"
-                  placeholder="مثلا ۱۰۰,۰۰۰"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white font-bold outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
+                <form onSubmit={handleColleagueLogin} className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-purple-400" />
+                      <span>نام کاربری همکار:</span>
+                    </label>
+                    <input
+                      type="text"
+                      dir="ltr"
+                      placeholder="Colleague Username"
+                      value={colleagueUsernameInput}
+                      onChange={(e) => setColleagueUsernameInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
 
-              {/* Quick Presets */}
-              <div className="grid grid-cols-4 gap-1.5">
-                {[50000, 100000, 200000, 500000].map((amt) => (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>کلمه عبور همکار:</span>
+                    </label>
+                    <input
+                      type="password"
+                      dir="ltr"
+                      placeholder="••••••••"
+                      value={colleaguePasswordInput}
+                      onChange={(e) => setColleaguePasswordInput(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
+
                   <button
-                    key={amt}
-                    onClick={() => setDepositAmount(amt)}
-                    className={`py-1.5 rounded-xl text-[11px] font-semibold border transition-all ${
-                      depositAmount === amt
-                        ? "bg-indigo-600 text-white border-indigo-500 font-bold"
-                        : "bg-slate-800 text-slate-400 border-slate-700/60 hover:text-white"
-                    }`}
+                    type="submit"
+                    disabled={colleagueLoggingIn || !colleagueUsernameInput || !colleaguePasswordInput}
+                    className="w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                   >
-                    {(amt / 1000).toLocaleString("fa-IR")}ک
+                    {colleagueLoggingIn ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                    <span>ورود به حساب همکار</span>
                   </button>
-                ))}
+                </form>
               </div>
-
-              {/* Receipt Reference */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-300 block">شماره پیگیری یا نام واریزکننده:</label>
-                <input
-                  type="text"
-                  placeholder="شماره پیگیری فیش بانکی..."
-                  value={depositReceipt}
-                  onChange={(e) => setDepositReceipt(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-
-              {depositMessage && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 shrink-0" />
-                  <span>{depositMessage}</span>
-                </div>
-              )}
-
-              <button
-                onClick={handleSubmitDeposit}
-                disabled={depositing || !depositAmount}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
-              >
-                {depositing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                <span>ثبت درخواست شارژ حساب</span>
-              </button>
-            </div>
-
-            {/* Transaction History Log */}
-            {transactions.length > 0 && (
-              <div className="space-y-2 bg-slate-900/60 border border-slate-800 p-4 rounded-2xl">
-                <h4 className="text-xs font-bold text-slate-300">تراکنش‌های اخیر شما</h4>
-                <div className="space-y-2">
-                  {transactions.map((tx: any, idx: number) => (
-                    <div
-                      key={tx.id || idx}
-                      className="p-2.5 bg-slate-950/80 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <p className="font-semibold text-white">{tx.description || "تراکنش مالی"}</p>
-                        <p className="text-[10px] text-slate-500">{new Date(tx.date).toLocaleDateString("fa-IR")}</p>
+            ) : (
+              /* Colleague Dashboard & Client Management */
+              <div className="space-y-4">
+                {/* Colleague Status Card */}
+                <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-purple-950/40 border border-purple-500/40 p-4 space-y-3 shadow-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-9 h-9 rounded-xl bg-purple-600 flex items-center justify-center text-white font-bold">
+                        <Users className="w-5 h-5" />
                       </div>
-                      <div className="text-left">
-                        <span className={`font-black ${tx.type === "purchase" ? "text-red-400" : "text-emerald-400"}`}>
-                          {tx.type === "purchase" ? "-" : "+"}{Number(tx.amount).toLocaleString("fa-IR")} تومان
-                        </span>
-                        <span className={`block text-[9px] font-bold ${tx.status === "approved" ? "text-emerald-400" : "text-amber-400"}`}>
-                          {tx.status === "approved" ? "تایید شده" : "در انتظار تایید"}
-                        </span>
+                      <div>
+                        <div className="font-extrabold text-sm text-white">
+                          {colleagueAccount?.username}
+                        </div>
+                        <div className="text-[10px] text-purple-300">
+                          {colleagueAccount?.packageTitle || "بسته همکار"} • پیشوند: {colleagueAccount?.prefix}
+                        </div>
                       </div>
                     </div>
-                  ))}
+
+                    <button
+                      onClick={() => setColleagueLoggedIn(false)}
+                      className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-rose-300 text-xs flex items-center gap-1 border border-slate-700"
+                      title="خروج از حساب همکار"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>خروج</span>
+                    </button>
+                  </div>
+
+                  {/* Volume Allowance Stats */}
+                  <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-slate-800">
+                    <div className="bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+                      <div className="text-[10px] text-slate-400">حجم کل پکیج</div>
+                      <div className="text-xs font-bold text-white mt-0.5">
+                        {colleagueAccount?.trafficGb} GB
+                      </div>
+                    </div>
+                    <div className="bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+                      <div className="text-[10px] text-slate-400">تخصیص داده شده</div>
+                      <div className="text-xs font-bold text-amber-300 mt-0.5">
+                        {Number(colleagueAccount?.allocatedTrafficGb || 0).toFixed(1)} GB
+                      </div>
+                    </div>
+                    <div className="bg-slate-950/80 p-2 rounded-xl border border-slate-800">
+                      <div className="text-[10px] text-slate-400">حجم باقیمانده مجاز</div>
+                      <div className="text-xs font-bold text-emerald-400 mt-0.5">
+                        {Number(colleagueAccount?.remainingTrafficGb || 0).toFixed(1)} GB
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setIsColleagueCreateOpen(true)}
+                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 py-3 rounded-2xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                  >
+                    <Plus className="w-4 h-4 stroke-[3]" />
+                    <span>➕ ساخت کانفیگ جدید برای همکار (رایگان)</span>
+                  </button>
                 </div>
+
+                {/* Colleague Clients List */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-purple-400" />
+                      <span>کاربران ساخته شده توسط شما ({colleagueClients.length})</span>
+                    </h4>
+                  </div>
+
+                  {colleagueClients.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                      هنوز هیچ کانفیگی با این حساب همکار ایجاد نکرده‌اید.
+                    </div>
+                  ) : (
+                    colleagueClients.map((client) => (
+                      <div
+                        key={client.id}
+                        className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2.5"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-bold text-xs text-white font-mono">
+                              {client.clientName}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5">
+                              حجم: {client.trafficLimitGb} GB • انقضا: {client.expireDate || "نامشخص"}
+                            </div>
+                          </div>
+
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                            {client.status || "active"}
+                          </span>
+                        </div>
+
+                        {client.subLink && (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={client.subLink}
+                              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-purple-300 select-all"
+                            />
+                            <button
+                              onClick={() => copyToClipboard(client.subLink, `col-sub-${client.id}`)}
+                              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1"
+                            >
+                              {copiedId === `col-sub-${client.id}` ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                              <span>{copiedId === `col-sub-${client.id}` ? "کپی شد" : "کپی"}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Colleague Create Client Modal */}
+                {isColleagueCreateOpen && (
+                  <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl animate-fade-in">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
+                          <Plus className="w-4 h-4 text-emerald-400" />
+                          <span>ساخت کانفیگ همکار</span>
+                        </h4>
+                        <button
+                          onClick={() => setIsColleagueCreateOpen(false)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-white"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* Server Selection for Colleague */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-300">سرور:</label>
+                        <select
+                          value={colleagueSelectedServer?.id || ""}
+                          onChange={(e) => {
+                            const found = [...colleagueServers, ...servers].find((s) => s.id === e.target.value);
+                            if (found) setColleagueSelectedServer(found);
+                          }}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                        >
+                          {(colleagueServers.length > 0 ? colleagueServers : servers).map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.flag} {s.name} {s.isColleague ? "(ویژه همکاران)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Client Name Input */}
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold text-slate-300">
+                          نام کاربر (پیشوند {colleagueAccount?.prefix}_ خودکار اضافه می‌شود):
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          placeholder="client1"
+                          value={colleagueNewClientName}
+                          onChange={(e) => setColleagueNewClientName(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                        />
+                      </div>
+
+                      {/* Volume & Days */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300">حجم (GB):</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="500"
+                            value={colleagueNewGb}
+                            onChange={(e) => setColleagueNewGb(Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300">مدت (روز):</label>
+                          <input
+                            type="number"
+                            min="1"
+                            max="365"
+                            value={colleagueNewDays}
+                            onChange={(e) => setColleagueNewDays(Number(e.target.value))}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={handleColleagueCreateClient}
+                        disabled={colleagueCreatingClient}
+                        className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {colleagueCreatingClient ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4" />
+                        )}
+                        <span>تایید و ساخت فوری کانفیگ همکار</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: PROFILE (پروفایل و آمار کاربری از دیتابیس) */}
+        {/* TAB 4: WALLET & DEPOSIT                                                   */}
         {/* ========================================================================= */}
-        {activeTab === "profile" && !loading && (
-          <div className="space-y-3 animate-fadeIn">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 px-1">
-              <User className="w-4 h-4 text-blue-400" />
-              اطلاعات حساب کاربری شما
-            </h3>
+        {activeTab === "wallet" && !loading && (
+          <div id="view-wallet" className="space-y-4">
+            {/* Balance Overview Card */}
+            <div className="rounded-3xl bg-gradient-to-br from-purple-900/60 via-indigo-950 to-slate-900 border border-purple-500/40 p-5 space-y-4 shadow-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center justify-center shadow-inner">
+                    <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs text-slate-400">موجودی کیف پول شما</div>
+                    <div className="text-xl font-extrabold text-white">
+                      {isAdmin ? "نامحدود (مدیر کل)" : `${Number(userData?.walletBalance || 0).toLocaleString("fa-IR")} تومان`}
+                    </div>
+                  </div>
+                </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-3 text-xs">
-              <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">شناسه تلگرام:</span>
-                <span className="font-mono text-indigo-400 font-bold">{tgUser?.id || "---"}</span>
+                <button
+                  onClick={() => fetchMiniAppData()}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                  title="بروزرسانی موجودی"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
-              <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">نام کاربری تلگرام:</span>
-                <span className="text-white">{tgUser?.username ? `@${tgUser.username}` : "ثبت نشده"}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">نام کامل:</span>
-                <span className="text-white">{userData?.fullName || tgUser?.first_name || "کاربر گرامی"}</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">موجودی کیف پول:</span>
-                <span className="text-emerald-400 font-black">{userBalance.toLocaleString("fa-IR")} تومان</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-slate-800">
-                <span className="text-slate-400">تعداد اشتراک‌های فعال:</span>
-                <span className="text-indigo-400 font-bold">{subscriptions.length} سرویس</span>
-              </div>
-              <div className="flex justify-between py-2">
-                <span className="text-slate-400">وضعیت حساب:</span>
-                <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  فعال و مجاز
+
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+                <span>تعداد سرویس‌های فعال:</span>
+                <span className="font-bold text-purple-300">
+                  {userData?.activePlansCount || subscriptions.length} سرویس
                 </span>
               </div>
             </div>
 
-            {/* Support Link */}
-            {systemSettings.supportUsername && (
-              <a
-                href={`https://t.me/${systemSettings.supportUsername.replace("@", "")}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold text-slate-200 transition-all"
-              >
-                <Headphones className="w-4 h-4 text-indigo-400" />
-                <span>ارتباط مستقیم با ادمین در تلگرام</span>
-              </a>
+            {/* Deposit Request Box (Card to Card) */}
+            {!isAdmin && (
+              <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 space-y-4 shadow-xl">
+                <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <Plus className="w-4 h-4 text-purple-400" />
+                  <span>افزایش موجودی کیف پول (کارت به کارت)</span>
+                </h4>
+
+                {/* Bank Card Info */}
+                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">شماره کارت مقصد:</span>
+                    <span className="font-mono font-bold text-white tracking-wider">
+                      {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-****-****"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-slate-400">به نام:</span>
+                    <span className="font-bold text-slate-200">
+                      {systemSettings.cardHolder || "مدیریت سرور"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Selection Chips */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-400">مبالغ پیشنهادی شارژ:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[50000, 100000, 200000, 300000, 500000, 1000000].map((amt) => (
+                      <button
+                        key={amt}
+                        onClick={() => setDepositAmount(amt)}
+                        className={`py-2 rounded-xl text-xs font-bold transition-all border ${
+                          depositAmount === amt
+                            ? "bg-purple-600/30 text-purple-200 border-purple-500 shadow-sm"
+                            : "bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700"
+                        }`}
+                      >
+                        {(amt / 1000).toLocaleString("fa-IR")} ت
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom Amount Input */}
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-slate-400">یا مبلغ دلخواه (تومان):</label>
+                  <input
+                    type="number"
+                    min="10000"
+                    step="10000"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(Number(e.target.value))}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                {/* MANDATORY Deposit Receipt Input */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-amber-300 flex items-center justify-between">
+                    <span>شماره پیگیری یا فیش واریز: <strong className="text-rose-400 font-extrabold">(اجباری *)</strong></span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="شماره پیگیری فیش بانکی..."
+                    value={depositReceipt}
+                    onChange={(e) => setDepositReceipt(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <button
+                  onClick={handleSubmitDeposit}
+                  disabled={depositing || !depositAmount || depositAmount < 10000 || !depositReceipt.trim()}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-2xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-98 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                >
+                  {depositing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>ارسال رسید شارژ برای تایید مدیریت</span>
+                </button>
+              </div>
             )}
+
+            {/* Transactions History */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-300">تاریخچه تراکنش‌های اخیر</h4>
+              {transactions.length === 0 ? (
+                <div className="p-6 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                  هیچ تراکنشی ثبت نشده است.
+                </div>
+              ) : (
+                transactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div>
+                      <div className="font-bold text-white">{tx.description || tx.type}</div>
+                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                        {tx.id} • {new Date(tx.date).toLocaleDateString("fa-IR")}
+                      </div>
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-purple-400">
+                        {Number(tx.amount || 0).toLocaleString("fa-IR")} تومان
+                      </div>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          tx.status === "approved"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : tx.status === "pending"
+                            ? "bg-amber-500/20 text-amber-300"
+                            : "bg-rose-500/20 text-rose-300"
+                        }`}
+                      >
+                        {tx.status === "approved" ? "موفق" : tx.status === "pending" ? "در انتظار تایید" : "رد شده"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: SUPPORT & TICKETS (سیستم پشتیبانی و تیکتینگ آنلاین متصل به DB) */}
+        {/* TAB 5: PROFILE & SUPPORT                                                  */}
         {/* ========================================================================= */}
-        {activeTab === "support" && !loading && (
-          <div className="space-y-4 animate-fadeIn">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5 px-1">
-              <HelpCircle className="w-4 h-4 text-pink-400" />
-              پشتیبانی و تیکت آنلاین
-            </h3>
-
-            {/* Submit New Ticket */}
-            <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-3">
-              <h4 className="text-xs font-bold text-white">ارسال تیکت جدید به پشتیبانی</h4>
-
-              <input
-                type="text"
-                placeholder="موضوع تیکت (مثلا: مشکل در اتصال به سرور آلمان)..."
-                value={ticketSubject}
-                onChange={(e) => setTicketSubject(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500"
-              />
-
-              <textarea
-                rows={3}
-                placeholder="متن پیام یا سوال خود را به طور کامل بنویسید..."
-                value={ticketMessage}
-                onChange={(e) => setTicketMessage(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500"
-              ></textarea>
-
-              <button
-                onClick={handleSubmitTicket}
-                disabled={submittingTicket || !ticketMessage.trim()}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center gap-1.5"
-              >
-                {submittingTicket ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                <span>ارسال تیکت پشتیبانی</span>
-              </button>
-            </div>
-
-            {/* List of Previous Tickets */}
-            {tickets.length > 0 && (
-              <div className="space-y-2 bg-slate-900/60 border border-slate-800 p-4 rounded-2xl">
-                <h4 className="text-xs font-bold text-slate-300">تیکت‌های قبلی شما ({tickets.length})</h4>
-                <div className="space-y-2">
-                  {tickets.map((t: any) => (
-                    <div
-                      key={t.id}
-                      className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs"
-                    >
-                      <div className="flex justify-between items-center border-b border-slate-800/80 pb-1.5">
-                        <span className="font-bold text-white">{t.subject}</span>
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.status === "closed" ? "bg-slate-800 text-slate-400" : "bg-emerald-500/20 text-emerald-300"}`}>
-                          {t.status === "closed" ? "بسته شده" : "در حال پیگیری"}
-                        </span>
-                      </div>
-
-                      {/* Messages Thread */}
-                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                        {(t.messages || []).map((m: any, mIdx: number) => (
-                          <div
-                            key={m.id || mIdx}
-                            className={`p-2 rounded-xl text-[11px] ${
-                              m.sender === "admin"
-                                ? "bg-indigo-950/60 border border-indigo-500/30 text-indigo-200 mr-2"
-                                : "bg-slate-900 text-slate-200 ml-2"
-                            }`}
-                          >
-                            <span className="text-[9px] text-slate-400 font-bold block">
-                              {m.sender === "admin" ? "پاسخ پشتیبان:" : "شما:"}
-                            </span>
-                            <p>{m.text}</p>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Quick Reply in Ticket */}
-                      {t.status !== "closed" && (
-                        <div className="flex gap-1.5 pt-1">
-                          <input
-                            type="text"
-                            placeholder="ارسال پاسخ..."
-                            value={replyMessage}
-                            onChange={(e) => setReplyMessage(e.target.value)}
-                            className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-[11px] text-white outline-none"
-                          />
-                          <button
-                            onClick={() => handleSendTicketReply(t.id)}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold"
-                          >
-                            ارسال
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+        {activeTab === "profile" && !loading && (
+          <div id="view-profile" className="space-y-4">
+            {/* User Profile Card */}
+            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-purple-500/30">
+                  {tgUser?.first_name ? tgUser.first_name[0] : "U"}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-base text-white">
+                      {tgUser?.first_name || "کاربر"} {tgUser?.last_name || ""}
+                    </span>
+                    {isAdmin ? (
+                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                        👑 مدیر کل
+                      </span>
+                    ) : (
+                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                        کاربر فعال
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">
+                    شناسه کاربری: {tgUser?.id} {tgUser?.username ? `(@${tgUser.username})` : ""}
+                  </p>
                 </div>
               </div>
-            )}
+
+              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-800 text-xs">
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                  <div className="text-slate-400">موجودی کیف پول:</div>
+                  <div className="font-bold text-white mt-0.5">
+                    {isAdmin ? "نامحدود" : `${Number(userData?.walletBalance || 0).toLocaleString("fa-IR")} ت`}
+                  </div>
+                </div>
+                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+                  <div className="text-slate-400">سرویس‌های خریداری شده:</div>
+                  <div className="font-bold text-purple-300 mt-0.5">
+                    {subscriptions.length} سرویس
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Support Links */}
+            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+              <h4 className="text-xs font-bold text-slate-300">ارتباط و پشتیبانی سریع</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {systemSettings.channelUsername && (
+                  <a
+                    href={`https://t.me/${systemSettings.channelUsername.replace(/^@/, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-3 bg-slate-950 hover:bg-slate-800 rounded-2xl border border-slate-800 text-center text-xs font-bold text-purple-300 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>کانال اطلاع‌رسانی</span>
+                  </a>
+                )}
+                {systemSettings.supportUsername && (
+                  <a
+                    href={`https://t.me/${systemSettings.supportUsername.replace(/^@/, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-3 bg-slate-950 hover:bg-slate-800 rounded-2xl border border-slate-800 text-center text-xs font-bold text-indigo-300 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span>پی‌وی پشتیبان</span>
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 6: SUPPORT TICKETS                                                    */}
+        {/* ========================================================================= */}
+        {activeTab === "support" && !loading && (
+          <div id="view-support" className="space-y-4">
+            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
+              <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <MessageSquare className="w-4 h-4 text-purple-400" />
+                <span>ارسال تیکت جدید به پشتیبانی</span>
+              </h4>
+
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  placeholder="موضوع تیکت (مثلاً: سوال در مورد نحوه اتصال)..."
+                  value={ticketSubject}
+                  onChange={(e) => setTicketSubject(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                />
+
+                <textarea
+                  rows={3}
+                  placeholder="متن پیام خود را بنویسید..."
+                  value={ticketMessage}
+                  onChange={(e) => setTicketMessage(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 resize-none"
+                />
+
+                <button
+                  onClick={handleSubmitTicket}
+                  disabled={submittingTicket || !ticketMessage.trim()}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  {submittingTicket ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>ارسال تیکت به کارشناسان</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Previous Tickets */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold text-slate-300">تیکت‌های قبلی شما</h4>
+              {tickets.length === 0 ? (
+                <div className="p-6 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                  هیچ تیکت پشتیبانی قبلی وجود ندارد.
+                </div>
+              ) : (
+                tickets.map((t) => (
+                  <div
+                    key={t.id}
+                    className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2 text-xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">{t.subject || "درخواست پشتیبانی"}</span>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          t.status === "answered"
+                            ? "bg-emerald-500/20 text-emerald-300"
+                            : "bg-amber-500/20 text-amber-300"
+                        }`}
+                      >
+                        {t.status === "answered" ? "پاسخ داده شد" : "در انتظار پاسخ"}
+                      </span>
+                    </div>
+                    <p className="text-slate-300 text-[11px] leading-relaxed bg-slate-950 p-2 rounded-xl border border-slate-800/80">
+                      {t.message || t.lastMessage}
+                    </p>
+                    {t.reply && (
+                      <div className="bg-purple-950/30 border border-purple-500/30 p-2 rounded-xl text-[11px] text-purple-200">
+                        <strong className="text-purple-400 font-bold block mb-1">پاسخ پشتیبان:</strong>
+                        {t.reply}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </main>
 
-      {/* QR Code Modal Popup */}
-      {activeQrModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-3xl max-w-xs w-full text-center space-y-4 shadow-2xl">
-            <h4 className="text-xs font-bold text-white">اسکن کد QR جهت اتصال</h4>
-            <div className="bg-white p-3 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-md">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(activeQrModal)}`}
-                alt="QR Code"
-                className="w-full h-full object-contain"
-              />
+      {/* ========================================================================= */}
+      {/* THEMED NOTIFICATION MODAL (Harmonized with Theme, Replaces Native Alert)   */}
+      {/* ========================================================================= */}
+      {customModal.isOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl shadow-purple-950/60 text-center animate-fade-in">
+            <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
+              {customModal.type === "success" && (
+                <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "error" && (
+                <div className="bg-rose-500/20 text-rose-400 border border-rose-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <XCircle className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "warning" && (
+                <div className="bg-amber-500/20 text-amber-400 border border-amber-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "info" && (
+                <div className="bg-purple-500/20 text-purple-400 border border-purple-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <Info className="w-6 h-6" />
+                </div>
+              )}
             </div>
-            <p className="text-[10px] text-slate-400">
-              با استفاده از دوربین نرم‌افزار v2rayNG / Streisand / V2Box این کد را اسکن کنید.
-            </p>
+
+            <div className="space-y-1.5">
+              <h4 className="font-extrabold text-sm text-white">{customModal.title}</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">{customModal.message}</p>
+            </div>
+
             <button
-              onClick={() => setActiveQrModal(null)}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition-all"
+              onClick={closeThemedModal}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-95 transition-all"
             >
-              بستن
+              {customModal.buttonText || "متوجه شدم"}
             </button>
           </div>
         </div>
       )}
 
-      {/* Bottom Sticky Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0f172a]/95 backdrop-blur-xl border-t border-slate-800/80 px-2 py-2 flex items-center justify-around shadow-2xl">
-        <button
-          onClick={() => {
-            setActiveTab("plans");
-            if (window.Telegram?.WebApp?.HapticFeedback) {
-              window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
-          }}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all ${
-            activeTab === "plans" ? "text-indigo-400 font-bold scale-105" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <ShoppingBag className="w-5 h-5" />
-          <span className="text-[10px]">خرید کانفیگ</span>
-        </button>
+      {/* ========================================================================= */}
+      {/* QR CODE MODAL                                                             */}
+      {/* ========================================================================= */}
+      {activeQrModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl text-center animate-fade-in">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <span className="font-bold text-xs text-white">اسکن بارکد اشتراک</span>
+              <button onClick={() => setActiveQrModal(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-        <button
-          onClick={() => {
-            setActiveTab("subs");
-            if (window.Telegram?.WebApp?.HapticFeedback) {
-              window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
-          }}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all relative ${
-            activeTab === "subs" ? "text-indigo-400 font-bold scale-105" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <Zap className="w-5 h-5" />
-          <span className="text-[10px]">سرویس‌های من</span>
-          {subscriptions.length > 0 && (
-            <span className="absolute -top-1 right-2 w-4 h-4 rounded-full bg-indigo-600 text-white text-[9px] font-bold flex items-center justify-center">
-              {subscriptions.length}
-            </span>
-          )}
-        </button>
+            <div className="bg-white p-3 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-lg">
+              <img src={getQrUrl(activeQrModal)} alt="QR Code" className="w-full h-full object-contain" />
+            </div>
 
-        <button
-          onClick={() => {
-            setActiveTab("wallet");
-            if (window.Telegram?.WebApp?.HapticFeedback) {
-              window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
-          }}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all ${
-            activeTab === "wallet" ? "text-indigo-400 font-bold scale-105" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <CreditCard className="w-5 h-5" />
-          <span className="text-[10px]">کیف پول</span>
-        </button>
+            <button
+              onClick={() => copyToClipboard(activeQrModal, "modal-qr-copy")}
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>{copiedId === "modal-qr-copy" ? "لینک کپی شد" : "کپی لینک ساب‌اسکریپشن"}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
-        <button
-          onClick={() => {
-            setActiveTab("profile");
-            if (window.Telegram?.WebApp?.HapticFeedback) {
-              window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
-          }}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all ${
-            activeTab === "profile" ? "text-indigo-400 font-bold scale-105" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <User className="w-5 h-5" />
-          <span className="text-[10px]">پروفایل</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setActiveTab("support");
-            if (window.Telegram?.WebApp?.HapticFeedback) {
-              window.Telegram.WebApp.HapticFeedback.selectionChanged();
-            }
-          }}
-          className={`flex flex-col items-center gap-1 px-3 py-1 rounded-xl transition-all ${
-            activeTab === "support" ? "text-indigo-400 font-bold scale-105" : "text-slate-400 hover:text-slate-200"
-          }`}
-        >
-          <HelpCircle className="w-5 h-5" />
-          <span className="text-[10px]">پشتیبانی</span>
-        </button>
+      {/* ========================================================================= */}
+      {/* BOTTOM NAVIGATION DOCK                                                    */}
+      {/* ========================================================================= */}
+      <nav
+        id="miniapp-bottom-nav"
+        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800/80 py-2 px-2 shadow-2xl"
+      >
+        <div className="max-w-md mx-auto flex items-center justify-around">
+          {[
+            { id: "plans", label: "خرید پلن", icon: ShoppingBag },
+            { id: "subs", label: "سرویس‌های من", icon: HardDrive },
+            { id: "colleagues", label: "همکاران", icon: Users },
+            { id: "wallet", label: "کیف پول", icon: CreditCard },
+            { id: "profile", label: "پروفایل", icon: User },
+            { id: "support", label: "پشتیبانی", icon: Headphones },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`tab-nav-${tab.id}`}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (window.Telegram?.WebApp?.HapticFeedback) {
+                    window.Telegram.WebApp.HapticFeedback.selectionChanged();
+                  }
+                }}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
+                  isActive
+                    ? "text-purple-400 font-extrabold"
+                    : "text-slate-400 hover:text-slate-200 font-medium"
+                }`}
+              >
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? "scale-110 stroke-[2.5]" : "scale-100"}`} />
+                <span className="text-[10px] mt-1 whitespace-nowrap">{tab.label}</span>
+                {isActive && (
+                  <span className="absolute -bottom-1 w-5 h-1 bg-purple-500 rounded-full shadow-md shadow-purple-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );

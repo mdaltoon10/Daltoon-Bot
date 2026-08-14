@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 // Version of the release
-const VERSION = "4.0.2";
+const VERSION = "4.0.3";
 const REPO_OWNER = "mdaltoon10";
 const REPO_NAME = "Daltoon-Bot";
 const REPO = `${REPO_OWNER}/${REPO_NAME}`;
@@ -142,16 +142,20 @@ async function run() {
       tag_name: `v${VERSION}`,
       target_commitish: "main",
       name: `v${VERSION}`,
-      body: `### Daltoon Bot v${VERSION} Stable Release 🚀
+      body: `### Daltoon Bot & Dashboard v${VERSION} Stable Release 🚀
 
 Welcome to the stable **v${VERSION} release** of Daltoon Bot & Dashboard!
 
 #### Key Improvements & Updates:
-- **Full Database-Linked Telegram Mini App**: Completely synchronized Telegram WebApp with real-time SQLite database endpoints (\`/api/miniapp/*\`).
-- **5-Step Config Purchase Workflow**: Server selection, categorized plan picker or custom volume builder (GB × days pricing formula), discount promo validation, and direct wallet or card-to-card checkout.
-- **Instant VLESS/VMess Config Delivery**: Instant QR code generation, one-click clipboard copy, and direct open protocol in v2rayNG, Streisand, and V2Box.
-- **Live User Subscriptions & Management**: Real-time traffic meter, expiry countdown, and free test config delivery.
-- **PWA & Splash Screen Enhancements**: High-resolution icons and offline service worker compatibility.`,
+- **Telegram Mini App Modernization**:
+  - Replaced native browser alerts with custom dark-neon themed dialogs and notifications.
+  - Added dedicated **Co-Workers (همکاران)** panel tab with dedicated quotas, custom prefixes, and zero-balance direct config generation.
+  - Filtered server lists in the purchase flow to exclusively display public customer servers.
+  - Added mandatory Card-to-Card receipt tracking with immediate Telegram admin notifications and one-click inline approval/rejection.
+  - Automatic bot admin detection with **👑 مدیر کل** badge and instant 100% free config creation.
+- **Server & Subscription Enhancements**:
+  - Direct V2Ray / Streisand / V2Box client open protocol links and ultra-sharp QR codes.
+  - Real-time subscription sync with server panel endpoints.`,
       draft: false,
       prerelease: false,
     };

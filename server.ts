@@ -6547,6 +6547,68 @@ app.get("/api/vpn-plans", (req, res) => {
 // ==========================================
 
 // 1. Initial Aggregated Data for MiniApp (User, Plans, Servers, Categories, Configs, Settings)
+// Helper to send instant notification to all bot admins on new receipt submission
+async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
+  try {
+    const botToken = settings.botToken || settings.telegramBotToken || process.env.BOT_TOKEN;
+    if (!botToken || botToken === "DUMMY_TOKEN") return;
+
+    const adminTargets: number[] = [];
+    if (Array.isArray(settings.admins)) {
+      for (const adm of settings.admins) {
+        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
+        if (uid && !isNaN(uid) && !adminTargets.includes(uid)) {
+          adminTargets.push(uid);
+        }
+      }
+    }
+    if (settings.adminId && !isNaN(Number(settings.adminId)) && !adminTargets.includes(Number(settings.adminId))) {
+      adminTargets.push(Number(settings.adminId));
+    }
+    if (settings.admin_id && !isNaN(Number(settings.admin_id)) && !adminTargets.includes(Number(settings.admin_id))) {
+      adminTargets.push(Number(settings.admin_id));
+    }
+    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID)) && !adminTargets.includes(Number(process.env.ADMIN_USER_ID))) {
+      adminTargets.push(Number(process.env.ADMIN_USER_ID));
+    }
+
+    if (adminTargets.length === 0) return;
+
+    const usernameDisplay = tx.username ? `@${tx.username.replace(/^@/, '')}` : `کاربر (${tx.userId})`;
+    const planInfo = tx.pendingPurchase?.planName || tx.description || "خرید اشتراک";
+    const receiptInfo = tx.receiptImage || "ارسال شده در مینی‌اپ";
+    const amountFormatted = Number(tx.amount || 0).toLocaleString("fa-IR");
+
+    const adminMsg = `🔔 <b>رسید جدید برای تایید واریز شد! (مینی‌اپ)</b>\n\n` +
+      `👤 <b>کاربر:</b> ${usernameDisplay} (<code>${tx.userId}</code>)\n` +
+      `💰 <b>مبلغ فاکتور:</b> ${amountFormatted} تومان\n` +
+      `🆔 <b>شناسه تراکنش:</b> <code>${tx.id}</code>\n` +
+      `📦 <b>سرویس انتخابی:</b> ${planInfo}\n` +
+      `📝 <b>شماره پیگیری / فیش:</b> <code>${receiptInfo}</code>\n` +
+      `⏱ <b>زمان ثبت:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}\n\n` +
+      `📥 <i>جهت تایید یا رد مستقیم می‌توانید از پنل داشبورد یا دکمه‌های زیر استفاده کنید:</i>`;
+
+    const inlineMarkup = {
+      inline_keyboard: [
+        [
+          { text: "✅ تایید و فعال‌سازی فوری", callback_data: `tx_app_${tx.id}` },
+          { text: "❌ رد تراکنش", callback_data: `tx_rej_${tx.id}` }
+        ]
+      ]
+    };
+
+    for (const targetId of adminTargets) {
+      try {
+        await sendTelegramMessage(botToken, targetId, adminMsg, inlineMarkup);
+      } catch (err: any) {
+        console.warn(`[Admin Receipt Notify Warning] for ${targetId}:`, err.message);
+      }
+    }
+  } catch (e: any) {
+    console.error("[notifyAdminsOnNewReceipt Error]", e);
+  }
+}
+
 app.get("/api/miniapp/data", async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   try {
@@ -6603,9 +6665,32 @@ app.get("/api/miniapp/data", async (req, res) => {
       }
     }
 
-    // Active Servers
+    // Check if user is an Admin
+    const adminTargets: number[] = [];
+    if (Array.isArray(settings.admins)) {
+      for (const adm of settings.admins) {
+        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
+        if (uid && !isNaN(uid)) adminTargets.push(uid);
+      }
+    }
+    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
+    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
+    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
+    
+    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
+
+    // Active Servers - Filter standard vs colleague
     const rawServers = getActiveServers(settings);
-    const activeServers = rawServers.map((s: any) => {
+
+    const isColleagueServer = (s: any) => {
+      if (!s) return false;
+      if (s.isColleague === true || s.is_reseller === true || s.isReseller === true) return true;
+      const name = (s.name || s.remark || "").toLowerCase();
+      if (name.includes("همکار") || name.includes("colleague") || name.includes("نماینده") || name.includes("reseller")) return true;
+      return false;
+    };
+
+    const mapServerFormat = (s: any) => {
       let flag = "🌐";
       const nameLower = (s.name || s.remark || "").toLowerCase();
       if (nameLower.includes("germany") || nameLower.includes("آلمان") || nameLower.includes("de")) flag = "🇩🇪";
@@ -6626,8 +6711,14 @@ app.get("/api/miniapp/data", async (req, res) => {
         status: s.status || "active",
         protocol: s.protocol || "VLESS",
         inbounds: s.inbounds || [],
+        isColleague: isColleagueServer(s),
       };
-    });
+    };
+
+    // Public servers for normal users
+    const activeServers = rawServers.filter((s: any) => !isColleagueServer(s)).map(mapServerFormat);
+    // Colleague-only servers
+    const colleagueServers = rawServers.filter((s: any) => isColleagueServer(s)).map(mapServerFormat);
 
     // Plan Categories
     const planCategories = (db.plan_categories || []).map((c: any) => ({
@@ -6693,10 +6784,14 @@ app.get("/api/miniapp/data", async (req, res) => {
         walletBalance: Number(currentUser.walletBalance || currentUser.wallet_balance || currentUser.balance || 0),
         status: currentUser.status || "active",
         isBanned: currentUser.status === "banned",
+        isAdmin: isAdmin,
+        role: isAdmin ? "admin" : "user",
         activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
         createdAt: currentUser.createdAt || currentUser.registeredAt || new Date().toISOString()
       } : null,
+      isAdmin,
       servers: activeServers,
+      colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
       planCategories,
       vpnPlans,
       customPricing: {
@@ -6726,6 +6821,168 @@ app.get("/api/miniapp/data", async (req, res) => {
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Colleague Authentication & Operations for MiniApp
+app.post("/api/miniapp/colleague/login", (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({ success: false, error: "نام کاربری و رمز عبور همکار را وارد کنید." });
+    }
+
+    const db = readSqliteDb();
+    const accounts = db.colleague_accounts || [];
+    const acc = accounts.find((a: any) => 
+      String(a.username).trim().toLowerCase() === String(username).trim().toLowerCase() &&
+      String(a.password).trim() === String(password).trim()
+    );
+
+    if (!acc) {
+      return res.status(401).json({ success: false, error: "نام کاربری یا رمز عبور همکار اشتباه است." });
+    }
+
+    // Calculate usage statistics
+    const keys = db.subscription_keys || [];
+    const colKeys = keys.filter((k: any) => isKeyForColleague(k, acc));
+    const totalPkg = Number(acc.trafficGb || 0);
+    const sumAlloc = colKeys.reduce((s: number, k: any) => s + Number(k.trafficLimitGb || 0), 0) + Number(acc.deletedTrafficGb || 0);
+    const sumReal = colKeys.reduce((s: number, k: any) => s + Number(k.trafficUsedGb || 0), 0) + Number(acc.deletedRealTrafficGb || 0);
+    const remainingGb = Math.max(0, totalPkg - sumAlloc);
+
+    res.json({
+      success: true,
+      account: {
+        id: acc.id,
+        username: acc.username,
+        prefix: acc.prefix || "Col",
+        packageTitle: acc.packageTitle || "بسته همکار",
+        trafficGb: totalPkg,
+        allocatedTrafficGb: sumAlloc,
+        usedTrafficGb: sumReal,
+        remainingTrafficGb: remainingGb,
+        expireDate: acc.expireDate || "نامحدود",
+      },
+      clients: colKeys.map((k: any) => ({
+        id: k.id,
+        clientName: k.clientName,
+        trafficLimitGb: k.trafficLimitGb,
+        trafficUsedGb: k.trafficUsedGb || 0,
+        subLink: k.subLink,
+        expireDate: k.expireDate,
+        status: k.status || "active",
+        createdAt: k.createdAt || new Date(k.createdAtMs || Date.now()).toLocaleDateString("fa-IR")
+      }))
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Colleague Create Client (Free for colleague within their allowance)
+app.post("/api/miniapp/colleague/create-client", async (req, res) => {
+  try {
+    const { accountId, serverId, clientUsername, trafficGb, durationDays } = req.body;
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: "شناسه حساب همکار الزامی است." });
+    }
+
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+    const accounts = db.colleague_accounts || [];
+    const acc = accounts.find((a: any) => String(a.id) === String(accountId));
+
+    if (!acc) {
+      return res.status(404).json({ success: false, error: "حساب همکار یافت نشد." });
+    }
+
+    const reqGb = Math.max(1, Number(trafficGb) || 10);
+    const reqDays = Math.max(1, Number(durationDays) || 30);
+
+    // Calculate allowance
+    const keys = db.subscription_keys || [];
+    const colKeys = keys.filter((k: any) => isKeyForColleague(k, acc));
+    const totalPkg = Number(acc.trafficGb || 0);
+    const sumAlloc = colKeys.reduce((s: number, k: any) => s + Number(k.trafficLimitGb || 0), 0) + Number(acc.deletedTrafficGb || 0);
+    const remainingGb = Math.max(0, totalPkg - sumAlloc);
+
+    if (totalPkg > 0 && reqGb > remainingGb) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `حجم درخواستی (${reqGb} GB) بیشتر از حجم مجاز باقیمانده شما (${remainingGb.toFixed(1)} GB) است.` 
+      });
+    }
+
+    const prefix = (acc.prefix || "Col").trim();
+    let baseName = (clientUsername || `usr_${Math.random().toString(36).substring(2, 6)}`)
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, "");
+
+    if (!baseName.startsWith(prefix)) {
+      baseName = `${prefix}_${baseName}`;
+    }
+
+    const vpnResult = await addVpnClientApi(
+      baseName,
+      reqGb,
+      reqDays,
+      settings,
+      undefined,
+      serverId,
+      false
+    );
+
+    if (!vpnResult.success || !vpnResult.subLink) {
+      return res.status(500).json({
+        success: false,
+        error: "خطا در ساخت کانفیگ همکار: " + (vpnResult.error || "خطای نامشخص در اتصال به سرور")
+      });
+    }
+
+    const randomSubId = "COL-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000);
+    const expireDate = new Date(Date.now() + reqDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const newSub = {
+      id: randomSubId,
+      userId: 0,
+      user_id: 0,
+      colleagueAccountId: acc.id,
+      colleagueUsername: acc.username,
+      serverId: serverId || "",
+      planId: `colleague_pkg_${reqGb}gb`,
+      planName: `کانفیگ همکار (${reqGb}GB - ${reqDays} روزه)`,
+      clientName: baseName,
+      clientUuid: vpnResult.clientUuid || "",
+      subLink: vpnResult.subLink,
+      expireDate,
+      trafficLimitGb: reqGb,
+      trafficUsedGb: 0,
+      createdAtMs: Date.now(),
+      status: "active" as const,
+    };
+
+    if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
+    db.subscription_keys.push(newSub);
+    writeSqliteDb(db);
+
+    return res.json({
+      success: true,
+      subKey: newSub,
+      client: {
+        id: newSub.id,
+        clientName: newSub.clientName,
+        trafficLimitGb: newSub.trafficLimitGb,
+        trafficUsedGb: 0,
+        subLink: newSub.subLink,
+        expireDate: newSub.expireDate,
+        status: "active"
+      },
+      message: "کانفیگ همکار با موفقیت ایجاد شد."
+    });
+  } catch (err: any) {
+    console.error("[Colleague Create Error]", err);
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -6771,136 +7028,98 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
     }
 
     discountAmount = Math.min(price, Math.max(0, discountAmount));
-    const finalPrice = Math.max(0, price - discountAmount);
-
-    res.json({
-      success: true,
-      code: promo.code,
-      discountPercent: promo.discountPercent || Math.round((discountAmount / (price || 1)) * 100),
-      discountAmount,
-      finalPrice
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// 3. Purchase Subscription via MiniApp (Wallet or Card-to-Card)
-app.post("/api/miniapp/purchase", async (req, res) => {
-  try {
-    const {
-      userId,
-      username,
-      serverId,
-      planId,
-      customGb,
-      customDays,
-      clientUsername,
-      paymentMethod,
-      promoCode,
-      receiptImage,
-    } = req.body;
-
-    if (!userId || Number(userId) <= 0) {
-      return res.status(400).json({ success: false, error: "شناسه کاربری نامعتبر است." });
+    // Check if user is an Admin
+    const adminTargets: number[] = [];
+    if (Array.isArray(settings.admins)) {
+      for (const adm of settings.admins) {
+        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
+        if (uid && !isNaN(uid)) adminTargets.push(uid);
+      }
     }
+    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
+    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
+    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
+    
+    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
 
-    const tgId = Number(userId);
-    const db = readSqliteDb();
-    const settings = getSystemSettings(db);
+    // If user is Admin or selects admin_free mode, price is 0 and instant create
+    const isFreeAdminPurchase = isAdmin && (paymentMethod === "admin_free" || paymentMethod === "wallet" || paymentMethod === "card_to_card");
+    const finalPrice = isFreeAdminPurchase ? 0 : Math.max(0, originalPrice - discountAmount);
 
-    // Find User
-    if (!Array.isArray(db.users)) db.users = [];
-    let user = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
-    if (!user) {
-      user = {
-        id: tgId,
+    // ==========================================
+    // PAYMENT METHOD: ADMIN FREE CREATION
+    // ==========================================
+    if (isFreeAdminPurchase || paymentMethod === "admin_free") {
+      // Auto-create client on 3x-ui / Rebecca / Marzban with 0 cost
+      const vpnResult = await addVpnClientApi(
+        cleanClientName,
+        trafficGb,
+        durationDays,
+        settings,
+        undefined,
+        serverId,
+        false
+      );
+
+      if (!vpnResult.success || !vpnResult.subLink) {
+        return res.status(500).json({
+          success: false,
+          error: "خطا در ساخت کانفیگ روی سرور: " + (vpnResult.error || "پاسخی از پنل سرور دریافت نشد.")
+        });
+      }
+
+      // Generate Subscription Record in DB
+      const randomSubId = "ADMIN-" + Date.now() + "-" + Math.floor(Math.random() * 90000 + 10000);
+      const expireDate = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      const newSub = {
+        id: randomSubId,
         userId: tgId,
         user_id: tgId,
-        username: username || `user_${tgId}`,
-        walletBalance: 0,
-        status: "active",
-        activePlansCount: 0,
-        createdAt: new Date().toISOString()
+        serverId: serverId || "",
+        planId: planId || "admin_plan_" + Date.now(),
+        planName: `${planName} (👑 ویژه مدیر کل)`,
+        clientName: cleanClientName,
+        clientUuid: vpnResult.clientUuid || "",
+        subLink: vpnResult.subLink,
+        expireDate,
+        trafficLimitGb: trafficGb,
+        trafficUsedGb: 0,
+        createdAtMs: Date.now(),
+        status: "active" as const,
       };
-      db.users.push(user);
-    }
 
-    if (user.status === "banned") {
-      return res.status(403).json({ success: false, error: "حساب کاربری شما مسدود شده است." });
-    }
+      if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
+      db.subscription_keys.push(newSub);
 
-    // Clean client username
-    const cleanClientName = (clientUsername || `user_${tgId}_${Math.random().toString(36).substring(2, 6)}`)
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "");
+      // Record Transaction with 0 cost
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-ADM-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `admin_${tgId}`,
+        amount: 0,
+        status: "approved",
+        type: "admin_free",
+        date: new Date().toISOString(),
+        description: `ساخت رایگان کانفیگ ${planName} (ویژه ادمین/مدیریت)`
+      };
+      db.transactions.push(newTx);
 
-    if (cleanClientName.length < 3) {
-      return res.status(400).json({ success: false, error: "نام کاربری کانفیگ باید حداقل ۳ حرف انگلیسی یا عدد باشد." });
-    }
+      // Update user active count
+      user.activePlansCount = db.subscription_keys.filter((k: any) => Number(k.userId) === tgId && k.status === "active").length;
+      writeSqliteDb(db);
 
-    // Determine traffic, duration, plan name, price
-    let trafficGb = 30;
-    let durationDays = 30;
-    let planName = "اشتراک اختصاصی";
-    let originalPrice = 0;
-
-    if (planId === "custom") {
-      trafficGb = Math.max(1, Number(customGb) || 30);
-      durationDays = Math.max(1, Number(customDays) || 30);
-      planName = `کانفیگ دلخواه ${trafficGb}GB (${durationDays} روزه)`;
-
-      // Custom pricing calculation
-      let panelConfig: any = {};
-      try {
-        panelConfig = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
-      } catch (e) {
-        panelConfig = {};
-      }
-      const customBoxes = panelConfig.customPricingBoxes || settings.customPricingBoxes || [];
-      let priceGb = 3000;
-      let priceDay = 2000;
-
-      if (Array.isArray(customBoxes)) {
-        for (const box of customBoxes) {
-          if (box && Array.isArray(box.serverIds) && box.serverIds.includes(serverId)) {
-            priceGb = Number(box.pricePerGb) || priceGb;
-            priceDay = Number(box.pricePerDay) || priceDay;
-            break;
-          }
+      return res.json({
+        success: true,
+        subKey: newSub,
+        user: {
+          walletBalance: user.walletBalance,
+          activePlansCount: user.activePlansCount,
+          isAdmin: true
         }
-      }
-      originalPrice = (trafficGb * priceGb) + (durationDays * priceDay);
-    } else {
-      const vpnPlans = db.vpn_plans || [];
-      const plan = vpnPlans.find((p: any) => String(p.id) === String(planId));
-      if (!plan) {
-        return res.status(404).json({ success: false, error: "پلن انتخاب شده یافت نشد." });
-      }
-      trafficGb = Number(plan.trafficGb || plan.traffic_gb || 30);
-      durationDays = Number(plan.durationDays || plan.duration_days || 30);
-      planName = plan.name || `طرح ${trafficGb}GB`;
-      originalPrice = Number(plan.price || 0);
+      });
     }
-
-    // Promo Code discount calculation
-    let discountAmount = 0;
-    let appliedPromoObj: any = null;
-    if (promoCode && promoCode.trim()) {
-      const cleanPromo = promoCode.trim().toUpperCase();
-      const promoCodes = db.promo_codes || [];
-      appliedPromoObj = promoCodes.find((p: any) => (p.code || "").trim().toUpperCase() === cleanPromo);
-      if (appliedPromoObj) {
-        if (appliedPromoObj.discountPercent) {
-          discountAmount = Math.floor((originalPrice * Number(appliedPromoObj.discountPercent)) / 100);
-        } else if (appliedPromoObj.discountAmount) {
-          discountAmount = Number(appliedPromoObj.discountAmount);
-        }
-        discountAmount = Math.min(originalPrice, Math.max(0, discountAmount));
-      }
-    }
-
-    const finalPrice = Math.max(0, originalPrice - discountAmount);
 
     // ==========================================
     // PAYMENT METHOD 1: WALLET
@@ -7031,6 +7250,11 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       };
       db.transactions.push(newTx);
       writeSqliteDb(db);
+
+      // Send instant Telegram notification to all Bot Admins
+      notifyAdminsOnNewReceipt(newTx, db, settings).catch((err) => {
+        console.warn("[Admin Notification Warning]", err);
+      });
 
       return res.json({
         success: true,
