@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { getThemeStyles } from "../utils/theme";
 import {
   ShoppingBag,
   CreditCard,
@@ -36,7 +37,8 @@ import {
   KeyRound,
   LogOut,
   X,
-  Crown
+  Crown,
+  Wallet
 } from "lucide-react";
 
 declare global {
@@ -119,6 +121,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     hasUsed: false,
   });
   const [systemSettings, setSystemSettings] = useState<any>({});
+
+  // Active Theme Computation synced with Dashboard
+  const activeDashboardTheme = systemSettings?.dashboard_theme || systemSettings?.dashboardTheme || localStorage.getItem("dashboard_theme") || "default";
+  const isLightMode = systemSettings?.theme_mode === "light" || localStorage.getItem("theme") === "light";
+
+  useEffect(() => {
+    if (isLightMode) {
+      document.body.classList.add("light");
+    } else {
+      document.body.classList.remove("light");
+    }
+  }, [isLightMode]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [tickets, setTickets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -169,9 +183,28 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [colleagueLoggedIn, setColleagueLoggedIn] = useState<boolean>(false);
   const [colleagueAccount, setColleagueAccount] = useState<any>(null);
   const [colleagueClients, setColleagueClients] = useState<any[]>([]);
+  const [colleaguePackages, setColleaguePackages] = useState<any[]>([]);
+  const [userColleagueAccounts, setUserColleagueAccounts] = useState<any[]>([]);
+  const [colleagueSubTab, setColleagueSubTab] = useState<"menu" | "login" | "packages" | "recover">("menu");
   const [colleagueUsernameInput, setColleagueUsernameInput] = useState<string>("");
   const [colleaguePasswordInput, setColleaguePasswordInput] = useState<string>("");
   const [colleagueLoggingIn, setColleagueLoggingIn] = useState<boolean>(false);
+
+  // Colleague Package Purchase State
+  const [selectedColleaguePkg, setSelectedColleaguePkg] = useState<any>(null);
+  const [colleaguePrefixInput, setColleaguePrefixInput] = useState<string>("Col");
+  const [colleagueTokenInput, setColleagueTokenInput] = useState<string>("");
+  const [colleaguePaymentMethod, setColleaguePaymentMethod] = useState<"wallet" | "card_to_card" | "admin_free">("wallet");
+  const [colleagueCardReceipt, setColleagueCardReceipt] = useState<string>("");
+  const [buyingColleaguePkg, setBuyingColleaguePkg] = useState<boolean>(false);
+
+  // Colleague Password Recovery State
+  const [recoverTokenInput, setRecoverTokenInput] = useState<string>("");
+  const [verifyingRecoveryToken, setVerifyingRecoveryToken] = useState<boolean>(false);
+  const [verifiedRecoveryAccount, setVerifiedRecoveryAccount] = useState<any>(null);
+  const [newColleagueUsername, setNewColleagueUsername] = useState<string>("");
+  const [newColleaguePassword, setNewColleaguePassword] = useState<string>("");
+  const [updatingColleagueCredentials, setUpdatingColleagueCredentials] = useState<boolean>(false);
 
   // Colleague Create Client Modal/State
   const [isColleagueCreateOpen, setIsColleagueCreateOpen] = useState<boolean>(false);
@@ -226,6 +259,46 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     fetchMiniAppData(detectedUser);
   }, []);
 
+  // Safe network fetch helper to prevent "Unexpected end of JSON input" and unhandled 500s
+  const safeFetchJson = async (url: string, options: RequestInit = {}): Promise<{ ok: boolean; status: number; data: any; error?: string }> => {
+    try {
+      const res = await fetch(url, options);
+      let parsed: any = null;
+      try {
+        const text = await res.text();
+        if (text && text.trim()) {
+          parsed = JSON.parse(text);
+        }
+      } catch (parseErr) {
+        console.warn(`[SafeFetch] JSON parse issue from ${url}:`, parseErr);
+      }
+
+      if (!parsed) {
+        return {
+          ok: false,
+          status: res.status,
+          data: null,
+          error: res.ok ? "پاسخی از سرور دریافت نشد." : `خطای سرور (کد وضعیت: ${res.status}). لطفاً تنظیمات سرور و پنل را بررسی کنید.`
+        };
+      }
+
+      const isSuccess = res.ok && parsed.success !== false;
+      return {
+        ok: isSuccess,
+        status: res.status,
+        data: parsed,
+        error: parsed.error || (!isSuccess ? `خطا در اجرای عملیات (${res.status})` : undefined)
+      };
+    } catch (netErr: any) {
+      return {
+        ok: false,
+        status: 0,
+        data: null,
+        error: netErr.message || "خطا در اتصال به شبکه یا سرور."
+      };
+    }
+  };
+
   const fetchMiniAppData = async (userObj?: any) => {
     const user = userObj || tgUser;
     if (!user?.id) return;
@@ -241,11 +314,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         last_name: user.last_name || "",
       });
 
-      const res = await fetch(`/api/miniapp/data?${params.toString()}`);
-      if (!res.ok) throw new Error("خطا در دریافت اطلاعات از سرور");
-
-      const data = await res.json();
-      if (data.success) {
+      const { ok, data, error } = await safeFetchJson(`/api/miniapp/data?${params.toString()}`);
+      if (ok && data?.success) {
         setUserData(data.user);
         setIsAdmin(!!data.isAdmin || !!data.user?.isAdmin);
         setServers(data.servers || []);
@@ -268,13 +338,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         setSubscriptions(data.subscriptions || []);
         setTickets(data.tickets || []);
         setTransactions(data.transactions || []);
+        setColleaguePackages(data.colleaguePackages || []);
+        setUserColleagueAccounts(data.userColleagueAccounts || []);
+        if (data.colleaguePackages && data.colleaguePackages.length > 0 && !selectedColleaguePkg) {
+          setSelectedColleaguePkg(data.colleaguePackages[0]);
+        }
 
         // Auto-select first server if available
         if (data.servers && data.servers.length > 0 && !selectedServer) {
           setSelectedServer(data.servers[0]);
         }
       } else {
-        setErrorMessage(data.error || "خطای نامشخص در دریافت اطلاعات");
+        setErrorMessage(error || data?.error || "خطای نامشخص در دریافت اطلاعات");
       }
     } catch (err: any) {
       console.error("MiniApp fetch error:", err);
@@ -350,7 +425,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     setPromoError(null);
     try {
       const basePrice = planMode === "custom" ? customCalculatedPrice : (selectedPlan?.price || 0);
-      const res = await fetch("/api/miniapp/validate-promo", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/validate-promo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -360,12 +435,11 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setAppliedPromo(data);
         showThemedModal("تخفیف اعمال شد", `کد تخفیف با موفقیت اعمال شد. مبلغ تخفیف: ${Number(data.discountAmount || 0).toLocaleString("fa-IR")} تومان`, "success");
       } else {
-        setPromoError(data.error || "کد تخفیف نامعتبر است.");
+        setPromoError(error || data?.error || "کد تخفیف نامعتبر است.");
         setAppliedPromo(null);
       }
     } catch (err: any) {
@@ -397,7 +471,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     setPurchasing(true);
     try {
-      const res = await fetch("/api/miniapp/purchase", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/purchase", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -405,6 +479,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           username: tgUser?.username || `user_${tgUser?.id}`,
           serverId: String(selectedServer.id),
           planId: planMode === "custom" ? "custom" : selectedPlan.id,
+          planName: planMode === "custom" ? `پلن دلخواه (${customGb}GB - ${customDays} روز)` : selectedPlan?.name,
           customGb: planMode === "custom" ? customGb : undefined,
           customDays: planMode === "custom" ? customDays : undefined,
           clientUsername: clientUsername.trim() || `usr_${tgUser?.id}_${Math.random().toString(36).substring(2, 6)}`,
@@ -414,8 +489,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         if (data.subKey) {
           setDeliveredSubKey(data.subKey);
           setPurchaseStep(5); // Go to instant delivery view
@@ -435,7 +509,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           );
         }
       } else {
-        showThemedModal("خطا در پرداخت", data.error || "خطا در انجام تراکنش", "error");
+        showThemedModal("خطا در ایجاد سرویس", error || data?.error || "خطا در ساخت کانفیگ روی سرور. لطفاً اتصال پنل و سرورها را بررسی کنید.", "error");
       }
     } catch (err: any) {
       showThemedModal("خطای سرور", err.message || "خطا در برقراری ارتباط با سرور", "error");
@@ -454,7 +528,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     setClaimingTest(true);
     try {
       const defaultServer = selectedServer || servers[0];
-      const res = await fetch("/api/miniapp/free-test", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/free-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -464,21 +538,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success && data.subKey) {
+      if (ok && data?.success && data?.subKey) {
         setTestSuccessSub(data.subKey);
         fetchMiniAppData();
         showThemedModal("تبریک!", "اکانت تست رایگان شما با موفقیت فعال شد.", "success");
       } else {
-        showThemedModal("خطا در دریافت تست", data.error || "خطا در دریافت تست رایگان", "error");
+        showThemedModal("خطا در دریافت تست", error || data?.error || "خطا در دریافت تست رایگان", "error");
       }
     } catch (err: any) {
-      showThemedModal("خطای اتصال", err.message || "خطا در ارتباط با سرور", "error");
+      showThemedModal("خطای سرور", err.message || "خطا در دریافت اکانت تست", "error");
     } finally {
       setClaimingTest(false);
     }
   };
-
   // Submit Wallet Deposit (Card to Card)
   const handleSubmitDeposit = async () => {
     if (!depositAmount || depositAmount < 10000) {
@@ -494,7 +566,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     setDepositing(true);
     setDepositMessage(null);
     try {
-      const res = await fetch("/api/miniapp/wallet/deposit", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/wallet/deposit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -506,14 +578,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setDepositMessage(data.message || "درخواست شارژ با موفقیت ثبت شد.");
         setDepositReceipt("");
         fetchMiniAppData();
         showThemedModal("رسید واریز ثبت شد", data.message || "درخواست افزایش موجودی شما با موفقیت ثبت گردید و اعلان آن به مدیر ارسال شد.", "success");
       } else {
-        showThemedModal("خطا در ثبت شارژ", data.error || "خطا در ثبت درخواست شارژ", "error");
+        showThemedModal("خطا در ثبت شارژ", error || data?.error || "خطا در ثبت درخواست شارژ", "error");
       }
     } catch (err: any) {
       showThemedModal("خطای شبکه", err.message || "خطا در ارتباط با سرور", "error");
@@ -531,7 +602,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     setSubmittingTicket(true);
     try {
-      const res = await fetch("/api/miniapp/ticket/send", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/ticket/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -542,14 +613,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setTicketSubject("");
         setTicketMessage("");
         fetchMiniAppData();
         showThemedModal("تیکت ارسال شد", "پیام پشتیبانی شما ثبت شد و به زودی پاسخ داده خواهد شد.", "success");
       } else {
-        showThemedModal("خطا در ارسال تیکت", data.error || "خطا در ارسال تیکت پشتیبانی", "error");
+        showThemedModal("خطا در ارسال تیکت", error || data?.error || "خطا در ارسال تیکت پشتیبانی", "error");
       }
     } catch (err: any) {
       showThemedModal("خطای شبکه", err.message || "خطا در ارتباط با سرور", "error");
@@ -563,7 +633,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     if (!activeTicketChat || !replyMessage.trim()) return;
 
     try {
-      const res = await fetch("/api/miniapp/ticket/reply", {
+      const { ok, data } = await safeFetchJson("/api/miniapp/ticket/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -573,14 +643,191 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setReplyMessage("");
         fetchMiniAppData();
         if (data.ticket) setActiveTicketChat(data.ticket);
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Quick Login for Owned Colleague Account
+  const handleQuickLoginColleague = async (acc: any) => {
+    setColleagueUsernameInput(acc.username);
+    setColleaguePasswordInput(acc.password);
+    setColleagueLoggingIn(true);
+    try {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: acc.username,
+          password: acc.password,
+        }),
+      });
+      if (ok && data?.success) {
+        setColleagueAccount(data.account);
+        setColleagueClients(data.clients || []);
+        setColleagueLoggedIn(true);
+        if (colleagueServers.length > 0) {
+          setColleagueSelectedServer(colleagueServers[0]);
+        } else if (servers.length > 0) {
+          setColleagueSelectedServer(servers[0]);
+        }
+        showThemedModal("ورود موفق", `ورود به حساب (${data.account.username}) انجام شد.`, "success");
+      } else {
+        showThemedModal("خطا در ورود", error || data?.error || "خطا در ورود به حساب همکار", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setColleagueLoggingIn(false);
+    }
+  };
+
+  // Buy Colleague Package Flow
+  const handleColleagueBuyPackage = async () => {
+    if (!selectedColleaguePkg) {
+      showThemedModal("انتخاب بسته", "لطفاً یک بسته همکار را انتخاب نمایید.", "warning");
+      return;
+    }
+
+    if (!colleaguePrefixInput.trim()) {
+      showThemedModal("پیشوند الزامی است", "لطفاً پیشوند دلخواه برای ساخت نام کاربری کاربران را مشخص کنید (مثلاً VIP یا Col).", "warning");
+      return;
+    }
+
+    if (!colleagueTokenInput.trim()) {
+      showThemedModal("توکن بازیابی الزامی است", "لطفاً یک توکن امنیتی دلخواه جهت بازیابی رمز عبور وارد نمایید.", "warning");
+      return;
+    }
+
+    if (!isAdmin && colleaguePaymentMethod === "card_to_card" && !colleagueCardReceipt.trim()) {
+      showThemedModal("شناسه تراکنش الزامی است", "لطفاً شناسه واریز یا شماره پیگیری تراکنش کارت به کارت را وارد کنید.", "warning");
+      return;
+    }
+
+    setBuyingColleaguePkg(true);
+    try {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/buy-package", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: tgUser?.id,
+          username: tgUser?.username || `user_${tgUser?.id}`,
+          packageId: selectedColleaguePkg.id,
+          prefix: colleaguePrefixInput.trim(),
+          recoveryToken: colleagueTokenInput.trim(),
+          paymentMethod: isAdmin ? "admin_free" : colleaguePaymentMethod,
+          receiptImage: colleagueCardReceipt || undefined,
+        }),
+      });
+
+      if (ok && data?.success) {
+        if (data.account) {
+          showThemedModal(
+            "🎉 حساب همکار فعال شد!",
+            `حساب همکاری شما با موفقیت ایجاد شد.\n👤 نام کاربری: ${data.account.username}\n🔑 رمز عبور: ${data.account.password}\n🛡 پیشوند: ${data.account.prefix}\nحجم پکیج: ${data.account.trafficGb} GB`,
+            "success",
+            "ورود به پنل همکار",
+            () => {
+              setColleagueAccount(data.account);
+              setColleagueClients([]);
+              setColleagueLoggedIn(true);
+              if (colleagueServers.length > 0) setColleagueSelectedServer(colleagueServers[0]);
+              fetchMiniAppData();
+            }
+          );
+        } else if (data.pendingApproval) {
+          showThemedModal("رسید ثبت شد", data.message || "رسید خرید بسته همکار ثبت شد و پس از تایید مدیریت فعال می‌گردد.", "success");
+          fetchMiniAppData();
+        }
+      } else {
+        showThemedModal("خطا در خرید بسته", error || data?.error || "خطا در پردازش خرید بسته همکار", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setBuyingColleaguePkg(false);
+    }
+  };
+
+  // Colleague Password Recovery Flow - Step 1: Verify Token
+  const handleVerifyRecoveryToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!recoverTokenInput.trim()) {
+      showThemedModal("توکن الزامی است", "لطفاً توکن امنیتی بازیابی خود را وارد نمایید.", "warning");
+      return;
+    }
+
+    setVerifyingRecoveryToken(true);
+    try {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/verify-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recoveryToken: recoverTokenInput.trim(),
+        }),
+      });
+
+      if (ok && data?.success && data.account) {
+        setVerifiedRecoveryAccount(data.account);
+        setNewColleagueUsername(data.account.username || "");
+        setNewColleaguePassword("");
+      } else {
+        showThemedModal("خطای بازیابی", error || data?.error || "توکن امنیتی بازیابی یافت نشد یا نامعتبر است.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setVerifyingRecoveryToken(false);
+    }
+  };
+
+  // Colleague Password Recovery Flow - Step 2: Update Credentials
+  const handleUpdateColleagueCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newColleagueUsername.trim() || !newColleaguePassword.trim()) {
+      showThemedModal("اطلاعات ناقص", "لطفاً نام کاربری جدید و کلمه عبور جدید را وارد نمایید.", "warning");
+      return;
+    }
+
+    setUpdatingColleagueCredentials(true);
+    try {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/recover-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recoveryToken: recoverTokenInput.trim(),
+          newUsername: newColleagueUsername.trim(),
+          newPassword: newColleaguePassword.trim(),
+        }),
+      });
+
+      if (ok && data?.success && data.account) {
+        showThemedModal(
+          "تغییر موفقیت‌آمیز",
+          `اطلاعات حساب همکار شما با موفقیت بروزرسانی شد.\n👤 نام کاربری جدید: ${data.account.username}\n🔑 رمز عبور جدید: ${data.account.password}`,
+          "success",
+          "ورود به حساب",
+          () => {
+            setColleagueUsernameInput(data.account.username);
+            setColleaguePasswordInput(data.account.password);
+            setColleagueSubTab("login");
+            setVerifiedRecoveryAccount(null);
+            setRecoverTokenInput("");
+            fetchMiniAppData();
+          }
+        );
+      } else {
+        showThemedModal("خطای بروزرسانی", error || data?.error || "خطا در بروزرسانی اطلاعات.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
+    } finally {
+      setUpdatingColleagueCredentials(false);
     }
   };
 
@@ -594,7 +841,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     setColleagueLoggingIn(true);
     try {
-      const res = await fetch("/api/miniapp/colleague/login", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -603,8 +850,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setColleagueAccount(data.account);
         setColleagueClients(data.clients || []);
         setColleagueLoggedIn(true);
@@ -615,7 +861,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }
         showThemedModal("ورود موفق", `همکار گرامی (${data.account.username}) خوش آمدید.`, "success");
       } else {
-        showThemedModal("خطا در ورود", data.error || "نام کاربری یا رمز عبور همکار اشتباه است.", "error");
+        showThemedModal("خطا در ورود", error || data?.error || "نام کاربری یا رمز عبور همکار اشتباه است.", "error");
       }
     } catch (err: any) {
       showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
@@ -645,7 +891,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     setColleagueCreatingClient(true);
     try {
-      const res = await fetch("/api/miniapp/colleague/create-client", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/colleague/create-client", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -657,8 +903,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success) {
+      if (ok && data?.success) {
         setIsColleagueCreateOpen(false);
         setColleagueNewClientName("");
         if (data.client) {
@@ -673,7 +918,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
         showThemedModal("✅ کانفیگ همکار ساخته شد", "کانفیگ با موفقیت در پنل سرور تعریف شد و در لیست کلاینت‌های شما قرار گرفت.", "success");
       } else {
-        showThemedModal("خطا در ساخت کانفیگ", data.error || "خطا در ایجاد سرویس همکار", "error");
+        showThemedModal("خطا در ساخت کانفیگ", error || data?.error || "خطا در ایجاد سرویس همکار", "error");
       }
     } catch (err: any) {
       showThemedModal("خطای سرور", err.message || "خطا در ارتباط با سرور", "error");
@@ -693,6 +938,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       dir="rtl"
       className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24 select-none relative overflow-x-hidden selection:bg-purple-500 selection:text-white"
     >
+      <style>{getThemeStyles(activeDashboardTheme)}</style>
       {/* Background Neon Gradients */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute -top-32 -left-32 w-80 h-80 bg-purple-600/15 rounded-full blur-3xl" />
@@ -1739,60 +1985,498 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         {activeTab === "colleagues" && !loading && (
           <div id="view-colleagues-portal" className="space-y-4">
             {!colleagueLoggedIn ? (
-              /* Colleague Login Form */
-              <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
-                <div className="text-center space-y-1.5">
-                  <div className="w-12 h-12 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-purple-500/20">
-                    <KeyRound className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-extrabold text-base text-white">
-                    ورود به پنل اختصاصی همکاران
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    همکاران گرامی می‌توانند با وارد کردن نام کاربری و کلمه عبور اختصاصی خود، بدون پرداخت هزینه و از محل پکیج مجاز خود کانفیگ بسازند.
-                  </p>
-                </div>
+              <div className="space-y-4">
+                {/* 1. Main 3-Row Menu Mode */}
+                {colleagueSubTab === "menu" && (
+                  <div className="space-y-4">
+                    {/* Header Banner */}
+                    <div className="rounded-3xl bg-gradient-to-b from-slate-900 via-slate-900/90 to-purple-950/40 border border-purple-500/30 p-5 text-center space-y-2 shadow-xl relative overflow-hidden">
+                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
+                      <div className="w-12 h-12 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-purple-500/20">
+                        <Users className="w-6 h-6" />
+                      </div>
+                      <h3 className="font-extrabold text-base text-white">
+                        بخش ویژه همکاران و نمایندگان
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                        مدیریت پکیج‌های ترافیکی حجمی، ساخت کانفیگ اختصاصی و اتصال به سرورهای پرسرعت همکاران
+                      </p>
+                    </div>
 
-                <form onSubmit={handleColleagueLogin} className="space-y-3 pt-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-purple-400" />
-                      <span>نام کاربری همکار:</span>
-                    </label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      placeholder="Colleague Username"
-                      value={colleagueUsernameInput}
-                      onChange={(e) => setColleagueUsernameInput(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
+                    {/* 3 Sequential Row Menu Items */}
+                    <div className="space-y-3">
+                      {/* Row 1: خرید بسته همکاری */}
+                      <button
+                        onClick={() => setColleagueSubTab("packages")}
+                        className="w-full text-right p-4 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-amber-500/30 hover:border-amber-500/60 transition-all group relative overflow-hidden shadow-lg shadow-amber-500/5 active:scale-[0.99] flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-md shadow-amber-500/10">
+                            <Sparkles className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-sm text-white group-hover:text-amber-300 transition-colors">
+                                خرید بسته همکاری
+                              </span>
+                              <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                                تخفیف عمده
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1">
+                              خرید پکیج حجمی و دریافت آنی نام کاربری و پیشوند دلخواه
+                            </p>
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-amber-300 group-hover:bg-slate-700 shrink-0 transition-all mr-2">
+                          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                        </div>
+                      </button>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                      <Lock className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>کلمه عبور همکار:</span>
-                    </label>
-                    <input
-                      type="password"
-                      dir="ltr"
-                      placeholder="••••••••"
-                      value={colleaguePasswordInput}
-                      onChange={(e) => setColleaguePasswordInput(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
+                      {/* Row 2: ورود به حساب همکار (اگر از قبل بسته خریداری کرده اید) */}
+                      <button
+                        onClick={() => setColleagueSubTab("login")}
+                        className="w-full text-right p-4 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-purple-500/30 hover:border-purple-500/60 transition-all group relative overflow-hidden shadow-lg shadow-purple-500/5 active:scale-[0.99] flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-md shadow-purple-500/10">
+                            <KeyRound className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-sm text-white group-hover:text-purple-300 transition-colors">
+                                ورود به حساب همکار
+                              </span>
+                              {userColleagueAccounts.length > 0 && (
+                                <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                                  {userColleagueAccounts.length} حساب فعال
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-purple-300/80 font-medium mt-0.5">
+                              (اگر از قبل بسته خریداری کرده اید)
+                            </p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              ورود به پنل و ساخت نامحدود کانفیگ از سهمیه پکیج
+                            </p>
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-purple-300 group-hover:bg-slate-700 shrink-0 transition-all mr-2">
+                          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                        </div>
+                      </button>
 
-                  <button
-                    type="submit"
-                    disabled={colleagueLoggingIn || !colleagueUsernameInput || !colleaguePasswordInput}
-                    className="w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
-                  >
-                    {colleagueLoggingIn ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
-                    <span>ورود به حساب همکار</span>
-                  </button>
-                </form>
+                      {/* Row 3: بازیابی رمز عبور همکار */}
+                      <button
+                        onClick={() => setColleagueSubTab("recover")}
+                        className="w-full text-right p-4 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-indigo-500/30 hover:border-indigo-500/60 transition-all group relative overflow-hidden shadow-lg shadow-indigo-500/5 active:scale-[0.99] flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-md shadow-indigo-500/10">
+                            <RefreshCw className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-extrabold text-sm text-white group-hover:text-indigo-300 transition-colors">
+                                بازیابی رمز عبور همکار
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-1">
+                              بازیابی آنی کلمه عبور با استفاده از توکن امنیتی اختصاصی
+                            </p>
+                          </div>
+                        </div>
+                        <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-indigo-300 group-hover:bg-slate-700 shrink-0 transition-all mr-2">
+                          <ChevronLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dedicated Page 1: Buy Colleague Package */}
+                {colleagueSubTab === "packages" && (
+                  <div className="space-y-3">
+                    {/* Back Button */}
+                    <button
+                      type="button"
+                      onClick={() => setColleagueSubTab("menu")}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold transition-all group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ArrowRight className="w-4 h-4 text-amber-400 group-hover:-translate-x-1 transition-transform" />
+                        <span>بازگشت به منوی گزینه‌های همکار</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500">منوی اصلی</span>
+                    </button>
+
+                    <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
+                      <div className="text-center space-y-1">
+                        <div className="w-12 h-12 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-amber-500/20">
+                          <Sparkles className="w-6 h-6" />
+                        </div>
+                        <h3 className="font-extrabold text-base text-white">
+                          خرید بسته ویژه همکاران
+                        </h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          با خرید بسته همکار، یک حساب کاربری اختصاصی با پیشوند و توکن دلخواه شما تولید می‌شود و می‌توانید با آن کانفیگ‌های دلخواه بسازید.
+                        </p>
+                      </div>
+
+                      {/* Colleague Packages List */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-slate-300">انتخاب پکیج همکار:</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {colleaguePackages.map((pkg) => {
+                            const isSelected = selectedColleaguePkg?.id === pkg.id;
+                            return (
+                              <div
+                                key={pkg.id}
+                                onClick={() => setSelectedColleaguePkg(pkg)}
+                                className={`p-3.5 rounded-2xl cursor-pointer border transition-all relative ${
+                                  isSelected
+                                    ? "bg-purple-950/60 border-purple-500 shadow-md shadow-purple-500/20"
+                                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                                }`}
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div>
+                                    <div className="font-bold text-xs text-white">{pkg.title}</div>
+                                    <div className="text-[10px] text-purple-300 mt-0.5">
+                                      حجم: {pkg.trafficGb} گیگ • مدت: {pkg.durationDays} روز
+                                    </div>
+                                  </div>
+                                  <div className="text-right font-mono font-extrabold text-amber-400 text-xs">
+                                    {Number(pkg.price || 0).toLocaleString("fa-IR")} ت
+                                  </div>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-2 line-clamp-2">
+                                  {pkg.description}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Account Settings: Prefix & Recovery Token */}
+                      <div className="grid grid-cols-2 gap-2 pt-2">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300">پیشوند کانفیگ‌ها:</label>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="مثلاً VIP یا Col"
+                            value={colleaguePrefixInput}
+                            onChange={(e) => setColleaguePrefixInput(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300">توکن امنیتی بازیابی:</label>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="کد امنیتی دلخواه"
+                            value={colleagueTokenInput}
+                            onChange={(e) => setColleagueTokenInput(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Payment Method */}
+                      <div className="space-y-2 pt-2 border-t border-slate-800">
+                        <label className="text-xs font-bold text-slate-300">روش پرداخت:</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setColleaguePaymentMethod("wallet")}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                              colleaguePaymentMethod === "wallet"
+                                ? "bg-purple-600/30 border-purple-500 text-purple-200"
+                                : "bg-slate-950 border-slate-800 text-slate-400"
+                            }`}
+                          >
+                            <Wallet className="w-3.5 h-3.5" />
+                            <span>{isAdmin ? "رایگان (مدیریت)" : "موجودی کیف پول"}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setColleaguePaymentMethod("card_to_card")}
+                            className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                              colleaguePaymentMethod === "card_to_card"
+                                ? "bg-purple-600/30 border-purple-500 text-purple-200"
+                                : "bg-slate-950 border-slate-800 text-slate-400"
+                            }`}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            <span>کارت به کارت</span>
+                          </button>
+                        </div>
+
+                        {/* Mandatory Card Receipt Input */}
+                        {colleaguePaymentMethod === "card_to_card" && (
+                          <div className="space-y-1.5 p-3 rounded-2xl bg-slate-950 border border-purple-900/40">
+                            <div className="text-[11px] text-purple-300 font-bold">
+                              💳 شماره کارت مقصد: {systemSettings.CARD_NUMBER || "۶۰۳۷۹۹۷۵۰۰۰۰۰۰۰۰"} ({systemSettings.CARD_HOLDER || "مدیریت"})
+                            </div>
+                            <input
+                              type="text"
+                              placeholder="شناسه پیگیری یا شماره فیش واریزی (اجباری) *"
+                              value={colleagueCardReceipt}
+                              onChange={(e) => setColleagueCardReceipt(e.target.value)}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={handleColleagueBuyPackage}
+                        disabled={buyingColleaguePkg || (colleaguePaymentMethod === "card_to_card" && !colleagueCardReceipt.trim())}
+                        className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                      >
+                        {buyingColleaguePkg ? (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        <span>
+                          {isAdmin ? "فعال‌سازی فوری بسته همکار (رایگان ویژه ادمین)" : "تکمیل خرید و دریافت نام کاربری و رمز همکار"}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dedicated Page 2: Colleague Login */}
+                {colleagueSubTab === "login" && (
+                  <div className="space-y-3">
+                    {/* Back Button */}
+                    <button
+                      type="button"
+                      onClick={() => setColleagueSubTab("menu")}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold transition-all group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ArrowRight className="w-4 h-4 text-purple-400 group-hover:-translate-x-1 transition-transform" />
+                        <span>بازگشت به منوی گزینه‌های همکار</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500">منوی اصلی</span>
+                    </button>
+
+                    <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
+                      <div className="text-center space-y-1.5">
+                        <div className="w-12 h-12 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-purple-500/20">
+                          <KeyRound className="w-6 h-6" />
+                        </div>
+                        <h3 className="font-extrabold text-base text-white">
+                          ورود به حساب اختصاصی همکار
+                        </h3>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                          با وارد کردن نام کاربری و کلمه عبور اختصاصی خود وارد شده و به صورت رایگان از سهمیه پکیج خود کانفیگ بسازید.
+                        </p>
+                      </div>
+
+                      {/* Saved Accounts Quick Login */}
+                      {userColleagueAccounts.length > 0 && (
+                        <div className="p-3 bg-purple-950/40 border border-purple-800/40 rounded-2xl space-y-2">
+                          <div className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5" />
+                            <span>حساب‌های فعال شما (ورود سریع یک‌کلیک):</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {userColleagueAccounts.map((acc) => (
+                              <button
+                                key={acc.id}
+                                onClick={() => handleQuickLoginColleague(acc)}
+                                className="w-full text-right p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-purple-500/30 flex items-center justify-between text-xs transition-all"
+                              >
+                                <div>
+                                  <span className="font-bold text-white font-mono">{acc.username}</span>
+                                  <span className="text-[10px] text-purple-400 mr-2">
+                                    ({acc.packageTitle} - {acc.remainingTrafficGb?.toFixed(1)} GB باقیمانده)
+                                  </span>
+                                </div>
+                                <span className="text-[10px] bg-purple-600/30 text-purple-200 px-2 py-0.5 rounded-lg font-bold">
+                                  ورود ⚡
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <form onSubmit={handleColleagueLogin} className="space-y-3 pt-1">
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-purple-400" />
+                            <span>نام کاربری همکار:</span>
+                          </label>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="Colleague Username"
+                            value={colleagueUsernameInput}
+                            onChange={(e) => setColleagueUsernameInput(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                            <span>کلمه عبور همکار:</span>
+                          </label>
+                          <input
+                            type="password"
+                            dir="ltr"
+                            placeholder="••••••••"
+                            value={colleaguePasswordInput}
+                            onChange={(e) => setColleaguePasswordInput(e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={colleagueLoggingIn || !colleagueUsernameInput || !colleaguePasswordInput}
+                          className="w-full mt-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                        >
+                          {colleagueLoggingIn ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                          <span>ورود به حساب همکار</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+
+                {/* Dedicated Page 3: Password Recovery */}
+                {colleagueSubTab === "recover" && (
+                  <div className="space-y-3">
+                    {/* Back Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (verifiedRecoveryAccount) {
+                          setVerifiedRecoveryAccount(null);
+                        } else {
+                          setColleagueSubTab("menu");
+                        }
+                      }}
+                      className="w-full flex items-center justify-between p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-bold transition-all group"
+                    >
+                      <div className="flex items-center gap-2">
+                        <ArrowRight className="w-4 h-4 text-indigo-400 group-hover:-translate-x-1 transition-transform" />
+                        <span>
+                          {verifiedRecoveryAccount ? "بازگشت به مرحله قبل (ورود توکن)" : "بازگشت به منوی گزینه‌های همکار"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500">
+                        {verifiedRecoveryAccount ? "ویرایش توکن" : "منوی اصلی"}
+                      </span>
+                    </button>
+
+                    <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
+                      {!verifiedRecoveryAccount ? (
+                        /* Step 1: Token Entry Only */
+                        <>
+                          <div className="text-center space-y-1.5">
+                            <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-indigo-500/20">
+                              <KeyRound className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-extrabold text-base text-white">
+                              بازیابی کلمه عبور همکار
+                            </h3>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              لطفاً توکن امنیتی بازیابی که هنگام خرید بسته تعیین کرده‌اید را وارد کنید.
+                            </p>
+                          </div>
+
+                          <form onSubmit={handleVerifyRecoveryToken} className="space-y-3 pt-2">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-300">توکن امنیتی بازیابی:</label>
+                              <input
+                                type="text"
+                                dir="ltr"
+                                placeholder="Security Token"
+                                value={recoverTokenInput}
+                                onChange={(e) => setRecoverTokenInput(e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                              />
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={verifyingRecoveryToken || !recoverTokenInput.trim()}
+                              className="w-full mt-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white py-3 rounded-xl font-bold text-xs shadow-lg shadow-indigo-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                              {verifyingRecoveryToken ? <RefreshCw className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                              <span>بررسی و شناسایی توکن</span>
+                            </button>
+                          </form>
+                        </>
+                      ) : (
+                        /* Step 2: Set New Username & New Password */
+                        <>
+                          <div className="text-center space-y-1.5">
+                            <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/20">
+                              <CheckCircle2 className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-extrabold text-base text-white">
+                              تنظیم نام کاربری و کلمه عبور جدید
+                            </h3>
+                            <div className="p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-800/40 text-[11px] text-emerald-300 font-medium">
+                              توکن بازیابی تایید شد ✓ ({verifiedRecoveryAccount.packageTitle || "حساب همکار"})
+                            </div>
+                          </div>
+
+                          <form onSubmit={handleUpdateColleagueCredentials} className="space-y-3 pt-1">
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-300">نام کاربری جدید همکار:</label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  dir="ltr"
+                                  placeholder="New Username"
+                                  value={newColleagueUsername}
+                                  onChange={(e) => setNewColleagueUsername(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                                />
+                                <User className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-300">کلمه عبور جدید همکار:</label>
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  dir="ltr"
+                                  placeholder="New Password"
+                                  value={newColleaguePassword}
+                                  onChange={(e) => setNewColleaguePassword(e.target.value)}
+                                  className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+                                />
+                                <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={updatingColleagueCredentials || !newColleagueUsername.trim() || !newColleaguePassword.trim()}
+                              className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-3 rounded-xl font-bold text-xs shadow-lg shadow-emerald-600/30 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                              {updatingColleagueCredentials ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                              <span>تایید و بروزرسانی حساب</span>
+                            </button>
+                          </form>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* Colleague Dashboard & Client Management */

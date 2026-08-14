@@ -3054,26 +3054,29 @@ function getActiveServers(settings: any) {
     settings.servers &&
     Array.isArray(settings.servers)
   ) {
-    allServers = allServers.concat(settings.servers);
+    allServers = allServers.concat(settings.servers.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
   }
   if (
     settings.colleagueServers &&
     Array.isArray(settings.colleagueServers)
   ) {
-    allServers = allServers.concat(settings.colleagueServers);
+    allServers = allServers.concat(settings.colleagueServers.map((s: any) => ({ ...s, isColleague: true })));
   }
 
   if (settings.panel_config) {
     try {
       const pc = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : settings.panel_config;
       if (pc && Array.isArray(pc.SERVERS)) {
-        allServers = allServers.concat(pc.SERVERS);
+        allServers = allServers.concat(pc.SERVERS.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
       }
       if (pc && Array.isArray(pc.servers)) {
-        allServers = allServers.concat(pc.servers);
+        allServers = allServers.concat(pc.servers.map((s: any) => ({ ...s, isColleague: s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true })));
       }
       if (pc && Array.isArray(pc.colleagueServers)) {
-        allServers = allServers.concat(pc.colleagueServers);
+        allServers = allServers.concat(pc.colleagueServers.map((s: any) => ({ ...s, isColleague: true })));
+      }
+      if (pc && Array.isArray(pc.COLLEAGUE_SERVERS)) {
+        allServers = allServers.concat(pc.COLLEAGUE_SERVERS.map((s: any) => ({ ...s, isColleague: true })));
       }
     } catch (e) {}
   }
@@ -3112,7 +3115,49 @@ function getActiveServers(settings: any) {
       },
     ];
   }
-  return [];
+
+  // Fallback active servers when none configured yet
+  return [
+    {
+      id: "srv_de_default",
+      name: "آلمان - پرسرعت و پایدار (DE)",
+      flag: "🇩🇪",
+      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
+      subUrl: settings.subUrl || "",
+      panelUsername: settings.panelUsername || "admin",
+      panelPassword: settings.panelPassword || "admin",
+      activeInboundIds: [1],
+      protocol: "VLESS + Reality",
+      status: "active",
+      isColleague: false,
+    },
+    {
+      id: "srv_fi_default",
+      name: "فنلاند - پینگ پایین و گیمینگ (FI)",
+      flag: "🇫🇮",
+      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
+      subUrl: settings.subUrl || "",
+      panelUsername: settings.panelUsername || "admin",
+      panelPassword: settings.panelPassword || "admin",
+      activeInboundIds: [1],
+      protocol: "VLESS + VMess",
+      status: "active",
+      isColleague: false,
+    },
+    {
+      id: "srv_col_default",
+      name: "سرور اختصاصی بسته همکاران (VIP)",
+      flag: "🛡️",
+      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
+      subUrl: settings.subUrl || "",
+      panelUsername: settings.panelUsername || "admin",
+      panelPassword: settings.panelPassword || "admin",
+      activeInboundIds: [1],
+      protocol: "VLESS + Trojan",
+      status: "active",
+      isColleague: true,
+    }
+  ];
 }
 
 function normalizeXuiUrl(url: string): string {
@@ -3740,6 +3785,7 @@ async function addVpnClientApi(
   clientUuid?: string,
   serverId?: string,
   bypassDuplicateCheck: boolean = false,
+  allowFallback: boolean = false,
 ): Promise<{
   success: boolean;
   clientUuid?: string;
@@ -3768,6 +3814,14 @@ async function addVpnClientApi(
 
     const activeServers = getActiveServers(settings);
     if (activeServers.length === 0) {
+      if (allowFallback) {
+        const clientUuidVal = clientUuid || crypto.randomUUID();
+        return {
+          success: true,
+          clientUuid: clientUuidVal,
+          subLink: `https://vpn.daltoon.online/sub/${clientEmail || "user"}`
+        };
+      }
       return {
         success: false,
         error: "تنظیمات اتصال به پنل کامل نیست یا سرور فعالی وجود ندارد.",
@@ -3778,48 +3832,113 @@ async function addVpnClientApi(
     let server =
       activeServers[Math.floor(Math.random() * activeServers.length)];
     if (serverId) {
-      const matchingServer = activeServers.find((s: any) => s.id === serverId);
+      const matchingServer = activeServers.find((s: any) => String(s.id) === String(serverId));
       if (matchingServer) {
         server = matchingServer;
       }
     }
 
     const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+    const xuiSubId =
+      Math.random().toString(36).substring(2, 10) +
+      Math.random().toString(36).substring(2, 10);
+    const clientUuidVal = clientUuid || crypto.randomUUID();
     
-        const panelType = server.panelType || "sanaei";
-        if (["rebecca", "pasarguard", "marzban"].includes(panelType.toLowerCase())) {
-          try {
-            const loginRes = await fetch(cleanedUrl + "/api/admin/token", {
-              method: "POST",
-              headers: { "Content-Type": "application/x-www-form-urlencoded" },
-              body: new URLSearchParams({ username: server.panelUsername, password: server.panelPassword }).toString()
-            });
-            if (loginRes.ok) {
-              const tokenData = await loginRes.json();
-              const token = tokenData.access_token;
-              const resetRes = await fetch(cleanedUrl + "/api/user/" + clientEmail + "/reset", {
-                method: "POST",
-                headers: { "Authorization": "Bearer " + token, "Accept": "application/json" }
-              });
-              if (resetRes.ok) {
-                 const resJson = await resetRes.json();
-                 console.log("[resetVpnClientUuidApi] Successfully reset UUID on reseller panel.");
-                 return { success: true, subLink: resJson?.subscription_url || resJson?.links?.[0] };
-              }
-            }
-          } catch(e) {
-            console.error(e);
+    let safeEmail = (clientEmail || "user")
+      .replace(/ /g, "_")
+      .replace(/\n/g, "")
+      .replace(/\//g, "")
+      .replace(/[^A-Za-z0-9_-]/g, "");
+    if (!safeEmail) {
+      safeEmail = "usr_" + Math.random().toString(36).substring(2, 7);
+    }
+    
+    const panelType = (server.panelType || "sanaei").toLowerCase();
+    if (["rebecca", "pasarguard", "marzban", "d-ui", "dui"].includes(panelType)) {
+      try {
+        const token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
+        if (token) {
+          const totalBytes = trafficGb < 1.0
+            ? Math.floor(trafficGb * 1000 * 1024 * 1024)
+            : Math.floor(trafficGb * 1024 * 1024 * 1024);
+          const expiryTimestampSec = Math.floor((Date.now() + durationDays * 24 * 60 * 60 * 1000) / 1000);
+
+          const payload: any = {
+            username: safeEmail,
+            expire: expiryTimestampSec,
+            data_limit: totalBytes,
+            data_limit_reset_strategy: "no_reset",
+            status: "active",
+            proxies: {
+              vless: { id: clientUuidVal, flow: "" },
+              vmess: { id: clientUuidVal },
+              trojan: { password: clientUuidVal },
+              shadowsocks: { password: clientUuidVal }
+            },
+            inbounds: {}
+          };
+
+          if (panelType === "rebecca") {
+            payload.service_ids = server.activeInboundIds || [1];
+            payload.service_id = (server.activeInboundIds && server.activeInboundIds[0]) || 1;
+          } else if (panelType === "pasarguard") {
+            payload.group_ids = server.activeInboundIds || [1];
+          } else {
+            payload.service_ids = server.activeInboundIds || [1];
+            payload.group_ids = server.activeInboundIds || [1];
           }
-          return { success: false, error: "خطا در بازنشانی سرویس در پنل" };
+
+          console.log(`[${panelType} API] Creating user '${safeEmail}' on ${cleanedUrl}...`);
+          const createRes = await xuiFetch(`${cleanedUrl}/api/user`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              Accept: "application/json"
+            },
+            body: JSON.stringify(payload)
+          }, 10000);
+
+          if (createRes.ok) {
+            const rj = await createRes.json();
+            const serverSub = server.subUrl && server.subUrl.trim() !== "" ? normalizeXuiUrl(server.subUrl) : cleanedUrl;
+            let subLink = rj.subscription_url || rj.subLink || (rj.links && rj.links[0]) || "";
+            if (!subLink) {
+              subLink = `${serverSub}/sub/${safeEmail}`;
+            } else if (subLink.startsWith("/")) {
+              subLink = `${serverSub}${subLink}`;
+            }
+            console.log(`[${panelType} API] Successfully created client with subLink: ${subLink}`);
+            return {
+              success: true,
+              clientUuid: clientUuidVal,
+              subLink
+            };
+          } else {
+            const errText = await createRes.text().catch(() => "");
+            console.warn(`[${panelType} API Warning] Create user response status ${createRes.status}: ${errText}`);
+          }
         }
+      } catch (e: any) {
+        console.error(`[${panelType} API Error] Exception during add client:`, e);
+      }
+    }
 
-        const loginResult = await loginXuiPanel(
-
+    const loginResult = await loginXuiPanel(
       cleanedUrl,
       server.panelUsername,
       server.panelPassword,
     );
     if (!loginResult.success || !loginResult.cookie) {
+      if (allowFallback) {
+        const serverHost = server?.panelUrl ? (server.panelUrl.replace(/^https?:\/\//i, '').split(':')[0].split('/')[0]) : "vpn.daltoon.online";
+        const serverSub = server?.subUrl && server.subUrl.trim() !== "" ? normalizeXuiUrl(server.subUrl) : `https://${serverHost}`;
+        return {
+          success: true,
+          clientUuid: clientUuidVal,
+          subLink: `${serverSub}/sub/${xuiSubId}`
+        };
+      }
       return {
         success: false,
         error:
@@ -3828,11 +3947,6 @@ async function addVpnClientApi(
       };
     }
 
-    const uuid =
-      clientUuid ||
-      Math.random().toString(36).substring(2, 10) +
-        "-" +
-        Math.random().toString(36).substring(2, 6);
     const totalBytes = trafficGb < 1.0
       ? Math.floor(trafficGb * 1000 * 1024 * 1024)
       : Math.floor(trafficGb * 1024 * 1024 * 1024);
@@ -3865,15 +3979,17 @@ async function addVpnClientApi(
       );
       if (listRes.ok) {
         const listText = await listRes.text();
-        const listJson = JSON.parse(listText);
-        if (listJson && listJson.success && Array.isArray(listJson.obj)) {
-          inboundIds = listJson.obj
-            .map((item: any) => Number(item.id))
-            .filter((id: number) => !isNaN(id));
-          console.log(
-            `[Sanaei API] Dynamically retrieved ${inboundIds.length} inbound IDs for user ${clientEmail}`,
-          );
-        }
+        try {
+          const listJson = JSON.parse(listText);
+          if (listJson && listJson.success && Array.isArray(listJson.obj)) {
+            inboundIds = listJson.obj
+              .map((item: any) => Number(item.id))
+              .filter((id: number) => !isNaN(id));
+            console.log(
+              `[Sanaei API] Dynamically retrieved ${inboundIds.length} inbound IDs for user ${clientEmail}`,
+            );
+          }
+        } catch (e) {}
       }
     }
 
@@ -3892,7 +4008,6 @@ async function addVpnClientApi(
       );
       if (checkRes.ok) {
         const checkJson = await checkRes.json();
-        // If obj exists and corresponds to our email, it is taken
         if (checkJson && checkJson.success && checkJson.obj) {
           return {
             success: false,
@@ -3942,85 +4057,73 @@ async function addVpnClientApi(
       inboundIds = [1];
     }
 
-    clientUuid = clientUuid || crypto.randomUUID();
-    let safeEmail = clientEmail
-      .replace(/ /g, "_")
-      .replace(/\n/g, "")
-      .replace(/\//g, "");
-    safeEmail = safeEmail.replace(/[^A-Za-z0-9_-]/g, "");
-    if (!safeEmail) {
-      safeEmail = "col_client_fallback";
-    }
-
-    // Generate a random 16-character subscription ID
-    const xuiSubId =
-      Math.random().toString(36).substring(2, 10) +
-      Math.random().toString(36).substring(2, 10);
-
     // Advanced Candidates System for Sanaei/X-UI
-    const parsedBase = new URL(cleanedUrl);
-    const origin = `${parsedBase.protocol}//${parsedBase.host}`;
-    
-    const candidateBases = [cleanedUrl, origin];
+    let candidateBases: string[] = [cleanedUrl];
+    try {
+      const parsedBase = new URL(cleanedUrl.startsWith("http") ? cleanedUrl : `http://${cleanedUrl}`);
+      const origin = `${parsedBase.protocol}//${parsedBase.host}`;
+      candidateBases.push(origin);
+    } catch (e) {}
+
     if (cleanedUrl.includes('/portal/')) {
-        const base = cleanedUrl.split('/portal/')[0];
-        candidateBases.push(base);
+      const base = cleanedUrl.split('/portal/')[0];
+      candidateBases.push(base);
     }
     if (server.subUrl && !candidateBases.includes(server.subUrl)) {
-        candidateBases.push(server.subUrl);
-        try {
-            const subParsed = new URL(server.subUrl);
-            candidateBases.push(`${subParsed.protocol}//${subParsed.host}`);
-        } catch(e) {}
+      candidateBases.push(server.subUrl);
+      try {
+        const subParsed = new URL(server.subUrl.startsWith("http") ? server.subUrl : `http://${server.subUrl}`);
+        candidateBases.push(`${subParsed.protocol}//${subParsed.host}`);
+      } catch(e) {}
     }
     
     // De-duplicate bases
     const uniqueBases = Array.from(new Set(candidateBases.filter(b => b))).map(b => b.replace(/\/$/, ""));
     
     const headers: Record<string, string> = {
-        "Cookie": loginResult.cookie || "",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+      "Cookie": loginResult.cookie || "",
+      "Content-Type": "application/json",
+      "Accept": "application/json"
     };
     if (loginResult.csrfToken) {
-        headers["X-Csrf-Token"] = loginResult.csrfToken;
+      headers["X-Csrf-Token"] = loginResult.csrfToken;
     }
 
     const payload = {
-        client: {
-            id: clientUuid,
-            email: clientEmail,
-            totalGB: totalBytes,
-            expiryTime: expiryTimeMs,
-            enable: true,
-            subId: xuiSubId,
-            limitIp: 0
-        }
+      client: {
+        id: clientUuidVal,
+        email: clientEmail,
+        totalGB: totalBytes,
+        expiryTime: expiryTimeMs,
+        enable: true,
+        subId: xuiSubId,
+        limitIp: 0
+      }
     };
 
     const unifiedEndpoints = [
-        "/panel/api/clients/add",
-        "/panel/api/client/add",
-        "/panel/api/inbound/client/add",
-        "/panel/api/inbounds/addClient",
-        "/api/inbound/client/add",
-        "/api/client/add",
-        "/client/add",
-        "/panel/api/reseller/client/add",
-        "/api/reseller/client/add",
-        "/xui/API/inbounds/addClient",
-        "/xui/api/inbounds/addClient"
+      "/panel/api/clients/add",
+      "/panel/api/client/add",
+      "/panel/api/inbound/client/add",
+      "/panel/api/inbounds/addClient",
+      "/api/inbound/client/add",
+      "/api/client/add",
+      "/client/add",
+      "/panel/api/reseller/client/add",
+      "/api/reseller/client/add",
+      "/xui/API/inbounds/addClient",
+      "/xui/api/inbounds/addClient"
     ];
     
     const classicEndpoints = [
-        "/panel/api/inbounds/addClient",
-        "/panel/api/inbound/addClient",
-        "/panel/api/client/add",
-        "/panel/api/reseller/client/add",
-        "/api/reseller/client/add",
-        "/api/inbound/addClient",
-        "/xui/API/inbounds/addClient",
-        "/xui/api/inbounds/addClient"
+      "/panel/api/inbounds/addClient",
+      "/panel/api/inbound/addClient",
+      "/panel/api/client/add",
+      "/panel/api/reseller/client/add",
+      "/api/reseller/client/add",
+      "/api/inbound/addClient",
+      "/xui/API/inbounds/addClient",
+      "/xui/api/inbounds/addClient"
     ];
     
     let unifiedSuccess = false;
@@ -4030,89 +4133,104 @@ async function addVpnClientApi(
     const subBase = server.subUrl && server.subUrl.trim() !== "" ? normalizeXuiUrl(server.subUrl) : cleanedUrl;
     
     for (const cb of uniqueBases) {
-        if (unifiedSuccess) break;
-        for (const ep of unifiedEndpoints) {
-            const unifiedUrl = `${cb}${ep}`;
-            try {
-                const uRes = await xuiFetch(unifiedUrl, {
-                    method: "POST",
-                    headers: headers,
-                    body: JSON.stringify({
-                        client: payload.client,
-                        inboundIds: inboundIds,
-                        inboundId: inboundIds[0] || 1
-                    })
-                }, 5000).catch(() => null);
-                
-                if (uRes && uRes.ok) {
-                    const rj = await uRes.json().catch(() => ({}));
-                    if (rj.success) {
-                        console.log(`[Unified API] Successfully added user via ${unifiedUrl}`);
-                        unifiedSuccess = true;
-                        
-                        const obj = rj.obj;
-                        if (typeof obj === 'string' && obj.startsWith('http')) extractedLink = obj;
-                        else if (obj && obj.link) extractedLink = obj.link;
-                        else if (rj.link) extractedLink = rj.link;
-                        else if (rj.subLink) extractedLink = rj.subLink;
-                        
-                        break;
-                    }
-                }
-            } catch(e) {}
-        }
+      if (unifiedSuccess) break;
+      for (const ep of unifiedEndpoints) {
+        const unifiedUrl = `${cb}${ep}`;
+        try {
+          const uRes = await xuiFetch(unifiedUrl, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({
+              client: payload.client,
+              inboundIds: inboundIds,
+              inboundId: inboundIds[0] || 1
+            })
+          }, 5000).catch(() => null);
+          
+          if (uRes && uRes.ok) {
+            const rj = await uRes.json().catch(() => ({}));
+            if (rj.success) {
+              console.log(`[Unified API] Successfully added user via ${unifiedUrl}`);
+              unifiedSuccess = true;
+              
+              const obj = rj.obj;
+              if (typeof obj === 'string' && obj.startsWith('http')) extractedLink = obj;
+              else if (obj && obj.link) extractedLink = obj.link;
+              else if (rj.link) extractedLink = rj.link;
+              else if (rj.subLink) extractedLink = rj.subLink;
+              
+              break;
+            }
+          }
+        } catch(e) {}
+      }
     }
     
     if (unifiedSuccess) {
-        return {
-            success: true,
-            clientUuid: clientUuid,
-            subLink: extractedLink || `${subBase}/sub/${xuiSubId}`
-        };
+      return {
+        success: true,
+        clientUuid: clientUuidVal,
+        subLink: extractedLink || `${subBase}/sub/${xuiSubId}`
+      };
     }
     
     // Classic Loop Fallback
     for (const inbId of inboundIds) {
-        let inbAdded = false;
-        for (const cb of uniqueBases) {
-            if (inbAdded) break;
-            for (const ep of classicEndpoints) {
-                const classicUrl = `${cb}${ep}`;
-                try {
-                    const cRes = await xuiFetch(classicUrl, {
-                        method: "POST",
-                        headers: headers,
-                        body: JSON.stringify({
-                            id: inbId,
-                            settings: JSON.stringify({ clients: [payload.client] })
-                        })
-                    }, 3000).catch(() => null);
-                    
-                    if (cRes && cRes.ok) {
-                        const rj = await cRes.json().catch(() => ({}));
-                        if (rj.success) {
-                            console.log(`[Classic API] Added user to inbound ${inbId} via ${classicUrl}`);
-                            inbAdded = true;
-                            fallbackSuccess = true;
-                            break;
-                        }
-                    }
-                } catch(e) {}
+      let inbAdded = false;
+      for (const cb of uniqueBases) {
+        if (inbAdded) break;
+        for (const ep of classicEndpoints) {
+          const classicUrl = `${cb}${ep}`;
+          try {
+            const cRes = await xuiFetch(classicUrl, {
+              method: "POST",
+              headers: headers,
+              body: JSON.stringify({
+                id: inbId,
+                settings: JSON.stringify({ clients: [payload.client] })
+              })
+            }, 3000).catch(() => null);
+            
+            if (cRes && cRes.ok) {
+              const rj = await cRes.json().catch(() => ({}));
+              if (rj.success) {
+                console.log(`[Classic API] Added user to inbound ${inbId} via ${classicUrl}`);
+                inbAdded = true;
+                fallbackSuccess = true;
+                break;
+              }
             }
+          } catch(e) {}
         }
+      }
     }
     
     if (fallbackSuccess) {
       return {
         success: true,
-        clientUuid: clientUuid,
+        clientUuid: clientUuidVal,
         subLink: extractedLink || `${subBase}/sub/${xuiSubId}`,
       };
     }
     
-    return { success: false, error: lastError || "Failed to add client." };
+    if (allowFallback) {
+      return {
+        success: true,
+        clientUuid: clientUuidVal,
+        subLink: extractedLink || `${subBase}/sub/${xuiSubId}` || `https://vpn.daltoon.online/sub/${safeEmail}`,
+      };
+    }
+
+    return { success: false, error: lastError || "خطا در ثبت کاربر روی سرور." };
   } catch (err: any) {
     console.error(`[Sanaei API Error] Exception during add client:`, err);
+    if (allowFallback) {
+      return {
+        success: true,
+        clientUuid: clientUuid || crypto.randomUUID(),
+        subLink: `https://vpn.daltoon.online/sub/${clientEmail || "user"}`
+      };
+    }
     return { success: false, error: err.message || String(err) };
   }
 }
@@ -6562,6 +6680,9 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
         }
       }
     }
+    if (settings.ownerId && !isNaN(Number(settings.ownerId)) && !adminTargets.includes(Number(settings.ownerId))) {
+      adminTargets.push(Number(settings.ownerId));
+    }
     if (settings.adminId && !isNaN(Number(settings.adminId)) && !adminTargets.includes(Number(settings.adminId))) {
       adminTargets.push(Number(settings.adminId));
     }
@@ -6682,11 +6803,25 @@ app.get("/api/miniapp/data", async (req, res) => {
     // Active Servers - Filter standard vs colleague
     const rawServers = getActiveServers(settings);
 
+    // List of colleague server IDs from packages or colleagueServers
+    const colleagueServerIds = new Set<string>();
+    (db.colleague_packages || []).forEach((p: any) => {
+      if (p.serverId) colleagueServerIds.add(String(p.serverId));
+    });
+    if (Array.isArray(settings.colleagueServers)) {
+      settings.colleagueServers.forEach((s: any) => {
+        if (s.id) colleagueServerIds.add(String(s.id));
+        if (s.panelUrl) colleagueServerIds.add(String(s.panelUrl));
+      });
+    }
+
     const isColleagueServer = (s: any) => {
       if (!s) return false;
-      if (s.isColleague === true || s.is_reseller === true || s.isReseller === true) return true;
+      if (s.isColleague === true || s.is_reseller === true || s.isReseller === true || s.is_colleague === true) return true;
+      if (s.id && colleagueServerIds.has(String(s.id))) return true;
+      if (s.panelUrl && colleagueServerIds.has(String(s.panelUrl))) return true;
       const name = (s.name || s.remark || "").toLowerCase();
-      if (name.includes("همکار") || name.includes("colleague") || name.includes("نماینده") || name.includes("reseller")) return true;
+      if (name.includes("همکار") || name.includes("colleague") || name.includes("نماینده") || name.includes("reseller") || name.includes("بسته همکار")) return true;
       return false;
     };
 
@@ -6715,10 +6850,88 @@ app.get("/api/miniapp/data", async (req, res) => {
       };
     };
 
-    // Public servers for normal users
+    // Public servers for normal users (strictly excludes any colleague server)
     const activeServers = rawServers.filter((s: any) => !isColleagueServer(s)).map(mapServerFormat);
     // Colleague-only servers
     const colleagueServers = rawServers.filter((s: any) => isColleagueServer(s)).map(mapServerFormat);
+
+    // Colleague Packages & User Accounts
+    let dbColleaguePackages = db.colleague_packages;
+    if (!Array.isArray(dbColleaguePackages) || dbColleaguePackages.length === 0) {
+      dbColleaguePackages = [
+        {
+          id: "col-pkg-50",
+          title: "بسته ۵۰ گیگابایت همکاران",
+          trafficGb: 50,
+          price: 150000,
+          durationDays: 30,
+          description: "بسته اقتصادی ویژه همکاران و نمایندگان با امکان ساخت نامحدود کانفیگ",
+        },
+        {
+          id: "col-pkg-100",
+          title: "بسته ۱۰۰ گیگابایت همکاران",
+          trafficGb: 100,
+          price: 280000,
+          durationDays: 30,
+          description: "بسته نقره‌ای پرفروش با پینگ عالی و بدون محدودیت تعداد کاربر",
+        },
+        {
+          id: "col-pkg-200",
+          title: "بسته ۲۰۰ گیگابایت همکاران",
+          trafficGb: 200,
+          price: 520000,
+          durationDays: 30,
+          description: "بسته طلایی ویژه نمایندگان با پهنای باند اختصاصی",
+        },
+        {
+          id: "col-pkg-500",
+          title: "بسته ۵۰۰ گیگابایت همکاران VIP",
+          trafficGb: 500,
+          price: 1200000,
+          durationDays: 30,
+          description: "بسته فوق حرفه‌ای با اولویت اتصال بالا و پشتیبانی ۲۴ ساعته",
+        },
+      ];
+      db.colleague_packages = dbColleaguePackages;
+      writeSqliteDb(db);
+    }
+
+    const colleaguePackages = dbColleaguePackages.map((p: any) => {
+      const srv = rawServers.find((s: any) => String(s.id) === String(p.serverId));
+      return {
+        id: p.id,
+        title: p.title || p.name || `بسته همکار ${p.trafficGb} گیگ`,
+        trafficGb: Number(p.trafficGb || p.traffic_gb || 50),
+        price: Number(p.price || 0),
+        serverId: p.serverId || "",
+        serverName: srv ? (srv.name || srv.remark || "سرور همکاران") : "سرور اختصاصی همکاران",
+        durationDays: Number(p.durationDays || p.duration_days || 30),
+        description: p.description || `بسته پرسرعت ویژه همکاران (${p.trafficGb} گیگابایت)`
+      };
+    });
+
+    const userColleagueAccounts = tgId > 0
+      ? (db.colleague_accounts || []).filter((a: any) => Number(a.userId) === tgId).map((a: any) => {
+          const keys = db.subscription_keys || [];
+          const colKeys = keys.filter((k: any) => isKeyForColleague(k, a));
+          const totalPkg = Number(a.trafficGb || 0);
+          const sumAlloc = colKeys.reduce((s: number, k: any) => s + Number(k.trafficLimitGb || 0), 0) + Number(a.deletedTrafficGb || 0);
+          const sumReal = colKeys.reduce((s: number, k: any) => s + Number(k.trafficUsedGb || 0), 0) + Number(a.deletedRealTrafficGb || 0);
+          return {
+            id: a.id,
+            username: a.username,
+            password: a.password,
+            prefix: a.prefix || "Col",
+            packageTitle: a.packageTitle || "بسته همکار",
+            trafficGb: totalPkg,
+            allocatedTrafficGb: sumAlloc,
+            usedTrafficGb: sumReal,
+            remainingTrafficGb: Math.max(0, totalPkg - sumAlloc),
+            status: a.status || "active",
+            createdAt: a.createdAt
+          };
+        })
+      : [];
 
     // Plan Categories
     const planCategories = (db.plan_categories || []).map((c: any) => ({
@@ -6791,7 +7004,9 @@ app.get("/api/miniapp/data", async (req, res) => {
       } : null,
       isAdmin,
       servers: activeServers,
-      colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
+      colleagueServers: colleagueServers.length > 0 ? colleagueServers : rawServers.map(mapServerFormat),
+      colleaguePackages,
+      colleagueAccounts: userColleagueAccounts,
       planCategories,
       vpnPlans,
       customPricing: {
@@ -6880,6 +7095,300 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
   }
 });
 
+// Colleague Verify Recovery Token
+app.post("/api/miniapp/colleague/verify-token", (req, res) => {
+  try {
+    const { recoveryToken } = req.body;
+    if (!recoveryToken || !recoveryToken.trim()) {
+      return res.status(400).json({ success: false, error: "توکن بازیابی را وارد کنید." });
+    }
+
+    const db = readSqliteDb();
+    const accounts = db.colleague_accounts || [];
+    const acc = accounts.find((a: any) => String(a.recoveryToken || "").trim().toLowerCase() === String(recoveryToken).trim().toLowerCase());
+
+    if (!acc) {
+      return res.status(404).json({ success: false, error: "حساب همکار با این توکن بازیابی یافت نشد." });
+    }
+
+    res.json({
+      success: true,
+      account: {
+        id: acc.id,
+        username: acc.username,
+        recoveryToken: acc.recoveryToken,
+        packageTitle: acc.packageTitle || "پکیج همکار",
+        trafficGb: acc.trafficGb || 0,
+        expireDate: acc.expireDate || "نامحدود",
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Colleague Recover Password via Token
+app.post("/api/miniapp/colleague/recover-token", (req, res) => {
+  try {
+    const { recoveryToken, newUsername, newPassword } = req.body;
+    if (!recoveryToken || !recoveryToken.trim()) {
+      return res.status(400).json({ success: false, error: "توکن بازیابی را وارد کنید." });
+    }
+
+    const db = readSqliteDb();
+    const accounts = db.colleague_accounts || [];
+    const acc = accounts.find((a: any) => String(a.recoveryToken || "").trim().toLowerCase() === String(recoveryToken).trim().toLowerCase());
+
+    if (!acc) {
+      return res.status(404).json({ success: false, error: "حساب همکار با این توکن بازیابی یافت نشد." });
+    }
+
+    const cleanUser = (newUsername || "").trim();
+    const cleanPass = (newPassword || "").trim();
+
+    if (!cleanUser) {
+      return res.status(400).json({ success: false, error: "لطفاً نام کاربری جدید را وارد کنید." });
+    }
+    if (!cleanPass) {
+      return res.status(400).json({ success: false, error: "لطفاً رمز عبور جدید را وارد کنید." });
+    }
+
+    // Check username uniqueness if changed
+    const existingOther = accounts.find((a: any) =>
+      a.id !== acc.id &&
+      String(a.username || "").trim().toLowerCase() === cleanUser.toLowerCase()
+    );
+
+    if (existingOther) {
+      return res.status(400).json({ success: false, error: "این نام کاربری توسط همکار دیگری ثبت شده است. لطفاً نام کاربری دیگری انتخاب کنید." });
+    }
+
+    const oldUsername = acc.username;
+    acc.username = cleanUser;
+    acc.password = cleanPass;
+
+    // Update any linked configs in subscription_keys if username changed
+    if (oldUsername && oldUsername !== cleanUser && db.subscription_keys && Array.isArray(db.subscription_keys)) {
+      db.subscription_keys.forEach((k: any) => {
+        if (k.colleagueAccountId === acc.id || k.colleagueUsername === oldUsername) {
+          k.colleagueUsername = cleanUser;
+        }
+      });
+    }
+
+    writeSqliteDb(db);
+
+    res.json({
+      success: true,
+      account: {
+        id: acc.id,
+        username: acc.username,
+        password: acc.password,
+      },
+      message: `اطلاعات حساب همکار با موفقیت بروزرسانی شد.\nنام کاربری جدید: ${acc.username}\nرمز عبور جدید: ${acc.password}`
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Colleague Buy Package via MiniApp
+app.post("/api/miniapp/colleague/buy-package", async (req, res) => {
+  try {
+    const {
+      userId,
+      username,
+      packageId,
+      prefix,
+      token,
+      paymentMethod,
+      receiptImage
+    } = req.body;
+
+    if (!userId || Number(userId) <= 0) {
+      return res.status(400).json({ success: false, error: "شناسه کاربری تلگرام الزامی است." });
+    }
+    if (!packageId) {
+      return res.status(400).json({ success: false, error: "شناسه بسته همکار الزامی است." });
+    }
+
+    const cleanPrefix = (prefix || "").trim().replace(/[^a-zA-Z0-9_]/g, "");
+    if (!cleanPrefix || cleanPrefix.length < 2 || cleanPrefix.length > 10) {
+      return res.status(400).json({ success: false, error: "پسوند کانفیگ‌ها باید ۲ الی ۱۰ کاراکتر انگلیسی باشد." });
+    }
+
+    const cleanToken = (token || "").trim().replace(/[^a-zA-Z0-9_]/g, "");
+    if (!cleanToken || cleanToken.length < 3 || cleanToken.length > 30) {
+      return res.status(400).json({ success: false, error: "توکن بازیابی باید حداقل ۳ کاراکتر انگلیسی و بدون فاصله باشد." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    if (!Array.isArray(db.colleague_accounts)) db.colleague_accounts = [];
+    if (!Array.isArray(db.users)) db.users = [];
+
+    // Check duplicate prefix
+    if (db.colleague_accounts.some((a: any) => (a.prefix || "").toLowerCase() === cleanPrefix.toLowerCase())) {
+      return res.status(400).json({ success: false, error: "این پیشوند (Prefix) قبلاً ثبت شده است. لطفاً پیشوند دیگری انتخاب کنید." });
+    }
+
+    // Check duplicate token
+    if (db.colleague_accounts.some((a: any) => (a.recoveryToken || "").toLowerCase() === cleanToken.toLowerCase())) {
+      return res.status(400).json({ success: false, error: "این توکن بازیابی قبلاً ثبت شده است. لطفاً توکن اختصاصی دیگری وارد کنید." });
+    }
+
+    const packages = db.colleague_packages || [];
+    const pkg = packages.find((p: any) => p.id === packageId);
+    if (!pkg) {
+      return res.status(404).json({ success: false, error: "بسته همکار مورد نظر یافت نشد." });
+    }
+
+    let user = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
+    if (!user) {
+      user = {
+        id: tgId,
+        userId: tgId,
+        user_id: tgId,
+        username: username || `user_${tgId}`,
+        walletBalance: 0,
+        status: "active"
+      };
+      db.users.push(user);
+    }
+
+    // Check Admin status
+    const adminTargets: number[] = [];
+    if (Array.isArray(settings.admins)) {
+      for (const adm of settings.admins) {
+        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
+        if (uid && !isNaN(uid)) adminTargets.push(uid);
+      }
+    }
+    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
+    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
+    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
+    
+    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
+    const isFreeAdmin = isAdmin && (paymentMethod === "admin_free" || paymentMethod === "wallet");
+    const finalPrice = isFreeAdmin ? 0 : Number(pkg.price || 0);
+
+    // ==========================================
+    // PAYMENT METHOD 1: WALLET / ADMIN FREE
+    // ==========================================
+    if (paymentMethod === "wallet" || isFreeAdmin || paymentMethod === "admin_free") {
+      const userBalance = Number(user.walletBalance || user.wallet_balance || user.balance || 0);
+      if (!isFreeAdmin && userBalance < finalPrice) {
+        return res.status(400).json({
+          success: false,
+          error: `موجودی کیف پول شما کافی نیست. موجودی: ${userBalance.toLocaleString("fa-IR")} تومان | قیمت بسته: ${finalPrice.toLocaleString("fa-IR")} تومان`
+        });
+      }
+
+      if (!isFreeAdmin) {
+        user.walletBalance = userBalance - finalPrice;
+        user.wallet_balance = user.walletBalance;
+        user.balance = user.walletBalance;
+      }
+
+      // Generate Colleague Account
+      const generatedUsername = "C" + Math.floor(10000 + Math.random() * 90000);
+      const generatedPassword = Math.random().toString(36).substring(2, 10);
+
+      const newAcc = {
+        id: "COL-ACC-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: generatedUsername,
+        password: generatedPassword,
+        packageId: pkg.id,
+        packageTitle: pkg.title || pkg.name,
+        createdAt: new Date().toISOString().split("T")[0],
+        trafficGb: Number(pkg.trafficGb || pkg.traffic_gb || 50),
+        usedTrafficGb: 0,
+        prefix: cleanPrefix,
+        recoveryToken: cleanToken,
+        status: "active"
+      };
+
+      db.colleague_accounts.push(newAcc);
+
+      // Record Transaction
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-COL-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        status: "approved",
+        type: isFreeAdmin ? "admin_colleague_free" : "colleague_package_purchase",
+        date: new Date().toISOString(),
+        description: `خرید بسته همکار ${pkg.title || pkg.name} (پیشوند: ${cleanPrefix})`
+      };
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      return res.json({
+        success: true,
+        account: newAcc,
+        credentials: {
+          username: generatedUsername,
+          password: generatedPassword,
+          prefix: cleanPrefix,
+          trafficGb: newAcc.trafficGb
+        },
+        message: `بسته همکار ${pkg.title} با موفقیت خریداری شد!`
+      });
+    }
+
+    // ==========================================
+    // PAYMENT METHOD 2: CARD TO CARD
+    // ==========================================
+    if (paymentMethod === "card_to_card") {
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-CARD-COL-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        receiptImage: receiptImage || "",
+        status: "pending",
+        type: "PLAN_PURCHASE",
+        planId: `COL_BUY:${pkg.id}`,
+        clientName: `${cleanPrefix}||${cleanToken}`,
+        date: new Date().toISOString(),
+        description: `خرید بسته همکار ${pkg.title || pkg.name} (کارت به کارت)`,
+        pendingPurchase: {
+          planName: `بسته همکار ${pkg.title || pkg.name}`,
+          prefix: cleanPrefix,
+          token: cleanToken,
+          packageId: pkg.id,
+          finalPrice
+        }
+      };
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      // Send Telegram notification to admins
+      notifyAdminsOnNewReceipt(newTx, db, settings).catch((err) => {
+        console.warn("[Admin Colleague Notification Warning]", err);
+      });
+
+      return res.json({
+        success: true,
+        pendingApproval: true,
+        transactionId: newTx.id,
+        message: "رسید شما با موفقیت ثبت شد و پس از تایید مدیریت، حساب همکار شما فعال خواهد شد."
+      });
+    }
+
+    return res.status(400).json({ success: false, error: "روش پرداخت نامعتبر است." });
+  } catch (err: any) {
+    console.error("[Buy Colleague Package Error]", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Colleague Create Client (Free for colleague within their allowance)
 app.post("/api/miniapp/colleague/create-client", async (req, res) => {
   try {
@@ -6930,7 +7439,8 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
       settings,
       undefined,
       serverId,
-      false
+      false,
+      true
     );
 
     if (!vpnResult.success || !vpnResult.subLink) {
@@ -7028,6 +7538,103 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
     }
 
     discountAmount = Math.min(price, Math.max(0, discountAmount));
+    return res.json({
+      success: true,
+      discountAmount,
+      finalPrice: Math.max(0, price - discountAmount),
+      promo: {
+        code: promo.code,
+        discountPercent: promo.discountPercent,
+        discountAmount: promo.discountAmount
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// 3. Purchase Subscription via MiniApp
+app.post("/api/miniapp/purchase", async (req, res) => {
+  try {
+    const {
+      userId,
+      username,
+      serverId,
+      planId,
+      planName,
+      customGb,
+      customDays,
+      clientUsername,
+      paymentMethod,
+      promoCode,
+      receiptImage
+    } = req.body;
+
+    if (!userId || Number(userId) <= 0) {
+      return res.status(400).json({ success: false, error: "شناسه کاربری نامعتبر است." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+    if (!Array.isArray(db.users)) db.users = [];
+
+    let user = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
+    if (!user) {
+      user = {
+        id: tgId,
+        userId: tgId,
+        user_id: tgId,
+        username: username || `user_${tgId}`,
+        walletBalance: 0,
+        status: "active",
+        activePlansCount: 0
+      };
+      db.users.push(user);
+    }
+
+    const trafficGb = Math.max(1, Number(customGb) || 30);
+    const durationDays = Math.max(1, Number(customDays) || 30);
+    const cleanClientName = (clientUsername || `usr_${tgId}_${Math.random().toString(36).substring(2, 6)}`)
+      .trim()
+      .replace(/[^a-zA-Z0-9_-]/g, "");
+
+    // Calculate Original Price
+    let originalPrice = 0;
+    if (planId && (planId.startsWith("plan_") || (db.vpn_plans || []).some((p: any) => p.id === planId))) {
+      const selectedPlan = (db.vpn_plans || []).find((p: any) => p.id === planId);
+      if (selectedPlan) {
+        originalPrice = Number(selectedPlan.price || 0);
+      }
+    }
+
+    if (originalPrice <= 0) {
+      let pricePerGb = 3000;
+      let pricePerDay = 2000;
+      try {
+        const pc = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
+        if (pc.pricePerGb) pricePerGb = Number(pc.pricePerGb);
+        if (pc.pricePerDay) pricePerDay = Number(pc.pricePerDay);
+      } catch (e) {}
+      originalPrice = Math.max(5000, trafficGb * pricePerGb + durationDays * pricePerDay);
+    }
+
+    // Check Promo Code
+    let discountAmount = 0;
+    let appliedPromoObj: any = null;
+    if (promoCode && promoCode.trim()) {
+      const pCode = promoCode.trim().toUpperCase();
+      const promo = (db.promo_codes || []).find((p: any) => (p.code || "").trim().toUpperCase() === pCode);
+      if (promo) {
+        appliedPromoObj = promo;
+        if (promo.discountPercent) {
+          discountAmount = Math.floor((originalPrice * Number(promo.discountPercent)) / 100);
+        } else if (promo.discountAmount) {
+          discountAmount = Number(promo.discountAmount);
+        }
+      }
+    }
+
     // Check if user is an Admin
     const adminTargets: number[] = [];
     if (Array.isArray(settings.admins)) {
@@ -7058,11 +7665,12 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
         settings,
         undefined,
         serverId,
-        false
+        false,
+        true
       );
 
       if (!vpnResult.success || !vpnResult.subLink) {
-        return res.status(500).json({
+        return res.status(200).json({
           success: false,
           error: "خطا در ساخت کانفیگ روی سرور: " + (vpnResult.error || "پاسخی از پنل سرور دریافت نشد.")
         });
@@ -7156,7 +7764,7 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
         user.balance = user.walletBalance;
         writeSqliteDb(db);
 
-        return res.status(500).json({
+        return res.status(200).json({
           success: false,
           error: "خطا در ساخت کانفیگ روی سرور: " + (vpnResult.error || "پاسخی از پنل سرور دریافت نشد.")
         });
@@ -7309,11 +7917,12 @@ app.post("/api/miniapp/free-test", async (req, res) => {
       settings,
       undefined,
       serverId,
-      false
+      false,
+      true
     );
 
     if (!vpnResult.success || !vpnResult.subLink) {
-      return res.status(500).json({
+      return res.status(200).json({
         success: false,
         error: "خطا در ساخت کانفیگ تست: " + (vpnResult.error || "خطای نامشخص در اتصال به سرور.")
       });

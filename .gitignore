@@ -23,6 +23,7 @@ get-pip.py
 get-pip_fresh.py
 server.cjs.map
 bot.db
+database.sqlite
 app/
 assets/
 workspace/
