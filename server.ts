@@ -6850,8 +6850,9 @@ app.get("/api/miniapp/data", async (req, res) => {
       };
     };
 
-    // Public servers for normal users (strictly excludes any colleague server)
-    const activeServers = rawServers.filter((s: any) => !isColleagueServer(s)).map(mapServerFormat);
+    // All active servers defined in server management
+    const allMappedServers = rawServers.map(mapServerFormat);
+    const activeServers = allMappedServers;
     // Colleague-only servers
     const colleagueServers = rawServers.filter((s: any) => isColleagueServer(s)).map(mapServerFormat);
 

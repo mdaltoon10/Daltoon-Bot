@@ -222,6 +222,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeQrModal, setActiveQrModal] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (customModal.isOpen || isColleagueCreateOpen || activeQrModal) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [customModal.isOpen, isColleagueCreateOpen, activeQrModal]);
+
   // Initialize Telegram User & Fetch Data
   useEffect(() => {
     let detectedUser: any = null;
@@ -1333,7 +1345,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                       {plan.name}
                                     </span>
                                     {plan.tag && (
-                                      <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
+                                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                                        plan.tag.includes("پرفروش")
+                                          ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                          : plan.tag.includes("اقتصادی")
+                                          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                          : "bg-purple-500/20 text-purple-300 border-purple-500/30"
+                                      }`}>
                                         {plan.tag}
                                       </span>
                                     )}
@@ -1351,7 +1369,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                 </div>
 
                                 <div className="text-left">
-                                  <div className="text-base font-extrabold text-purple-400">
+                                  <div className={`text-base font-extrabold ${isAdmin ? "text-emerald-400 font-black" : "text-purple-400"}`}>
                                     {isAdmin ? "رایگان" : Number(plan.price).toLocaleString("fa-IR")}
                                   </div>
                                   <div className="text-[10px] text-slate-400">
@@ -1919,8 +1937,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                             <span className="font-extrabold text-sm text-white">
                               {sub.planName || "اشتراک اختصاصی"}
                             </span>
-                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-bold">
-                              فعال
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${
+                              (sub.status || "").toLowerCase() === "disabled" || (sub.status || "").toLowerCase() === "inactive" || (sub.status || "").toLowerCase() === "expired" || sub.disabled === true
+                                ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                                : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                            }`}>
+                              {(sub.status || "").toLowerCase() === "disabled" || sub.disabled === true ? "غیرفعال" : (sub.status || "").toLowerCase() === "expired" ? "منقضی" : "فعال"}
                             </span>
                           </div>
                           <p className="text-xs text-slate-400 font-mono mt-0.5">
@@ -2572,8 +2594,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                             </div>
                           </div>
 
-                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                            {client.status || "active"}
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                            (client.status || "").toLowerCase() === "disabled" || (client.status || "").toLowerCase() === "inactive" || (client.status || "").toLowerCase() === "expired" || client.disabled === true
+                              ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                              : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                          }`}>
+                            {(client.status || "").toLowerCase() === "disabled" || client.disabled === true ? "غیرفعال (Disable)" : (client.status || "").toLowerCase() === "expired" ? "منقضی" : (client.status || "active")}
                           </span>
                         </div>
 
@@ -2601,7 +2627,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
                 {/* Colleague Create Client Modal */}
                 {isColleagueCreateOpen && (
-                  <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                  <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
                     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl animate-fade-in">
                       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                         <h4 className="font-extrabold text-sm text-white flex items-center gap-2">
@@ -3187,8 +3213,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* THEMED NOTIFICATION MODAL (Harmonized with Theme, Replaces Native Alert)   */}
       {/* ========================================================================= */}
       {customModal.isOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl shadow-purple-950/60 text-center animate-fade-in">
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl shadow-purple-950/60 text-center animate-fade-in my-auto">
             <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
               {customModal.type === "success" && (
                 <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 w-full h-full rounded-2xl flex items-center justify-center">
@@ -3231,7 +3257,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* QR CODE MODAL                                                             */}
       {/* ========================================================================= */}
       {activeQrModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl text-center animate-fade-in">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <span className="font-bold text-xs text-white">اسکن بارکد اشتراک</span>

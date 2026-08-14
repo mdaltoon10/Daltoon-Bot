@@ -8,7 +8,9 @@ export const themeOptions = [
 
 export function getThemeStyles(dashboardTheme: string) {
   let styles = '';
-  const mapColors = (primary: string, secondary: string) => `
+  const mapColors = (primary: string, secondary: string) => {
+    if (primary === 'purple' && secondary === 'indigo') return '';
+    return `
     --color-purple-50: var(--color-${primary}-50);
     --color-purple-100: var(--color-${primary}-100);
     --color-purple-200: var(--color-${primary}-200);
@@ -33,6 +35,7 @@ export function getThemeStyles(dashboardTheme: string) {
     --color-indigo-900: var(--color-${secondary}-900);
     --color-indigo-950: var(--color-${secondary}-950);
   `;
+  };
 
   let bgDark = '#030305';
   let bgLight = '#f8fafc';
