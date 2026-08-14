@@ -43,7 +43,12 @@ import {
   Share2,
   Activity,
   Award,
-  Search
+  Search,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
+  FileText,
+  Camera
 } from "lucide-react";
 
 declare global {
@@ -493,13 +498,109 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const base = planMode === "custom" ? customCalculatedPrice : (selectedPlan?.price || 0);
     if (!appliedPromo) return base;
     let discount = 0;
-    if (appliedPromo.discountPercent) {
-      discount = Math.floor((base * Number(appliedPromo.discountPercent)) / 100);
-    } else if (appliedPromo.discountAmount) {
+    if (appliedPromo.discountAmount !== undefined) {
       discount = Number(appliedPromo.discountAmount);
+    } else if (appliedPromo.discountPercent || appliedPromo.promo?.discountPercent) {
+      const pct = Number(appliedPromo.discountPercent || appliedPromo.promo?.discountPercent);
+      discount = Math.floor((base * pct) / 100);
+    } else if (appliedPromo.promo?.discountAmount) {
+      discount = Number(appliedPromo.promo?.discountAmount);
+    } else if (appliedPromo.promo?.value) {
+      const val = Number(appliedPromo.promo.value);
+      if (appliedPromo.promo.type === "fixed_amount" || val > 100) {
+        discount = val;
+      } else {
+        discount = Math.floor((base * val) / 100);
+      }
     }
     return Math.max(0, base - discount);
   }, [planMode, customCalculatedPrice, selectedPlan, appliedPromo, isAdmin]);
+
+  // Helper to read and compress image from file input
+  const processImageFile = (
+    file: File,
+    onSuccess: (base64: string) => void
+  ) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showThemedModal("فرمت نامعتبر", "لطفاً یک تصویر معتبر (PNG, JPG, JPEG) از گالری انتخاب فرمایید.", "warning");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      showThemedModal("حجم بالا", "حجم تصویر باید کمتر از ۱۵ مگابایت باشد.", "warning");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataStr = e.target?.result as string;
+      if (!dataStr) return;
+      const img = new Image();
+      img.onload = () => {
+        const maxDim = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL("image/jpeg", 0.82);
+          onSuccess(compressed);
+        } else {
+          onSuccess(dataStr);
+        }
+      };
+      img.onerror = () => {
+        onSuccess(dataStr);
+      };
+      img.src = dataStr;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Extract effective cards list from system settings
+  const effectiveCards = useMemo(() => {
+    const list: Array<{ number: string; holder?: string; bank?: string }> = [];
+    if (Array.isArray(systemSettings?.cardNumbers) && systemSettings.cardNumbers.length > 0) {
+      systemSettings.cardNumbers.forEach((c: any) => {
+        if (typeof c === "string" && c.trim()) {
+          list.push({ number: c.trim(), holder: systemSettings.cardHolder || "مدیریت", bank: systemSettings.bankName || "بانک" });
+        } else if (c && typeof c === "object" && (c.number || c.cardNumber)) {
+          list.push({
+            number: String(c.number || c.cardNumber).trim(),
+            holder: c.holder || c.cardHolder || systemSettings.cardHolder || "مدیریت",
+            bank: c.bank || c.bankName || systemSettings.bankName || "بانک"
+          });
+        }
+      });
+    }
+    if (list.length === 0 && systemSettings?.cardNumber) {
+      list.push({
+        number: String(systemSettings.cardNumber).trim(),
+        holder: systemSettings.cardHolder || "مدیریت سرور",
+        bank: systemSettings.bankName || "بانک مقصد"
+      });
+    }
+    if (list.length === 0) {
+      list.push({
+        number: "۶۰۳۷-۹۹۷۵-۰۰۰۰-۰۰۰۰",
+        holder: "مدیریت سرور",
+        bank: "کارت بانکی"
+      });
+    }
+    return list;
+  }, [systemSettings]);
 
   // Validate Promo Code
   const handleApplyPromo = async () => {
@@ -552,7 +653,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     // Mandatory receipt check for card-to-card
     if (!isAdmin && paymentMethod === "card_to_card" && !cardReceiptImage.trim()) {
-      showThemedModal("شناسه تراکنش اجباری است", "لطفاً شناسه پیگیری، شماره رسید یا مشخصات واریز کارت به کارت را در فیلد مربوطه وارد فرمایید.", "warning");
+      showThemedModal("تصویر فیش یا رسید الزامی است", "لطفاً تصویر رسید پرداخت خود را از گالری انتخاب کرده یا کد پیگیری را در کادر مربوطه وارد فرمایید.", "warning");
       return;
     }
 
@@ -567,11 +668,11 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           serverId: String(selectedServer.id),
           planId: planMode === "custom" ? "custom" : selectedPlan.id,
           planName: planMode === "custom" ? `پلن دلخواه (${customGb}GB - ${customDays} روز)` : selectedPlan?.name,
-          customGb: planMode === "custom" ? customGb : undefined,
-          customDays: planMode === "custom" ? customDays : undefined,
+          customGb: planMode === "custom" ? customGb : (selectedPlan?.trafficGb || 30),
+          customDays: planMode === "custom" ? customDays : (selectedPlan?.durationDays || 30),
           clientUsername: clientUsername.trim() || `usr_${tgUser?.id}_${Math.random().toString(36).substring(2, 6)}`,
           paymentMethod: isAdmin ? "admin_free" : paymentMethod,
-          promoCode: appliedPromo?.code || undefined,
+          promoCode: appliedPromo?.code || appliedPromo?.promo?.code || promoCodeInput.trim() || undefined,
           receiptImage: cardReceiptImage || undefined,
         }),
       });
@@ -646,7 +747,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
 
     if (!depositReceipt.trim()) {
-      showThemedModal("شناسه تراکنش الزامی است", "لطفاً شماره پیگیری یا مشخصات فیش واریز را وارد فرمایید.", "warning");
+      showThemedModal("تصویر فیش یا رسید الزامی است", "لطفاً تصویر فیش واریز را از گالری انتخاب کرده یا شناسه پیگیری را وارد فرمایید.", "warning");
       return;
     }
 
@@ -1753,62 +1854,141 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </button>
                     </div>
 
-                    {/* Card to Card Details Box & MANDATORY Receipt ID */}
+                    {/* Card to Card Details Box & Gallery Image Receipt */}
                     {paymentMethod === "card_to_card" && (
                       <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/30 p-3.5 space-y-3">
-                        <div className="space-y-1">
+                        <div className="space-y-2">
                           <div className="text-xs font-bold text-indigo-300 flex items-center justify-between">
-                            <span>اطلاعات حساب جهت واریز:</span>
-                            {systemSettings.cardNumber && (
-                              <button
-                                onClick={() => copyToClipboard(systemSettings.cardNumber, "card-num")}
-                                className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-mono"
-                              >
-                                {copiedId === "card-num" ? "کپی شد" : "کپی شماره کارت"}
-                              </button>
-                            )}
+                            <span>اطلاعات کارت جهت واریز:</span>
+                            <span className="text-[10px] text-slate-400">یک کارت را جهت انتقال انتخاب کنید</span>
                           </div>
-                          <div className="bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">شماره کارت:</span>
-                              <span className="font-mono font-bold text-white tracking-wider">
-                                {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-****-****"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">به نام:</span>
-                              <span className="font-bold text-slate-200">
-                                {systemSettings.cardHolder || "مدیریت سرور"}
-                              </span>
-                            </div>
+                          
+                          <div className="space-y-2">
+                            {effectiveCards.map((c, idx) => (
+                              <div key={idx} className="bg-slate-950/90 p-3 rounded-xl border border-indigo-900/40 space-y-1.5 text-xs shadow-inner">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-indigo-400 font-bold flex items-center gap-1">
+                                    <CreditCard className="w-3.5 h-3.5 text-indigo-400" />
+                                    <span>{c.bank || "کارت بانکی مقصد"}</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(c.number.replace(/\s+/g, ""), `card-${idx}`)}
+                                    className="text-[10px] bg-indigo-950/80 hover:bg-indigo-900/80 text-indigo-300 px-2 py-1 rounded-lg border border-indigo-700/50 flex items-center gap-1 font-mono transition-all"
+                                  >
+                                    {copiedId === `card-${idx}` ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-emerald-400">کپی شد</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3 h-3 text-indigo-400" />
+                                        <span>کپی کارت</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                                <div className="flex justify-between items-center pt-0.5">
+                                  <span className="text-slate-400 text-[11px]">شماره کارت:</span>
+                                  <span className="font-mono font-bold text-white tracking-widest text-sm dir-ltr select-all">
+                                    {c.number}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className="text-slate-400 text-[11px]">به نام:</span>
+                                  <span className="font-medium text-slate-200">{c.holder || "مدیریت"}</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
 
-                        {/* MANDATORY Receipt Input */}
-                        <div className="space-y-1.5">
+                        {/* Gallery Image Receipt Upload & Preview */}
+                        <div className="space-y-2 pt-1 border-t border-indigo-900/30">
                           <label className="text-xs font-bold text-amber-300 flex items-center justify-between">
-                            <span>شماره پیگیری یا لینک رسید واریز: <strong className="text-rose-400 font-extrabold">(اجباری *)</strong></span>
+                            <span className="flex items-center gap-1">
+                              <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                              <span>ارسال فیش واریزی از گالری:</span>
+                            </span>
+                            <strong className="text-rose-400 font-extrabold text-[10px]">(اجباری *)</strong>
                           </label>
-                          <input
-                            type="text"
-                            placeholder="مثلاً: شماره پیگیری ۱۲۳۴۵۶ یا نام واریزکننده"
-                            value={cardReceiptImage}
-                            onChange={(e) => setCardReceiptImage(e.target.value)}
-                            className={`w-full bg-slate-950 border rounded-xl px-3 py-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none transition-colors ${
-                              !cardReceiptImage.trim()
-                                ? "border-amber-500/50 focus:border-amber-400"
-                                : "border-emerald-500/50 focus:border-emerald-400"
-                            }`}
-                          />
+
+                          {cardReceiptImage && cardReceiptImage.startsWith("data:image") ? (
+                            <div className="relative rounded-2xl overflow-hidden border border-emerald-500/50 bg-slate-950 p-2 space-y-2">
+                              <div className="flex items-center justify-between px-1">
+                                <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>تصویر رسید از گالری انتخاب شد</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setCardReceiptImage("")}
+                                  className="text-rose-400 hover:text-rose-300 text-[10px] flex items-center gap-1 bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-900/50"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+                              <img
+                                src={cardReceiptImage}
+                                alt="رسید واریز"
+                                className="w-full max-h-44 object-contain rounded-xl bg-slate-900"
+                              />
+                            </div>
+                          ) : (
+                            <div>
+                              <input
+                                id="purchase-receipt-upload"
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) processImageFile(file, (b64) => setCardReceiptImage(b64));
+                                }}
+                              />
+                              <label
+                                htmlFor="purchase-receipt-upload"
+                                className="w-full flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-950/20 hover:bg-indigo-950/40 cursor-pointer transition-all gap-1.5 text-center group"
+                              >
+                                <div className="w-9 h-9 rounded-full bg-indigo-900/60 group-hover:bg-indigo-800 flex items-center justify-center text-indigo-300">
+                                  <Upload className="w-4 h-4" />
+                                </div>
+                                <span className="text-xs font-bold text-indigo-200">
+                                  انتخاب تصویر فیش از گالری گوشی
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  فرمت‌های JPG، PNG (حداکثر ۱۵ مگابایت)
+                                </span>
+                              </label>
+                            </div>
+                          )}
+
+                          {/* Alternative or Extra Tracking Text */}
+                          <div className="pt-1 space-y-1">
+                            <input
+                              type="text"
+                              placeholder="یا وارد کردن شماره پیگیری / کد تراکنش (اختیاری)"
+                              value={cardReceiptImage.startsWith("data:image") ? "" : cardReceiptImage}
+                              onChange={(e) => {
+                                if (!cardReceiptImage.startsWith("data:image")) {
+                                  setCardReceiptImage(e.target.value);
+                                }
+                              }}
+                              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
                           {!cardReceiptImage.trim() ? (
                             <p className="text-[11px] text-amber-400 flex items-center gap-1">
                               <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                              <span>تا زمانی که شناسه یا مشخصات واریز را وارد نکنید، دکمه پرداخت فعال نمی‌شود.</span>
+                              <span>لطفاً تصویر فیش واریز را انتخاب کنید تا دکمه ثبت فعال شود.</span>
                             </p>
                           ) : (
                             <p className="text-[11px] text-emerald-400 flex items-center gap-1">
                               <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                              <span>مشخصات واریز وارد شد.</span>
+                              <span>مشخصات فیش واریز آماده ارسال است.</span>
                             </p>
                           )}
                         </div>
@@ -2318,19 +2498,120 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           </button>
                         </div>
 
-                        {/* Mandatory Card Receipt Input */}
+                        {/* Mandatory Card Receipt Input & Gallery Uploader */}
                         {colleaguePaymentMethod === "card_to_card" && (
-                          <div className="space-y-1.5 p-3 rounded-2xl bg-slate-950 border border-purple-900/40">
-                            <div className="text-[11px] text-purple-300 font-bold">
-                              💳 شماره کارت مقصد: {systemSettings.CARD_NUMBER || "۶۰۳۷۹۹۷۵۰۰۰۰۰۰۰۰"} ({systemSettings.CARD_HOLDER || "مدیریت"})
+                          <div className="space-y-2.5 p-3 rounded-2xl bg-slate-950 border border-purple-900/40 text-xs">
+                            <div className="space-y-1.5">
+                              <div className="text-[11px] text-purple-300 font-bold flex items-center justify-between">
+                                <span>💳 شماره کارت مقصد:</span>
+                                <span className="text-[10px] text-slate-400">یک کارت را جهت انتقال انتخاب کنید</span>
+                              </div>
+                              <div className="space-y-1.5">
+                                {effectiveCards.map((c, idx) => (
+                                  <div key={idx} className="bg-slate-900/90 p-2.5 rounded-xl border border-purple-800/40 flex justify-between items-center text-xs">
+                                    <div>
+                                      <div className="text-purple-300 font-bold flex items-center gap-1">
+                                        <CreditCard className="w-3 h-3 text-purple-400" />
+                                        <span>{c.bank || "بانک مقصد"}</span>
+                                        <span className="text-slate-400 text-[10px]">({c.holder || "مدیریت"})</span>
+                                      </div>
+                                      <div className="font-mono font-bold text-white tracking-wider text-[11px] dir-ltr select-all mt-0.5">
+                                        {c.number}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(c.number.replace(/\s+/g, ""), `col-card-${idx}`)}
+                                      className="text-[10px] bg-purple-950 hover:bg-purple-900 text-purple-200 px-2 py-1 rounded-lg border border-purple-700/50 flex items-center gap-1 font-mono transition-all"
+                                    >
+                                      {copiedId === `col-card-${idx}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                          <span className="text-emerald-400">کپی شد</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3 text-purple-300" />
+                                          <span>کپی</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <input
-                              type="text"
-                              placeholder="شناسه پیگیری یا شماره فیش واریزی (اجباری) *"
-                              value={colleagueCardReceipt}
-                              onChange={(e) => setColleagueCardReceipt(e.target.value)}
-                              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
-                            />
+
+                            {/* Gallery Image Upload for Colleague */}
+                            <div className="space-y-2 pt-1 border-t border-purple-900/30">
+                              <label className="text-xs font-bold text-amber-300 flex items-center justify-between">
+                                <span className="flex items-center gap-1">
+                                  <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                                  <span>ارسال تصویر فیش از گالری:</span>
+                                </span>
+                                <strong className="text-rose-400 font-extrabold text-[10px]">(اجباری *)</strong>
+                              </label>
+
+                              {colleagueCardReceipt && colleagueCardReceipt.startsWith("data:image") ? (
+                                <div className="relative rounded-xl overflow-hidden border border-emerald-500/50 bg-slate-900 p-2 space-y-1.5">
+                                  <div className="flex items-center justify-between px-1">
+                                    <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5" />
+                                      <span>تصویر رسید پیوست شد</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setColleagueCardReceipt("")}
+                                      className="text-rose-400 hover:text-rose-300 text-[10px] flex items-center gap-1 bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-900/50"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                      <span>حذف</span>
+                                    </button>
+                                  </div>
+                                  <img
+                                    src={colleagueCardReceipt}
+                                    alt="رسید واریز"
+                                    className="w-full max-h-36 object-contain rounded-lg bg-slate-950"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <input
+                                    id="colleague-receipt-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) processImageFile(file, (b64) => setColleagueCardReceipt(b64));
+                                    }}
+                                  />
+                                  <label
+                                    htmlFor="colleague-receipt-upload"
+                                    className="w-full flex flex-col items-center justify-center p-3 rounded-xl border-2 border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 cursor-pointer transition-all gap-1 text-center group"
+                                  >
+                                    <div className="w-8 h-8 rounded-full bg-purple-900/60 group-hover:bg-purple-800 flex items-center justify-center text-purple-300">
+                                      <Upload className="w-3.5 h-3.5" />
+                                    </div>
+                                    <span className="text-xs font-bold text-purple-200">
+                                      انتخاب تصویر فیش از گالری
+                                    </span>
+                                  </label>
+                                </div>
+                              )}
+
+                              {/* Extra text input */}
+                              <input
+                                type="text"
+                                placeholder="یا شناسه پیگیری / کد تراکنش (اختیاری)"
+                                value={colleagueCardReceipt.startsWith("data:image") ? "" : colleagueCardReceipt}
+                                onChange={(e) => {
+                                  if (!colleagueCardReceipt.startsWith("data:image")) {
+                                    setColleagueCardReceipt(e.target.value);
+                                  }
+                                }}
+                                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2873,18 +3154,49 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 </h4>
 
                 {/* Bank Card Info */}
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">شماره کارت مقصد:</span>
-                    <span className="font-mono font-bold text-white tracking-wider">
-                      {systemSettings.cardNumber || "۶۰۳۷-۹۹۷۵-****-****"}
-                    </span>
+                <div className="space-y-2">
+                  <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                    <span>اطلاعات کارت جهت واریز:</span>
+                    <span className="text-[10px] text-slate-400">کارت مقصد را انتخاب کنید</span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-400">به نام:</span>
-                    <span className="font-bold text-slate-200">
-                      {systemSettings.cardHolder || "مدیریت سرور"}
-                    </span>
+                  <div className="space-y-2">
+                    {effectiveCards.map((c, idx) => (
+                      <div key={idx} className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1.5 text-xs shadow-inner">
+                        <div className="flex justify-between items-center">
+                          <span className="text-purple-400 font-bold flex items-center gap-1">
+                            <CreditCard className="w-3.5 h-3.5 text-purple-400" />
+                            <span>{c.bank || "کارت بانکی مقصد"}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(c.number.replace(/\s+/g, ""), `dep-card-${idx}`)}
+                            className="text-[10px] bg-purple-950/80 hover:bg-purple-900/80 text-purple-300 px-2 py-1 rounded-lg border border-purple-700/50 flex items-center gap-1 font-mono transition-all"
+                          >
+                            {copiedId === `dep-card-${idx}` ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">کپی شد</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-purple-400" />
+                                <span>کپی کارت</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <div className="flex justify-between items-center pt-0.5">
+                          <span className="text-slate-400 text-[11px]">شماره کارت:</span>
+                          <span className="font-mono font-bold text-white tracking-widest text-sm dir-ltr select-all">
+                            {c.number}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400 text-[11px]">به نام:</span>
+                          <span className="font-medium text-slate-200">{c.holder || "مدیریت"}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -2921,18 +3233,81 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   />
                 </div>
 
-                {/* MANDATORY Deposit Receipt Input */}
-                <div className="space-y-1">
+                {/* Gallery Image Receipt Upload & Preview for Deposit */}
+                <div className="space-y-2 pt-1 border-t border-slate-800">
                   <label className="text-xs font-bold text-amber-300 flex items-center justify-between">
-                    <span>شماره پیگیری یا فیش واریز: <strong className="text-rose-400 font-extrabold">(اجباری *)</strong></span>
+                    <span className="flex items-center gap-1">
+                      <ImageIcon className="w-3.5 h-3.5 text-amber-400" />
+                      <span>ارسال تصویر فیش شارژ از گالری:</span>
+                    </span>
+                    <strong className="text-rose-400 font-extrabold text-[10px]">(اجباری *)</strong>
                   </label>
-                  <input
-                    type="text"
-                    placeholder="شماره پیگیری فیش بانکی..."
-                    value={depositReceipt}
-                    onChange={(e) => setDepositReceipt(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
-                  />
+
+                  {depositReceipt && depositReceipt.startsWith("data:image") ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-emerald-500/50 bg-slate-950 p-2 space-y-2">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>تصویر فیش از گالری پیوست شد</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setDepositReceipt("")}
+                          className="text-rose-400 hover:text-rose-300 text-[10px] flex items-center gap-1 bg-rose-950/40 px-2 py-0.5 rounded-lg border border-rose-900/50"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>حذف</span>
+                        </button>
+                      </div>
+                      <img
+                        src={depositReceipt}
+                        alt="رسید شارژ"
+                        className="w-full max-h-44 object-contain rounded-xl bg-slate-900"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        id="deposit-receipt-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) processImageFile(file, (b64) => setDepositReceipt(b64));
+                        }}
+                      />
+                      <label
+                        htmlFor="deposit-receipt-upload"
+                        className="w-full flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 border-dashed border-purple-500/40 hover:border-purple-400 bg-purple-950/20 hover:bg-purple-950/40 cursor-pointer transition-all gap-1.5 text-center group"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-purple-900/60 group-hover:bg-purple-800 flex items-center justify-center text-purple-300">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-purple-200">
+                          انتخاب تصویر فیش واریز از گالری
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          فرمت‌های تصویری JPG، PNG
+                        </span>
+                      </label>
+                    </div>
+                  )}
+
+                  {/* Alternative Tracking Text */}
+                  <div className="pt-1">
+                    <input
+                      type="text"
+                      placeholder="یا وارد کردن شماره پیگیری / کد تراکنش (اختیاری)"
+                      value={depositReceipt.startsWith("data:image") ? "" : depositReceipt}
+                      onChange={(e) => {
+                        if (!depositReceipt.startsWith("data:image")) {
+                          setDepositReceipt(e.target.value);
+                        }
+                      }}
+                      className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
+                    />
+                  </div>
                 </div>
 
                 <button

@@ -8132,7 +8132,8 @@ def callback_handler(call):
         return
 
     # Admin approval/rejection handlers for transactions
-    if call.data.startswith("tx_approve:") or call.data.startswith("tx_reject:"):
+    if (call.data.startswith("tx_approve:") or call.data.startswith("tx_reject:") or
+        call.data.startswith("tx_app_") or call.data.startswith("tx_rej_")):
         cfg = get_config()
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = int(tg_id) in cfg.get("ADMINS", [])
@@ -8144,9 +8145,21 @@ def callback_handler(call):
                 pass
             return
             
-        parts = call.data.split(":")
-        action = parts[0]
-        tx_id = parts[1]
+        if call.data.startswith("tx_approve:"):
+            action = "tx_approve"
+            tx_id = call.data.split(":", 1)[1]
+        elif call.data.startswith("tx_reject:"):
+            action = "tx_reject"
+            tx_id = call.data.split(":", 1)[1]
+        elif call.data.startswith("tx_app_"):
+            action = "tx_approve"
+            tx_id = call.data[len("tx_app_"):]
+        elif call.data.startswith("tx_rej_"):
+            action = "tx_reject"
+            tx_id = call.data[len("tx_rej_"):]
+        else:
+            action = ""
+            tx_id = ""
         
         if action == "tx_approve":
             try:
@@ -8527,11 +8540,11 @@ def callback_handler(call):
             except Exception as e:
                 print(f"[Delete API Error]: {e}")
             
-            db["subscription_keys"] = [sub for sub in db["subscription_keys"] if not (sub["id"] == target_sub_id and sub["userId"] == tg_id)]
+            db["subscription_keys"] = [sub for sub in db.get("subscription_keys", []) if not (str(sub.get("id")) == str(target_sub_id) and str(sub.get("userId")) == str(tg_id))]
             
-            user = next((u for u in db["users"] if u["userId"] == tg_id), None)
+            user = next((u for u in db.get("users", []) if str(u.get("userId")) == str(tg_id)), None)
             if user:
-                user["activePlansCount"] = sum(1 for sub in db["subscription_keys"] if sub["userId"] == tg_id and sub["status"] == "active")
+                user["activePlansCount"] = sum(1 for sub in db.get("subscription_keys", []) if str(sub.get("userId")) == str(tg_id) and sub.get("status") == "active")
             
             write_sqlite_db(db)
             

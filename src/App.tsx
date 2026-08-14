@@ -1420,28 +1420,51 @@ export default function App() {
     }).catch((err) => console.warn("Failed syncing deleted user:", err));
   };
 
-  const deleteSubscriptionKey = (keyId: string) => {
-    const keyObj = keys.find((k) => k.id === keyId);
-    setKeys((prev) => prev.filter((k) => k.id !== keyId));
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (keyObj && u.userId === keyObj.userId) {
-          return {
-            ...u,
-            activePlansCount: Math.max(0, u.activePlansCount - 1),
-          };
-        }
-        return u;
-      }),
-    );
+  const deleteSubscriptionKey = async (keyId: string) => {
+    const searchId = String(keyId).trim();
+    const keyObj = keys.find((k) => String(k.id).trim() === searchId || String(k.clientUuid || k.uuid || "").trim() === searchId);
+    
+    setKeys((prev) => prev.filter((k) => String(k.id).trim() !== searchId && (!keyObj || k.id !== keyObj.id)));
     if (keyObj) {
-      fetch("/api/subscription-keys/delete", {
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.userId === keyObj.userId) {
+            return {
+              ...u,
+              activePlansCount: Math.max(0, u.activePlansCount - 1),
+            };
+          }
+          return u;
+        }),
+      );
+    }
+
+    try {
+      const res = await fetch("/api/subscription-keys/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: keyId, userId: keyObj.userId }),
-      }).catch((err) =>
-        console.warn("Failed syncing deleted sub config:", err),
-      );
+        body: JSON.stringify({
+          id: keyId,
+          userId: keyObj?.userId,
+          clientName: keyObj?.clientName,
+          clientUuid: keyObj?.clientUuid || keyObj?.uuid,
+          serverId: keyObj?.serverId
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (Array.isArray(data.subscriptionKeys)) {
+          setKeys(data.subscriptionKeys);
+        }
+        if (Array.isArray(data.users)) {
+          setUsers(data.users);
+        }
+        if (Array.isArray(data.colleagueAccounts)) {
+          setColleagueAccounts(data.colleagueAccounts);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed syncing deleted sub config:", err);
     }
   };
 

@@ -4459,44 +4459,56 @@ async function extendVpnClientApi(
   }
 }
 
-async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
+async function deleteVpnClientApi(clientEmail: string, clientUuid?: string, serverId?: string) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
 
-    const targetServers = serverId
-      ? activeServers.filter((s: any) => s.id === serverId)
+    // If serverId is given, prioritize it, then fallback to other active servers
+    let targetServers = serverId
+      ? activeServers.filter((s: any) => String(s.id).trim() === String(serverId).trim())
       : activeServers;
 
+    if (targetServers.length === 0) {
+      targetServers = activeServers;
+    }
+
     if (targetServers.length === 0)
-      return { success: false, error: "XUI disconnected" };
+      return { success: false, error: "No active VPN servers configured" };
 
     let deletedAtLeastOnce = false;
     let detectedUsedGb = 0;
 
+    const cleanEmail = (clientEmail || "").trim();
+    const cleanUuid = (clientUuid || "").trim();
+    const safeEmail = cleanEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "");
+
     for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-
         const panelType = (server.panelType || "sanaei").toLowerCase();
+
+        // 1. Marzban / Rebecca / Pasarguard / D-UI
         if (["rebecca", "pasarguard", "marzban", "d-ui", "dui"].includes(panelType)) {
           try {
             const token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
             if (token) {
-              let safeEmail = clientEmail ? clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "") : "";
-              const delRes = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}`, {
-                method: "DELETE",
-                headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" }
-              }, 10000).catch(() => null);
-              if (delRes && delRes.ok) {
-                deletedAtLeastOnce = true;
-                continue;
+              const headers = { "Authorization": `Bearer ${token}`, "Accept": "application/json" };
+              if (safeEmail) {
+                const delRes = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}`, { method: "DELETE", headers }, 8000).catch(() => null);
+                if (delRes && delRes.ok) deletedAtLeastOnce = true;
               }
+              if (cleanUuid && cleanUuid !== safeEmail) {
+                const delResUuid = await xuiFetch(`${cleanedUrl}/api/user/${cleanUuid}`, { method: "DELETE", headers }, 8000).catch(() => null);
+                if (delResUuid && delResUuid.ok) deletedAtLeastOnce = true;
+              }
+              if (deletedAtLeastOnce) continue;
             }
           } catch(e) {}
         }
 
+        // 2. X-UI / 3X-UI / Sanaei / Alireza / FranzKafkaYu
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
@@ -4513,49 +4525,101 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
         }
 
         const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
-        const delUrl = `${baseUrl}/panel/api/clients/del/${encodeURIComponent(clientEmail)}`;
-        let globalDelSuccess = false;
-        try {
-          const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000);
-          if (res && res.ok) {
-            const data = await res.json().catch(() => ({}));
-            if (data && data.success) {
-              globalDelSuccess = true;
-              deletedAtLeastOnce = true;
-            }
-          }
-        } catch (e) {}
 
-        // Fallback: search across all inbounds
+        // Try global client delete endpoint by email
+        if (safeEmail) {
+          try {
+            const delUrl = `${baseUrl}/panel/api/clients/del/${encodeURIComponent(safeEmail)}`;
+            const res = await xuiFetch(delUrl, { method: "POST", headers }, 5000);
+            if (res && res.ok) {
+              const data = await res.json().catch(() => ({}));
+              if (data && data.success) {
+                deletedAtLeastOnce = true;
+              }
+            }
+          } catch (e) {}
+        }
+
+        // Try global client delete endpoint by UUID
+        if (cleanUuid) {
+          try {
+            const delUuidUrl = `${baseUrl}/panel/api/inbounds/delClient/${encodeURIComponent(cleanUuid)}`;
+            const res = await xuiFetch(delUuidUrl, { method: "POST", headers }, 5000);
+            if (res && res.ok) {
+              const data = await res.json().catch(() => ({}));
+              if (data && data.success) {
+                deletedAtLeastOnce = true;
+              }
+            }
+          } catch (e) {}
+        }
+
+        // Search across all inbounds for client and delete
         try {
           const listUrl = `${baseUrl}/panel/api/inbounds/list`;
-          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000);
+          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 6000);
           if (listRes && listRes.ok) {
             const data = await listRes.json().catch(() => ({}));
             if (data && data.success && Array.isArray(data.obj)) {
               for (const inbound of data.obj) {
                 let clients = [];
                 try {
-                  const settings = JSON.parse(inbound.settings || "{}");
-                  clients = settings.clients || [];
+                  const inSettings = JSON.parse(inbound.settings || "{}");
+                  clients = inSettings.clients || [];
                 } catch (e) {}
-                
-                const clientMatch = clients.find((c: any) => c.email === clientEmail);
+
+                const targetEmailLower = (cleanEmail || "").toLowerCase();
+                const targetUuidLower = (cleanUuid || "").toLowerCase();
+                const targetSafeLower = (safeEmail || "").toLowerCase();
+
+                const clientMatch = clients.find((c: any) => {
+                  if (!c) return false;
+                  const cEmail = String(c.email || "").trim().toLowerCase();
+                  const cId = String(c.id || "").trim().toLowerCase();
+                  const cSubId = String(c.subId || "").trim().toLowerCase();
+
+                  if (targetUuidLower && cId === targetUuidLower) return true;
+                  if (targetEmailLower && (cEmail === targetEmailLower || cSubId === targetEmailLower)) return true;
+                  if (targetSafeLower && cEmail === targetSafeLower) return true;
+                  if (targetEmailLower && cEmail && (cEmail.includes(targetEmailLower) || targetEmailLower.includes(cEmail))) return true;
+                  return false;
+                });
+
                 if (clientMatch) {
                   const uBytes = (Number(clientMatch.up) || 0) + (Number(clientMatch.down) || 0);
                   if (uBytes > 0) {
                     const gb = uBytes / (1024 * 1024 * 1024);
                     if (gb > detectedUsedGb) detectedUsedGb = gb;
                   }
-                  if (clientMatch.id) {
-                    const fallbackDelUrl = `${baseUrl}/panel/api/inbounds/${inbound.id}/delClient/${clientMatch.id}`;
-                    const fRes = await xuiFetch(fallbackDelUrl, { method: "POST", headers }, 5000);
+
+                  const clientTargetId = clientMatch.id || cleanUuid || clientMatch.email || safeEmail;
+                  if (clientTargetId) {
+                    // Try inbound-specific delClient
+                    const inboundDelUrl = `${baseUrl}/panel/api/inbounds/${inbound.id}/delClient/${encodeURIComponent(clientTargetId)}`;
+                    const fRes = await xuiFetch(inboundDelUrl, { method: "POST", headers }, 5000);
                     if (fRes && fRes.ok) {
-                       const fData = await fRes.json().catch(() => ({}));
-                       if (fData && fData.success) {
-                          deletedAtLeastOnce = true;
-                       }
+                      const fData = await fRes.json().catch(() => ({}));
+                      if (fData && fData.success) {
+                        deletedAtLeastOnce = true;
+                      }
                     }
+
+                    // Also try alternate URL patterns
+                    const altDelUrl = `${baseUrl}/panel/api/inbounds/delClient/${encodeURIComponent(clientTargetId)}`;
+                    await xuiFetch(altDelUrl, { method: "POST", headers }, 4000).then(async (r) => {
+                      if (r && r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        if (d && d.success) deletedAtLeastOnce = true;
+                      }
+                    }).catch(() => null);
+
+                    const legacyDelUrl = `${baseUrl}/panel/inbound/delClient/${encodeURIComponent(clientTargetId)}`;
+                    await xuiFetch(legacyDelUrl, { method: "POST", headers }, 4000).then(async (r) => {
+                      if (r && r.ok) {
+                        const d = await r.json().catch(() => ({}));
+                        if (d && d.success) deletedAtLeastOnce = true;
+                      }
+                    }).catch(() => null);
                   }
                 }
               }
@@ -4563,16 +4627,14 @@ async function deleteVpnClientApi(clientEmail: string, serverId?: string) {
           }
         } catch (e) {}
       } catch (e) {
-        // Ignore individual server errors and try others
+        // Continue trying remaining servers
       }
     }
 
     return {
       success: deletedAtLeastOnce,
       usedGb: detectedUsedGb,
-      error: deletedAtLeastOnce
-        ? undefined
-        : "Panel deletion failed on all servers",
+      error: deletedAtLeastOnce ? undefined : "Panel deletion completed or client was not found on active panel",
     };
   } catch (e) {
     return { success: false, error: "Exception during deletion" };
@@ -5780,6 +5842,18 @@ app.post("/api/transactions/approve", async (req, res) => {
     if (!db.transactions) db.transactions = [];
     const tx = db.transactions.find((t: any) => String(t.id).trim() === String(id).trim());
     if (tx) {
+      if (tx.pendingPurchase) {
+        if (!tx.planId && tx.pendingPurchase.planId) tx.planId = tx.pendingPurchase.planId;
+        if (!tx.serverId && tx.pendingPurchase.serverId) tx.serverId = tx.pendingPurchase.serverId;
+        if (!tx.clientName && (tx.pendingPurchase.clientUsername || tx.pendingPurchase.clientName)) {
+          tx.clientName = tx.pendingPurchase.clientUsername || tx.pendingPurchase.clientName;
+        }
+        if (!tx.customGb && tx.pendingPurchase.customGb) tx.customGb = tx.pendingPurchase.customGb;
+        if (!tx.customDays && tx.pendingPurchase.customDays) tx.customDays = tx.pendingPurchase.customDays;
+        if (tx.type !== "PLAN_PURCHASE" && (tx.planId || tx.pendingPurchase.planId || tx.pendingPurchase.packageId)) {
+          tx.type = "PLAN_PURCHASE";
+        }
+      }
       if (overridePlanId) {
         tx.type = "PLAN_PURCHASE";
         tx.planId = overridePlanId;
@@ -6032,7 +6106,7 @@ app.post("/api/transactions/approve", async (req, res) => {
             } catch (e: any) {
               messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ: ${e.message}`;
             }
-          } else if (tx.planId === "custom_vol") {
+          } else if (tx.planId === "custom_vol" || tx.planId === "custom") {
             const clientName = tx.clientName || `user_${tx.userId}`;
             const settings = getSystemSettings(db);
             const customGb = Number(tx.customGb) || 10;
@@ -6538,23 +6612,40 @@ app.post("/api/subscription-keys", async (req, res) => {
 
 app.post("/api/subscription-keys/delete", async (req, res) => {
   try {
-    const { id, userId } = req.body;
+    const { id, userId, clientName, clientUuid, serverId } = req.body;
     const db = readSqliteDb();
 
-    const keyToDelete = db.subscription_keys.find((k: any) => k.id === id);
-    if (keyToDelete) {
-      let liveUsedGb = 0;
-      if (keyToDelete.clientName) {
-        // Attempt to delete from Xray Panel using our helper
-        const delRes: any = await deleteVpnClientApi(keyToDelete.clientName, keyToDelete.serverId);
+    const searchId = id !== undefined && id !== null ? String(id).trim() : "";
+    const keyToDelete = (db.subscription_keys || []).find((k: any) => {
+      if (!k) return false;
+      if (searchId && String(k.id).trim() === searchId) return true;
+      if (searchId && k.clientUuid && String(k.clientUuid).trim() === searchId) return true;
+      if (searchId && k.uuid && String(k.uuid).trim() === searchId) return true;
+      if (clientName && (k.clientName === clientName || k.email === clientName)) return true;
+      if (clientUuid && (k.clientUuid === clientUuid || k.uuid === clientUuid)) return true;
+      return false;
+    });
+
+    let liveUsedGb = 0;
+    const clientIdentifier = keyToDelete?.clientName || keyToDelete?.email || keyToDelete?.planName || clientName || "";
+    const effectiveUuid = keyToDelete?.clientUuid || keyToDelete?.uuid || clientUuid || (searchId.includes("-") ? searchId : "");
+    const effectiveServerId = keyToDelete?.serverId || serverId;
+
+    if (clientIdentifier || effectiveUuid) {
+      try {
+        const delRes: any = await deleteVpnClientApi(clientIdentifier, effectiveUuid, effectiveServerId);
         if (delRes && typeof delRes === "object" && typeof delRes.usedGb === "number") {
           liveUsedGb = delRes.usedGb;
         }
         if (!delRes || !delRes.success) {
-          console.warn("Could not delete from panel, deleting locally anyway. Error:", delRes?.error);
+          console.warn(`[Delete VPN Client] Notice for ${clientIdentifier || effectiveUuid}: ${delRes?.error || 'Panel removal logged'}`);
         }
+      } catch (err) {
+        console.warn("[Delete VPN Client Error]:", err);
       }
+    }
 
+    if (keyToDelete) {
       const dbUsedGb = Number(keyToDelete.trafficUsedGb || 0);
       const effectiveUsedGb = Math.max(dbUsedGb, liveUsedGb);
 
@@ -6563,21 +6654,17 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
         (a: any) => isKeyForColleague(keyToDelete, a)
       );
       if (colAcc) {
-        // If the user connected or consumed traffic (> 0 bytes / > 0.0000001 GB)
         if (effectiveUsedGb > 0.0000001) {
           colAcc.deletedTrafficGb =
             (colAcc.deletedTrafficGb || 0) +
             Number(keyToDelete.trafficLimitGb || 0);
           colAcc.deletedRealTrafficGb =
             (colAcc.deletedRealTrafficGb || 0) + effectiveUsedGb;
-        } else {
-          // User NEVER connected and used 0 traffic.
-          // Do NOT add to deletedTrafficGb, so the allocated traffic returns to colleague's available quota.
         }
 
         // Recalculate colleague account usedTrafficGb immediately
         const remainingColKeys = db.subscription_keys.filter(
-          (k: any) => k.id !== id && isKeyForColleague(k, colAcc)
+          (k: any) => String(k.id).trim() !== searchId && isKeyForColleague(k, colAcc)
         );
         const sumActiveLimits = remainingColKeys.reduce(
           (sum: number, k: any) => sum + Number(k.trafficLimitGb || 0), 0
@@ -6590,17 +6677,35 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
       }
     }
 
-    db.subscription_keys = db.subscription_keys.filter((k) => k.id !== id);
+    // Filter key out of db.subscription_keys safely
+    db.subscription_keys = (db.subscription_keys || []).filter((k: any) => {
+      if (!k) return false;
+      if (searchId && String(k.id).trim() === searchId) return false;
+      if (keyToDelete && k.id === keyToDelete.id) return false;
+      if (clientName && (k.clientName === clientName || k.email === clientName)) return false;
+      return true;
+    });
 
-    const user = db.users.find((u) => u.userId === Number(userId));
-    if (user) {
-      user.activePlansCount = db.subscription_keys.filter(
-        (k) => k.userId === Number(userId) && k.status === "active",
-      ).length;
+    const targetUserId = userId || keyToDelete?.userId;
+    if (targetUserId) {
+      const user = (db.users || []).find((u: any) => Number(u.userId) === Number(targetUserId));
+      if (user) {
+        user.activePlansCount = db.subscription_keys.filter(
+          (k: any) => Number(k.userId) === Number(targetUserId) && k.status === "active",
+        ).length;
+        if (Array.isArray(user.configs)) {
+          user.configs = user.configs.filter((c: any) => String(c.id || c.uuid || c.clientName) !== searchId);
+        }
+      }
     }
 
     writeSqliteDb(db);
-    res.json({ success: true, colleagueAccounts: db.colleague_accounts });
+    res.json({
+      success: true,
+      subscriptionKeys: db.subscription_keys,
+      users: db.users,
+      colleagueAccounts: db.colleague_accounts
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -6894,6 +6999,107 @@ app.get("/api/vpn-plans", (req, res) => {
 // TELEGRAM MINI-APP LIVE DATABASE API ROUTES
 // ==========================================
 
+// Helper to get all card details from both settings and panel_config
+function getEffectiveCardDetails(settings: any) {
+  let cardNumber = String(settings?.cardNumber || "").trim();
+  let cardHolder = String(settings?.cardHolder || "").trim();
+  let bankName = String(settings?.bankName || "").trim();
+  let cardNumbers: any[] = [];
+
+  if (Array.isArray(settings?.cardNumbers) && settings.cardNumbers.length > 0) {
+    cardNumbers = settings.cardNumbers.filter((c: any) => c && (c.number || c.cardNumber));
+    if (cardNumbers.length > 0) {
+      const first = cardNumbers[0];
+      if (!cardNumber) cardNumber = String(first.number || first.cardNumber || "").trim();
+      if (!cardHolder) cardHolder = String(first.holder || first.cardHolder || "").trim();
+      if (!bankName) bankName = String(first.bankName || "").trim();
+    }
+  }
+
+  // Also inspect panel_config if available
+  try {
+    const pc = typeof settings?.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings?.panel_config || {});
+    if (!cardNumber && pc.cardNumber) cardNumber = String(pc.cardNumber).trim();
+    if (!cardHolder && pc.cardHolder) cardHolder = String(pc.cardHolder).trim();
+    if (!bankName && pc.bankName) bankName = String(pc.bankName).trim();
+    if (cardNumbers.length === 0 && Array.isArray(pc.cardNumbers) && pc.cardNumbers.length > 0) {
+      cardNumbers = pc.cardNumbers.filter((c: any) => c && (c.number || c.cardNumber));
+      if (cardNumbers.length > 0) {
+        const first = cardNumbers[0];
+        if (!cardNumber) cardNumber = String(first.number || first.cardNumber || "").trim();
+        if (!cardHolder) cardHolder = String(first.holder || first.cardHolder || "").trim();
+        if (!bankName) bankName = String(first.bankName || "").trim();
+      }
+    }
+  } catch (e) {}
+
+  if (cardNumbers.length === 0 && cardNumber) {
+    cardNumbers = [{ number: cardNumber, holder: cardHolder, bankName }];
+  }
+
+  return { cardNumber, cardHolder, bankName, cardNumbers };
+}
+
+// Helper to send photo directly to Telegram chat using bot API (supports base64 and URLs)
+async function sendTelegramPhoto(
+  botToken: string,
+  chatId: string | number,
+  photo: string,
+  caption: string,
+  replyMarkup?: any
+) {
+  if (!botToken || botToken === "DUMMY_TOKEN") return false;
+  const effectiveToken = (botToken && botToken.trim() !== "" && botToken !== "DUMMY_TOKEN")
+    ? botToken.trim()
+    : (process.env.BOT_TOKEN || "").trim();
+  if (!effectiveToken || effectiveToken === "DUMMY_TOKEN") return false;
+
+  const fetchRef = globalThis.fetch || fetch;
+
+  try {
+    if (photo && photo.startsWith("data:image/")) {
+      const parts = photo.split(",");
+      const mimeMatch = photo.match(/data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+).*?;base64/);
+      const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+      const base64Data = parts[1] || "";
+      const buffer = Buffer.from(base64Data, "base64");
+
+      const formData = new FormData();
+      formData.append("chat_id", String(chatId));
+      const blob = new Blob([buffer], { type: mime });
+      formData.append("photo", blob, "receipt.jpg");
+      if (caption) formData.append("caption", caption);
+      formData.append("parse_mode", "HTML");
+      if (replyMarkup) formData.append("reply_markup", JSON.stringify(replyMarkup));
+
+      const res = await fetchRef(`https://api.telegram.org/bot${effectiveToken}/sendPhoto`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) return true;
+    } else if (photo && (photo.startsWith("http://") || photo.startsWith("https://"))) {
+      const body: any = {
+        chat_id: chatId,
+        photo: photo,
+        caption: caption,
+        parse_mode: "HTML",
+      };
+      if (replyMarkup) body.reply_markup = replyMarkup;
+
+      const res = await fetchRef(`https://api.telegram.org/bot${effectiveToken}/sendPhoto`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return true;
+    }
+  } catch (err: any) {
+    console.warn("[sendTelegramPhoto Error, falling back to sendMessage]:", err?.message);
+  }
+
+  return await sendTelegramMessage(botToken, chatId, caption, replyMarkup);
+}
+
 // 1. Initial Aggregated Data for MiniApp (User, Plans, Servers, Categories, Configs, Settings)
 // Helper to send instant notification to all bot admins on new receipt submission
 async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
@@ -6927,7 +7133,7 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
 
     const usernameDisplay = tx.username ? `@${tx.username.replace(/^@/, '')}` : `کاربر (${tx.userId})`;
     const planInfo = tx.pendingPurchase?.planName || tx.description || "خرید اشتراک";
-    const receiptInfo = tx.receiptImage || "ارسال شده در مینی‌اپ";
+    const receiptInfo = (tx.receiptImage && !tx.receiptImage.startsWith("data:image/")) ? tx.receiptImage : "تصویر فیش پیوست شد";
     const amountFormatted = Number(tx.amount || 0).toLocaleString("fa-IR");
 
     const adminMsg = `🔔 <b>رسید جدید برای تایید واریز شد! (مینی‌اپ)</b>\n\n` +
@@ -6935,22 +7141,28 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
       `💰 <b>مبلغ فاکتور:</b> ${amountFormatted} تومان\n` +
       `🆔 <b>شناسه تراکنش:</b> <code>${tx.id}</code>\n` +
       `📦 <b>سرویس انتخابی:</b> ${planInfo}\n` +
-      `📝 <b>شماره پیگیری / فیش:</b> <code>${receiptInfo}</code>\n` +
+      `📝 <b>توضیحات/فیش:</b> <code>${receiptInfo}</code>\n` +
       `⏱ <b>زمان ثبت:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}\n\n` +
       `📥 <i>جهت تایید یا رد مستقیم می‌توانید از پنل داشبورد یا دکمه‌های زیر استفاده کنید:</i>`;
 
     const inlineMarkup = {
       inline_keyboard: [
         [
-          { text: "✅ تایید و فعال‌سازی فوری", callback_data: `tx_app_${tx.id}` },
-          { text: "❌ رد تراکنش", callback_data: `tx_rej_${tx.id}` }
+          { text: "✅ تایید و فعال‌سازی فوری", callback_data: `tx_approve:${tx.id}` },
+          { text: "❌ رد تراکنش", callback_data: `tx_reject:${tx.id}` }
         ]
       ]
     };
 
+    const hasPhoto = tx.receiptImage && (tx.receiptImage.startsWith("data:image/") || tx.receiptImage.startsWith("http://") || tx.receiptImage.startsWith("https://"));
+
     for (const targetId of adminTargets) {
       try {
-        await sendTelegramMessage(botToken, targetId, adminMsg, inlineMarkup);
+        if (hasPhoto) {
+          await sendTelegramPhoto(botToken, targetId, tx.receiptImage, adminMsg, inlineMarkup);
+        } else {
+          await sendTelegramMessage(botToken, targetId, adminMsg, inlineMarkup);
+        }
       } catch (err: any) {
         console.warn(`[Admin Receipt Notify Warning] for ${targetId}:`, err.message);
       }
@@ -7282,8 +7494,10 @@ app.get("/api/miniapp/data", async (req, res) => {
       settings: {
         botNickname: settings.botNickname || "دالتون",
         botUsername: (settings.botUsername || settings.botNickname || "DaltoonBot").replace(/^@/, '').replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '') || "DaltoonBot",
-        cardNumber: settings.cardNumber || "",
-        cardHolder: settings.cardHolder || "",
+        cardNumber: getEffectiveCardDetails(settings).cardNumber,
+        cardHolder: getEffectiveCardDetails(settings).cardHolder,
+        bankName: getEffectiveCardDetails(settings).bankName,
+        cardNumbers: getEffectiveCardDetails(settings).cardNumbers,
         channelUsername: settings.channelUsername || "",
         supportUsername: settings.supportUsername || settings.channelUsername || "",
         panelType: settings.panelType || "sanaei"
@@ -7790,11 +8004,19 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
     }
 
     const price = Number(originalPrice) || 0;
+    const pVal = Number(promo.value ?? promo.discountPercent ?? promo.percent ?? promo.discountAmount ?? promo.amount ?? 0);
     let discountAmount = 0;
-    if (promo.discountPercent) {
-      discountAmount = Math.floor((price * Number(promo.discountPercent)) / 100);
-    } else if (promo.discountAmount) {
-      discountAmount = Number(promo.discountAmount);
+
+    if (promo.type === "percent" || promo.discountPercent !== undefined || promo.percent !== undefined) {
+      discountAmount = Math.floor((price * pVal) / 100);
+    } else if (promo.type === "fixed_amount" || promo.discountAmount !== undefined || promo.amount !== undefined) {
+      discountAmount = pVal;
+    } else {
+      if (pVal > 0 && pVal <= 100) {
+        discountAmount = Math.floor((price * pVal) / 100);
+      } else {
+        discountAmount = pVal;
+      }
     }
 
     discountAmount = Math.min(price, Math.max(0, discountAmount));
@@ -7804,6 +8026,8 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
       finalPrice: Math.max(0, price - discountAmount),
       promo: {
         code: promo.code,
+        type: promo.type || "percent",
+        value: pVal,
         discountPercent: promo.discountPercent,
         discountAmount: promo.discountAmount
       }
@@ -7853,8 +8077,24 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       db.users.push(user);
     }
 
-    const trafficGb = Math.max(1, Number(customGb) || 30);
-    const durationDays = Math.max(1, Number(customDays) || 30);
+    let selectedPlan: any = null;
+    if (planId && planId !== "custom" && planId !== "custom_vol") {
+      selectedPlan = (db.vpn_plans || []).find((p: any) => String(p.id).trim() === String(planId).trim());
+      if (!selectedPlan && planName) {
+        selectedPlan = (db.vpn_plans || []).find((p: any) => p.name === planName);
+      }
+    }
+
+    const trafficGb = selectedPlan && (selectedPlan.trafficGb || selectedPlan.traffic_limit || selectedPlan.traffic)
+      ? Number(selectedPlan.trafficGb || selectedPlan.traffic_limit || selectedPlan.traffic)
+      : Math.max(1, Number(customGb) || 30);
+
+    const durationDays = selectedPlan && (selectedPlan.durationDays || selectedPlan.duration_days || selectedPlan.duration)
+      ? Number(selectedPlan.durationDays || selectedPlan.duration_days || selectedPlan.duration)
+      : Math.max(1, Number(customDays) || 30);
+
+    const effectivePlanName = selectedPlan?.name || planName || `${trafficGb} گیگابایت (${durationDays} روز)`;
+
     const randomSuffix = Math.random().toString(36).substring(2, 8);
     const cleanClientName = clientUsername && clientUsername.trim()
       ? `${clientUsername.trim().replace(/[^a-zA-Z0-9_-]/g, "")}-${randomSuffix}`
@@ -7862,11 +8102,8 @@ app.post("/api/miniapp/purchase", async (req, res) => {
 
     // Calculate Original Price
     let originalPrice = 0;
-    if (planId && (planId.startsWith("plan_") || (db.vpn_plans || []).some((p: any) => p.id === planId))) {
-      const selectedPlan = (db.vpn_plans || []).find((p: any) => p.id === planId);
-      if (selectedPlan) {
-        originalPrice = Number(selectedPlan.price || 0);
-      }
+    if (selectedPlan && selectedPlan.price) {
+      originalPrice = Number(selectedPlan.price || 0);
     }
 
     if (originalPrice <= 0) {
@@ -7883,16 +8120,24 @@ app.post("/api/miniapp/purchase", async (req, res) => {
     // Check Promo Code
     let discountAmount = 0;
     let appliedPromoObj: any = null;
-    if (promoCode && promoCode.trim()) {
-      const pCode = promoCode.trim().toUpperCase();
+    if (promoCode && String(promoCode).trim()) {
+      const pCode = String(promoCode).trim().toUpperCase();
       const promo = (db.promo_codes || []).find((p: any) => (p.code || "").trim().toUpperCase() === pCode);
       if (promo) {
         appliedPromoObj = promo;
-        if (promo.discountPercent) {
-          discountAmount = Math.floor((originalPrice * Number(promo.discountPercent)) / 100);
-        } else if (promo.discountAmount) {
-          discountAmount = Number(promo.discountAmount);
+        const pVal = Number(promo.value ?? promo.discountPercent ?? promo.percent ?? promo.discountAmount ?? promo.amount ?? 0);
+        if (promo.type === "percent" || promo.discountPercent !== undefined || promo.percent !== undefined) {
+          discountAmount = Math.floor((originalPrice * pVal) / 100);
+        } else if (promo.type === "fixed_amount" || promo.discountAmount !== undefined || promo.amount !== undefined) {
+          discountAmount = pVal;
+        } else {
+          if (pVal > 0 && pVal <= 100) {
+            discountAmount = Math.floor((originalPrice * pVal) / 100);
+          } else {
+            discountAmount = pVal;
+          }
         }
+        discountAmount = Math.min(originalPrice, Math.max(0, discountAmount));
       }
     }
 
@@ -8103,18 +8348,24 @@ app.post("/api/miniapp/purchase", async (req, res) => {
         amount: finalPrice,
         receiptImage: receiptImage || "",
         status: "pending",
-        type: "card_to_card",
+        type: "PLAN_PURCHASE",
+        planId: planId || "custom",
+        serverId: serverId || "",
+        clientName: cleanClientName,
+        customGb: trafficGb,
+        customDays: durationDays,
         date: new Date().toISOString(),
-        description: `خرید اشتراک ${planName} (کارت به کارت)`,
+        description: `خرید اشتراک ${effectivePlanName} (کارت به کارت)`,
         pendingPurchase: {
-          serverId,
-          planId,
+          serverId: serverId || "",
+          planId: planId || "custom",
           customGb: trafficGb,
           customDays: durationDays,
           clientUsername: cleanClientName,
+          clientName: cleanClientName,
           promoCode,
           finalPrice,
-          planName
+          planName: effectivePlanName
         }
       };
       db.transactions.push(newTx);
@@ -8230,6 +8481,7 @@ app.post("/api/miniapp/wallet/deposit", async (req, res) => {
 
     const tgId = Number(userId);
     const db = readSqliteDb();
+    const settings = getSystemSettings(db);
 
     if (!Array.isArray(db.transactions)) db.transactions = [];
     const newTx = {
@@ -8246,6 +8498,11 @@ app.post("/api/miniapp/wallet/deposit", async (req, res) => {
 
     db.transactions.push(newTx);
     writeSqliteDb(db);
+
+    // Send instant Telegram notification to all Bot Admins
+    notifyAdminsOnNewReceipt(newTx, db, settings).catch((err) => {
+      console.warn("[Admin Notification Warning - Wallet Deposit]", err);
+    });
 
     res.json({
       success: true,
