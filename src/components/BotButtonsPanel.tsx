@@ -845,7 +845,7 @@ export default function BotButtonsPanel({
                     </span>
                   </h4>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    {translateText("Hide standard inline buttons and display a single modern Mini App button", "با فعال شدن این گزینه، تمام دکمه‌های شیشه‌ای کیبورد ناپدید شده و دکمه ورود به مینی‌اپ جایگزین می‌شود", lang)}
+                    {translateText("Enable dual-dashboard selection (Simple & Pro) when users /start the bot", "با فعال شدن این گزینه، موقع استارت ربات دو گزینه (داشبورد ساده و داشبورد حرفه‌ای) به کاربر پیشنهاد داده می‌شود", lang)}
                   </p>
                 </div>
               </div>
@@ -866,8 +866,8 @@ export default function BotButtonsPanel({
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
                   <span className="leading-relaxed">
                     {translateText(
-                      "Mini App Mode is ACTIVE: All main keyboard inline buttons are replaced by a single WebApp button in the Telegram bot.",
-                      "حالت مینی‌اپ فعال است: تمامی دکمه‌های شیشه‌ای کیبورد اصلی ناپدید شده و تنها یک دکمه برای هدایت کاربر به مینی‌اپ نمایش داده می‌شود.",
+                      "Dual Dashboard Active: On /start, users will choose between Simple Dashboard (Classic buttons) and Professional Dashboard (Mini App). When disabled, classic buttons appear directly without asking.",
+                      "حالت داشبورد دوگانه فعال است: با ارسال /start، دو دکمه «داشبورد ساده» و «داشبورد حرفه‌ای» نمایش داده می‌شود. در صورت خاموش بودن، دکمه‌های عادی بدون پرسش ظاهر می‌شوند.",
                       lang
                     )}
                   </span>

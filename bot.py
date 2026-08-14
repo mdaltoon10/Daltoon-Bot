@@ -6073,7 +6073,25 @@ def process_config_details_step(message):
         print(f"[process_config_details_step Error] {e}")
         bot.send_message(message.chat.id, "❌ خطایی در استعلام مشخصات کانفیگ رخ داد.", reply_markup=get_custom_keyboard(tg_id))
 
-def get_custom_keyboard(user_id=None):
+def get_miniapp_url(cfg=None):
+    """ Helper to determine active MiniApp URL """
+    if cfg is None:
+        cfg = get_config()
+    mini_app_url = (cfg.get("MINI_APP_URL") or "").strip()
+    if not mini_app_url:
+        panel_url = (cfg.get("PANEL_URL") or cfg.get("BASE_URL") or "").rstrip("/")
+        if panel_url:
+            mini_app_url = f"{panel_url}/miniapp" if not panel_url.endswith("/miniapp") else panel_url
+        else:
+            host = os.environ.get("APP_URL") or os.environ.get("PUBLIC_URL") or ""
+            if host:
+                mini_app_url = f"{host.rstrip('/')}/miniapp"
+
+    if mini_app_url and not (mini_app_url.startswith("http://") or mini_app_url.startswith("https://")):
+        mini_app_url = f"https://{mini_app_url}"
+    return mini_app_url
+
+def get_custom_keyboard(user_id=None, force_classic=True):
     """ Load dynamic and static custom buttons with visibility toggles and custom layouts """
     if user_id is None:
         try:
@@ -6107,20 +6125,8 @@ def get_custom_keyboard(user_id=None):
 
     cfg = get_config()
 
-    if cfg.get("USE_MINI_APP_MODE", False) and not cfg.get("HIDE_MINI_APP", False):
-        mini_app_url = (cfg.get("MINI_APP_URL") or "").strip()
-        if not mini_app_url:
-            panel_url = (cfg.get("PANEL_URL") or cfg.get("BASE_URL") or "").rstrip("/")
-            if panel_url:
-                mini_app_url = f"{panel_url}/miniapp" if not panel_url.endswith("/miniapp") else panel_url
-            else:
-                host = os.environ.get("APP_URL") or os.environ.get("PUBLIC_URL") or ""
-                if host:
-                    mini_app_url = f"{host.rstrip('/')}/miniapp"
-
-        if mini_app_url and not (mini_app_url.startswith("http://") or mini_app_url.startswith("https://")):
-            mini_app_url = f"https://{mini_app_url}"
-        
+    if not force_classic and cfg.get("USE_MINI_APP_MODE", False) and not cfg.get("HIDE_MINI_APP", False):
+        mini_app_url = get_miniapp_url(cfg)
         if mini_app_url:
             btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
             btn = types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url))
@@ -6468,24 +6474,44 @@ def start_cmd(message):
     user_balance = int(user.get('walletBalance') or 0) if user else 0
     formatted_balance = f"{user_balance:,}"
     
-    if custom_welcome:
-        welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
-    else:
-        welcome_text = (
-            f"<b>🚀 به ربات پرسرعت {bot_nickname} خوش آمدید!</b>\n\n"
-            f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
-            f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
-            f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
-            f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
-        )
     # Ensure client's cached reply keyboard is restricted to '🔙 بازگشت به منوی اصلی' only
     try:
         msg = bot.send_message(message.chat.id, "درحال بارگذاری...", reply_markup=get_main_reply_keyboard())
         bot.delete_message(message.chat.id, msg.message_id)
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
-        
-    bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard(tg_id))
+
+    is_miniapp_enabled = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
+
+    if is_miniapp_enabled:
+        # Respectful, polite greeting asking the customer to select their dashboard mode
+        choice_text = (
+            f"👋 <b>سلام و درود کاربر گرامی، به سامانه هوشمند {bot_nickname} خوش آمدید!</b>\n\n"
+            f"💫 لطفاً جهت دسترسی به خدمات و تجربه بهتر، نوع داشبورد مورد نظر خود را انتخاب نمایید:\n\n"
+            f"🔹 <b>داشبورد ساده:</b> دسترسی به کلیه امکانات از طریق دکمه‌های شیشه‌ای ربات\n"
+            f"🚀 <b>داشبورد حرفه‌ای:</b> محیط مدرن، گرافیکی، مدیریت اشتراک‌ها و اتصال سریع (مینی‌اپ)\n\n"
+            f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+            f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان"
+        )
+        choice_markup = types.InlineKeyboardMarkup(row_width=1)
+        choice_markup.add(
+            types.InlineKeyboardButton("📱 داشبورد ساده", callback_data="dash_mode_simple"),
+            types.InlineKeyboardButton("🚀 داشبورد حرفه‌ای", callback_data="dash_mode_pro")
+        )
+        bot.send_message(message.chat.id, choice_text, parse_mode="HTML", reply_markup=choice_markup)
+    else:
+        # MiniApp is OFF -> Classic behavior with standard buttons directly, no question asked
+        if custom_welcome:
+            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
+        else:
+            welcome_text = (
+                f"<b>🚀 به ربات پرسرعت {bot_nickname} خوش آمدید!</b>\n\n"
+                f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
+                f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+                f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
+                f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
+            )
+        bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=get_custom_keyboard(tg_id, force_classic=True))
 
     # Send and pin message if configured
     pinned_active = cfg.get("PINNED_MESSAGE_ACTIVE", False)
@@ -8094,6 +8120,62 @@ def callback_handler(call):
     if cfg.get("MANDATORY_JOIN_ACTIVE") and not is_user_member_of_channel(tg_id):
         bot.answer_callback_query(call.id, "❌ برای استفاده از دکمه‌های ربات، عضویت در کانال اسپانسر الزامی است.", show_alert=True)
         verify_mandatory_join_and_warn(call.message.chat.id, tg_id)
+        return
+
+    # Dashboard Selection Mode Handlers (Simple Dashboard vs Professional MiniApp Dashboard)
+    if call.data == "dash_mode_simple":
+        bot.answer_callback_query(call.id, "📱 داشبورد ساده")
+        user = get_user_data(tg_id)
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
+        user_balance = int(user.get('walletBalance') or 0) if user else 0
+        formatted_balance = f"{user_balance:,}"
+        
+        custom_welcome = cfg.get("WELCOME_TEXT")
+        if custom_welcome:
+            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
+        else:
+            welcome_text = (
+                f"<b>📱 داشبورد ساده {bot_nickname}</b>\n\n"
+                f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
+                f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+                f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
+                f"👇 لطفاً گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
+            )
+            
+        markup = get_custom_keyboard(tg_id, force_classic=True)
+        is_miniapp_enabled = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
+        if is_miniapp_enabled:
+            markup.add(types.InlineKeyboardButton("🚀 رفتن به داشبورد حرفه‌ای", callback_data="dash_mode_pro"))
+            
+        edit_or_reply_message(call, welcome_text, reply_markup=markup)
+        return
+
+    elif call.data == "dash_mode_pro":
+        bot.answer_callback_query(call.id, "🚀 داشبورد حرفه‌ای")
+        user = get_user_data(tg_id)
+        bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
+        
+        mini_app_url = get_miniapp_url(cfg)
+        
+        pro_text = (
+            f"<b>🚀 داشبورد حرفه‌ای و هوشمند {bot_nickname}</b>\n\n"
+            f"✨ جهت ورود به محیط مدرن، مشاهده وضعیت سرویس‌ها، تست سرعت، خرید آنلاین و اتصال سریع، بر روی دکمه زیر کلیک نمایید:"
+        )
+        
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
+        if mini_app_url:
+            markup.add(types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url)))
+        else:
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data="dash_mode_pro_missing"))
+            
+        markup.add(types.InlineKeyboardButton("📱 ورود به داشبورد ساده", callback_data="dash_mode_simple"))
+        
+        edit_or_reply_message(call, pro_text, reply_markup=markup)
+        return
+
+    elif call.data == "dash_mode_pro_missing":
+        bot.answer_callback_query(call.id, "⚠️ آدرس مینی‌اپ هنوز در پنل تنظیم نشده است.", show_alert=True)
         return
 
     # Show single copyable link directly in chat (User requested no Mini-App)
@@ -10608,12 +10690,12 @@ def callback_handler(call):
         tg_id = call.from_user.id
         user = get_user_data(tg_id)
         bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
+        is_miniapp_enabled = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
         
+        balance = f"{int(user.get('walletBalance') or 0):,}" if user else "0"
         if custom_welcome and user:
-            formatted_balance = f"{int(user.get('walletBalance') or 0):,}"
-            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
+            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", balance).replace("{nickname}", bot_nickname)
         else:
-            balance = f"{int(user.get('walletBalance') or 0):,}" if user else "0"
             welcome_text = (
                 f"<b>🚀 به ربات پرسرعت {bot_nickname} بازگشتید!</b>\n\n"
                 f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
@@ -10622,7 +10704,11 @@ def callback_handler(call):
                 f"👇 لطفا گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
             )
             
-        edit_or_reply_message(call, welcome_text, reply_markup=get_custom_keyboard(tg_id))
+        markup = get_custom_keyboard(tg_id, force_classic=True)
+        if is_miniapp_enabled:
+            markup.add(types.InlineKeyboardButton("🚀 رفتن به داشبورد حرفه‌ای", callback_data="dash_mode_pro"))
+            
+        edit_or_reply_message(call, welcome_text, reply_markup=markup)
 
     elif call.data == "charge_custom_amount":
         try:
