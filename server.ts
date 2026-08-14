@@ -6850,9 +6850,8 @@ app.get("/api/miniapp/data", async (req, res) => {
       };
     };
 
-    // All active servers defined in server management
-    const allMappedServers = rawServers.map(mapServerFormat);
-    const activeServers = allMappedServers;
+    // Active public servers defined in server management (non-colleague)
+    const activeServers = rawServers.filter((s: any) => !isColleagueServer(s)).map(mapServerFormat);
     // Colleague-only servers
     const colleagueServers = rawServers.filter((s: any) => isColleagueServer(s)).map(mapServerFormat);
 
@@ -7042,7 +7041,7 @@ app.get("/api/miniapp/data", async (req, res) => {
       },
       settings: {
         botNickname: settings.botNickname || "دالتون",
-        botUsername: settings.botUsername || settings.botNickname || "DaltoonBot",
+        botUsername: (settings.botUsername || settings.botNickname || "DaltoonBot").replace(/^@/, '').replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '') || "DaltoonBot",
         cardNumber: settings.cardNumber || "",
         cardHolder: settings.cardHolder || "",
         channelUsername: settings.channelUsername || "",
@@ -8017,7 +8016,7 @@ app.post("/api/miniapp/wallet/deposit", async (req, res) => {
 });
 
 // 6. Create Support Ticket from MiniApp
-app.post("/api/miniapp/tickets/create", async (req, res) => {
+const handleCreateTicketMiniApp = async (req: any, res: any) => {
   try {
     const { userId, username, subject, message } = req.body;
     if (!userId || !message || !message.trim()) {
@@ -8049,14 +8048,39 @@ app.post("/api/miniapp/tickets/create", async (req, res) => {
     db.tickets.push(newTicket);
     writeSqliteDb(db);
 
+    // Notify Admin on Telegram if configured
+    const settings = db.settings || {};
+    if (settings.botToken && settings.adminIds) {
+      const adminList = Array.isArray(settings.adminIds)
+        ? settings.adminIds
+        : String(settings.adminIds).split(",").map((s) => s.trim());
+      const notifyMsg =
+        `🎫 <b>تیکت جدید از مینی‌اپ:</b>\n\n` +
+        `👤 <b>کاربر:</b> ${username ? "@" + username : tgId}\n` +
+        `🆔 <b>شناسه تیکت:</b> <code>${newTicket.id}</code>\n` +
+        `📌 <b>موضوع:</b> ${newTicket.subject}\n\n` +
+        `💬 <b>متن پیام:</b>\n${message.trim()}`;
+
+      for (const adminId of adminList) {
+        if (adminId) {
+          sendTelegramMessage(settings.botToken, adminId, notifyMsg).catch(() => {});
+        }
+      }
+    }
+
     res.json({ success: true, ticket: newTicket });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
-});
+};
+
+app.post("/api/miniapp/tickets/create", handleCreateTicketMiniApp);
+app.post("/api/miniapp/tickets/send", handleCreateTicketMiniApp);
+app.post("/api/miniapp/ticket/create", handleCreateTicketMiniApp);
+app.post("/api/miniapp/ticket/send", handleCreateTicketMiniApp);
 
 // 7. Reply to Ticket from MiniApp
-app.post("/api/miniapp/tickets/reply", async (req, res) => {
+const handleReplyTicketMiniApp = async (req: any, res: any) => {
   try {
     const { ticketId, userId, message } = req.body;
     if (!ticketId || !message || !message.trim()) {
@@ -8087,7 +8111,10 @@ app.post("/api/miniapp/tickets/reply", async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
-});
+};
+
+app.post("/api/miniapp/tickets/reply", handleReplyTicketMiniApp);
+app.post("/api/miniapp/ticket/reply", handleReplyTicketMiniApp);
 
 // --- Plan Categories API ---
 app.get("/api/plan-categories", (req, res) => {

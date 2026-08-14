@@ -42,7 +42,8 @@ import {
   Calendar,
   Share2,
   Activity,
-  Award
+  Award,
+  Search
 } from "lucide-react";
 
 declare global {
@@ -218,6 +219,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [colleagueNewDays, setColleagueNewDays] = useState<number>(30);
   const [colleagueCreatingClient, setColleagueCreatingClient] = useState<boolean>(false);
 
+  // Colleague Search/Sort & Profile Refresh States
+  const [colleagueSearch, setColleagueSearch] = useState<string>("");
+  const [colleagueSort, setColleagueSort] = useState<"newest" | "oldest">("newest");
+  const [isProfileRefreshing, setIsProfileRefreshing] = useState<boolean>(false);
+
+  // Reset Category and Plan selection when Server changes
+  useEffect(() => {
+    if (selectedServer) {
+      setSelectedCategory("all");
+      setSelectedPlan(null);
+    }
+  }, [selectedServer?.id]);
+
   // UI Utilities
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeQrModal, setActiveQrModal] = useState<string | null>(null);
@@ -390,14 +404,71 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  // Available categories allowed for selected server
+  const availableCategories = useMemo(() => {
+    if (!selectedServer || !Array.isArray(selectedServer.planCategories) || selectedServer.planCategories.length === 0) {
+      return planCategories;
+    }
+    const allowed = selectedServer.planCategories.map((c: string) => String(c).toLowerCase());
+    return planCategories.filter((cat) =>
+      allowed.some((a: string) => a === String(cat.id).toLowerCase() || a === String(cat.name).toLowerCase())
+    );
+  }, [planCategories, selectedServer]);
+
   // Filtered Plans by selected category and server
   const filteredPlans = useMemo(() => {
     let list = vpnPlans;
-    if (selectedCategory !== "all") {
-      list = list.filter((p) => String(p.category) === String(selectedCategory));
+
+    if (selectedServer) {
+      const allowedCats = Array.isArray(selectedServer.planCategories) && selectedServer.planCategories.length > 0
+        ? selectedServer.planCategories.map((c: string) => String(c).toLowerCase())
+        : null;
+
+      list = list.filter((p: any) => {
+        // If plan explicitly targets serverIds or serverId
+        if (Array.isArray(p.serverIds) && p.serverIds.length > 0) {
+          if (!p.serverIds.includes(String(selectedServer.id))) return false;
+        } else if (p.serverId && String(p.serverId) !== String(selectedServer.id)) {
+          return false;
+        }
+
+        // If server limits plan categories
+        if (allowedCats && allowedCats.length > 0) {
+          const planCat = String(p.category || "").toLowerCase();
+          const matches = allowedCats.includes(planCat) ||
+            availableCategories.some((c: any) => String(c.name).toLowerCase() === planCat && allowedCats.includes(String(c.id).toLowerCase()));
+          if (!matches) return false;
+        }
+
+        return true;
+      });
     }
+
+    if (selectedCategory !== "all") {
+      list = list.filter((p) => String(p.category).toLowerCase() === String(selectedCategory).toLowerCase());
+    }
+
     return list;
-  }, [vpnPlans, selectedCategory]);
+  }, [vpnPlans, selectedCategory, selectedServer, availableCategories]);
+
+  // Colleague Clients Filtered and Sorted
+  const filteredColleagueClients = useMemo(() => {
+    let list = [...colleagueClients];
+    if (colleagueSearch.trim()) {
+      const q = colleagueSearch.trim().toLowerCase();
+      list = list.filter((c: any) =>
+        (c.clientName || "").toLowerCase().includes(q) ||
+        (c.subLink || "").toLowerCase().includes(q) ||
+        (c.remark || "").toLowerCase().includes(q)
+      );
+    }
+    list.sort((a: any, b: any) => {
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.id ? Number(a.id) || 0 : 0);
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.id ? Number(b.id) || 0 : 0);
+      return colleagueSort === "newest" ? timeB - timeA : timeA - timeB;
+    });
+    return list;
+  }, [colleagueClients, colleagueSearch, colleagueSort]);
 
   // Price Calculation for Custom Volume (Matching formula)
   const customCalculatedPrice = useMemo(() => {
@@ -618,7 +689,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
     setSubmittingTicket(true);
     try {
-      const { ok, data, error } = await safeFetchJson("/api/miniapp/ticket/send", {
+      const { ok, data, error } = await safeFetchJson("/api/miniapp/tickets/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -649,7 +720,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     if (!activeTicketChat || !replyMessage.trim()) return;
 
     try {
-      const { ok, data } = await safeFetchJson("/api/miniapp/ticket/reply", {
+      const { ok, data } = await safeFetchJson("/api/miniapp/tickets/reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1286,7 +1357,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 {planMode === "fixed" && (
                   <div className="space-y-3">
                     {/* Category Filter Chips */}
-                    {planCategories.length > 0 && (
+                    {availableCategories.length > 0 && (
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                         <button
                           onClick={() => setSelectedCategory("all")}
@@ -1298,7 +1369,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                         >
                           همه دسته‌ها
                         </button>
-                        {planCategories.map((cat) => (
+                        {availableCategories.map((cat) => (
                           <button
                             key={cat.id}
                             onClick={() => setSelectedCategory(cat.name)}
@@ -2574,12 +2645,40 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                     </h4>
                   </div>
 
+                  {/* Search Box & Sort Filter */}
+                  {colleagueClients.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-2.5" />
+                        <input
+                          type="text"
+                          placeholder="جستجوی کانفیگ یا نام..."
+                          value={colleagueSearch}
+                          onChange={(e) => setColleagueSearch(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-8 pl-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 transition-colors"
+                        />
+                      </div>
+                      <select
+                        value={colleagueSort}
+                        onChange={(e) => setColleagueSort(e.target.value as "newest" | "oldest")}
+                        className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-purple-500 cursor-pointer"
+                      >
+                        <option value="newest">جدیدترین</option>
+                        <option value="oldest">قدیمی‌ترین</option>
+                      </select>
+                    </div>
+                  )}
+
                   {colleagueClients.length === 0 ? (
                     <div className="p-6 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
                       هنوز هیچ کانفیگی با این حساب همکار ایجاد نکرده‌اید.
                     </div>
+                  ) : filteredColleagueClients.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-900/40 rounded-3xl border border-slate-800/60 text-slate-400 text-xs">
+                      هیچ کانفیگی مطابق با عبارت «{colleagueSearch}» یافت نشد.
+                    </div>
                   ) : (
-                    colleagueClients.map((client) => (
+                    filteredColleagueClients.map((client) => (
                       <div
                         key={client.id}
                         className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2.5"
@@ -2929,11 +3028,17 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 </div>
 
                 <button
-                  onClick={fetchMiniAppData}
-                  className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                  onClick={async () => {
+                    setIsProfileRefreshing(true);
+                    await fetchMiniAppData();
+                    setIsProfileRefreshing(false);
+                    showThemedModal("بروزرسانی موفق", "اطلاعات حساب و پروفایل شما با موفقیت بروزرسانی شد.", "success");
+                  }}
+                  disabled={isProfileRefreshing}
+                  className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center justify-center active:scale-95 disabled:opacity-50"
                   title="بروزرسانی داده‌ها"
                 >
-                  <RefreshCw className="w-4 h-4" />
+                  <RefreshCw className={`w-4 h-4 ${isProfileRefreshing ? "animate-spin text-purple-400" : ""}`} />
                 </button>
               </div>
 
@@ -3031,8 +3136,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
               {/* Referral Link Box */}
               {(() => {
-                const botName = systemSettings.botUsername || systemSettings.channelUsername?.replace(/^@/, '') || "DaltoonBot";
-                const refLink = `https://t.me/${botName}?start=ref_${tgUser?.id || userData?.id || ''}`;
+                const rawBot = systemSettings.botUsername || systemSettings.channelUsername || "DaltoonBot";
+                const cleanBot = rawBot.replace(/^@/, '').replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '') || "DaltoonBot";
+                const refLink = `https://t.me/${cleanBot}?start=ref_${tgUser?.id || userData?.id || ''}`;
                 return (
                   <div className="space-y-2">
                     <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
