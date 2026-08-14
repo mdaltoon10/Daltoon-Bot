@@ -86,7 +86,14 @@ export interface PanelSettings {
   hideBtnConfigDetails?: boolean;
   btnTextSearchConfig?: string;
   hideBtnSearchConfig?: boolean;
+  btnTextDashSimple?: string;
+  btnTextDashPro?: string;
+  dashButtonsLayout?: 'single' | 'double';
+  dashButtonsOrder?: 'simple_first' | 'pro_first';
+  hideBtnDashSimple?: boolean;
+  hideBtnDashPro?: boolean;
   useMiniAppMode?: boolean;
+  startCommandMode?: 'buttons' | 'miniapp' | 'dual_choice';
   btnTextMiniApp?: string;
   miniAppUrl?: string;
   hideBtnMiniApp?: boolean;

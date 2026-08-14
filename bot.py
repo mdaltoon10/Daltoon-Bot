@@ -1089,7 +1089,14 @@ def get_config():
         config["HIDE_CONFIG_DETAILS"] = bool(panel_cfg.get("hideBtnConfigDetails", False))
         config["HIDE_SEARCH_CONFIG"] = bool(panel_cfg.get("hideBtnSearchConfig", False))
         config["USE_MINI_APP_MODE"] = bool(panel_cfg.get("useMiniAppMode", False))
+        config["START_COMMAND_MODE"] = panel_cfg.get("startCommandMode", "dual_choice" if panel_cfg.get("useMiniAppMode") else "buttons")
         config["BTN_MINI_APP"] = panel_cfg.get("btnTextMiniApp", "🚀 ورود به برنامه هوشمند")
+        config["BTN_DASH_SIMPLE"] = panel_cfg.get("btnTextDashSimple", "📱 داشبورد ساده")
+        config["BTN_DASH_PRO"] = panel_cfg.get("btnTextDashPro", panel_cfg.get("btnTextMiniApp", "🚀 داشبورد حرفه‌ای"))
+        config["DASH_BUTTONS_LAYOUT"] = panel_cfg.get("dashButtonsLayout", "single")
+        config["DASH_BUTTONS_ORDER"] = panel_cfg.get("dashButtonsOrder", "simple_first")
+        config["HIDE_DASH_SIMPLE"] = bool(panel_cfg.get("hideBtnDashSimple", False))
+        config["HIDE_DASH_PRO"] = bool(panel_cfg.get("hideBtnDashPro", False))
         config["MINI_APP_URL"] = panel_cfg.get("miniAppUrl", "")
         config["HIDE_MINI_APP"] = bool(panel_cfg.get("hideBtnMiniApp", False))
         if "hideBtnAiChat" in panel_cfg: 
@@ -1948,6 +1955,8 @@ def get_button_style(btn_text, cfg):
         cfg.get("BTN_AI_CHAT", "🤖 چت با ربات"): "btnAiChat",
         cfg.get("BTN_AI", "🧠 هوش مصنوعی"): "btnAi",
         cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند"): "btnMiniApp",
+        cfg.get("BTN_DASH_SIMPLE", "📱 داشبورد ساده"): "btnDashSimple",
+        cfg.get("BTN_DASH_PRO", "🚀 داشبورد حرفه‌ای"): "btnDashPro",
     }
     
     def clean_btn_text(t):
@@ -6481,26 +6490,106 @@ def start_cmd(message):
     except Exception as e:
         print(f"Error resetting reply markup: {e}")
 
-    is_miniapp_enabled = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
+    use_miniapp = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
+    start_mode = cfg.get("START_COMMAND_MODE", "dual_choice") if use_miniapp else "buttons"
 
-    if is_miniapp_enabled:
-        # Respectful, polite greeting asking the customer to select their dashboard mode
-        choice_text = (
-            f"👋 <b>سلام و درود کاربر گرامی، به سامانه هوشمند {bot_nickname} خوش آمدید!</b>\n\n"
-            f"💫 لطفاً جهت دسترسی به خدمات و تجربه بهتر، نوع داشبورد مورد نظر خود را انتخاب نمایید:\n\n"
-            f"🔹 <b>داشبورد ساده:</b> دسترسی به کلیه امکانات از طریق دکمه‌های شیشه‌ای ربات\n"
-            f"🚀 <b>داشبورد حرفه‌ای:</b> محیط مدرن، گرافیکی، مدیریت اشتراک‌ها و اتصال سریع (مینی‌اپ)\n\n"
+    if not use_miniapp or start_mode == "buttons":
+        # MiniApp is OFF -> Classic behavior with standard buttons directly
+        if custom_welcome:
+            welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
+        else:
+            welcome_text = (
+                f"<b>سلام {message.from_user.first_name or ''} عزیز! 👋</b>\n\n"
+                f"به ربات {bot_nickname} خوش آمدید.\n"
+                f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
+                f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+                f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
+                f"👇 لطفاً گزینه مورد نظر خود را از منوی زیر انتخاب نمایید:"
+            )
+        
+        reply_markup = get_custom_keyboard(tg_id)
+        bot.send_message(message.chat.id, welcome_text, parse_mode="HTML", reply_markup=reply_markup)
+
+    elif start_mode == "miniapp":
+        btn_pro_title = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند"))
+        mini_app_url = get_miniapp_url(cfg)
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        if mini_app_url:
+            btn_web = types.InlineKeyboardButton(btn_pro_title, web_app=types.WebAppInfo(url=mini_app_url))
+            style_pro = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashPro") or cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnMiniApp")
+            if style_pro and style_pro != "none":
+                btn_web.style = style_pro
+            markup.add(btn_web)
+        else:
+            markup.add(types.InlineKeyboardButton(btn_pro_title, callback_data="dash_mode_pro_missing"))
+            
+        hide_simple = cfg.get("HIDE_DASH_SIMPLE", False)
+        if not hide_simple:
+            btn_simple_text = cfg.get("BTN_DASH_SIMPLE", "📱 ورود به داشبورد ساده")
+            btn_simp = types.InlineKeyboardButton(btn_simple_text, callback_data="dash_mode_simple")
+            style_simple = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashSimple")
+            if style_simple and style_simple != "none":
+                btn_simp.style = style_simple
+            markup.add(btn_simp)
+
+        pro_text = (
+            f"<b>🚀 {btn_pro_title} {bot_nickname}</b>\n\n"
+            f"✨ جهت ورود به محیط مدرن، مشاهده وضعیت سرویس‌ها، تست سرعت، خرید آنلاین و اتصال سریع، بر روی دکمه زیر کلیک نمایید:\n\n"
             f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
             f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان"
         )
-        choice_markup = types.InlineKeyboardMarkup(row_width=1)
-        choice_markup.add(
-            types.InlineKeyboardButton("📱 داشبورد ساده", callback_data="dash_mode_simple"),
-            types.InlineKeyboardButton("🚀 داشبورد حرفه‌ای", callback_data="dash_mode_pro")
+        bot.send_message(message.chat.id, pro_text, parse_mode="HTML", reply_markup=markup)
+
+    elif start_mode == "dual_choice":
+        mini_app_url = get_miniapp_url(cfg)
+        btn_simple_text = cfg.get("BTN_DASH_SIMPLE", "📱 داشبورد ساده")
+        btn_pro_text = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 داشبورد حرفه‌ای"))
+        layout_mode = cfg.get("DASH_BUTTONS_LAYOUT", "single")
+        order_mode = cfg.get("DASH_BUTTONS_ORDER", "simple_first")
+        hide_simple = cfg.get("HIDE_DASH_SIMPLE", False)
+        hide_pro = cfg.get("HIDE_DASH_PRO", False)
+
+        btn_simple = types.InlineKeyboardButton(btn_simple_text, callback_data="dash_mode_simple")
+        if mini_app_url:
+            btn_pro = types.InlineKeyboardButton(btn_pro_text, web_app=types.WebAppInfo(url=mini_app_url))
+        else:
+            btn_pro = types.InlineKeyboardButton(btn_pro_text, callback_data="dash_mode_pro")
+
+        primary_colors = cfg.get("PRIMARY_BUTTON_COLORS") or {}
+        style_simple = primary_colors.get("btnDashSimple")
+        if style_simple and style_simple != "none":
+            btn_simple.style = style_simple
+        style_pro = primary_colors.get("btnDashPro") or primary_colors.get("btnMiniApp")
+        if style_pro and style_pro != "none":
+            btn_pro.style = style_pro
+
+        buttons_to_add = []
+        if order_mode == "pro_first":
+            if not hide_pro: buttons_to_add.append(btn_pro)
+            if not hide_simple: buttons_to_add.append(btn_simple)
+        else:
+            if not hide_simple: buttons_to_add.append(btn_simple)
+            if not hide_pro: buttons_to_add.append(btn_pro)
+
+        if layout_mode == "double" and len(buttons_to_add) == 2:
+            choice_markup = types.InlineKeyboardMarkup(row_width=2)
+            choice_markup.row(*buttons_to_add)
+        else:
+            choice_markup = types.InlineKeyboardMarkup(row_width=1)
+            for b in buttons_to_add:
+                choice_markup.add(b)
+
+        choice_text = (
+            f"👋 <b>سلام و درود کاربر گرامی، به سامانه هوشمند {bot_nickname} خوش آمدید!</b>\n\n"
+            f"💫 لطفاً جهت دسترسی به خدمات و تجربه بهتر، نوع داشبورد مورد نظر خود را انتخاب نمایید:\n\n"
+            f"🔹 <b>{btn_simple_text}:</b> دسترسی به کلیه امکانات از طریق دکمه‌های شیشه‌ای ربات\n"
+            f"🚀 <b>{btn_pro_text}:</b> محیط مدرن، گرافیکی، مدیریت اشتراک‌ها و اتصال سریع (مینی‌اپ)\n\n"
+            f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
+            f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان"
         )
         bot.send_message(message.chat.id, choice_text, parse_mode="HTML", reply_markup=choice_markup)
     else:
-        # MiniApp is OFF -> Classic behavior with standard buttons directly, no question asked
+        # MiniApp is OFF or buttons mode -> Classic behavior with standard buttons directly
         if custom_welcome:
             welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
         else:
@@ -8124,7 +8213,8 @@ def callback_handler(call):
 
     # Dashboard Selection Mode Handlers (Simple Dashboard vs Professional MiniApp Dashboard)
     if call.data == "dash_mode_simple":
-        bot.answer_callback_query(call.id, "📱 داشبورد ساده")
+        btn_simple_text = cfg.get("BTN_DASH_SIMPLE", "📱 داشبورد ساده")
+        bot.answer_callback_query(call.id, btn_simple_text)
         user = get_user_data(tg_id)
         bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
         user_balance = int(user.get('walletBalance') or 0) if user else 0
@@ -8135,7 +8225,7 @@ def callback_handler(call):
             welcome_text = custom_welcome.replace("{tg_id}", str(tg_id)).replace("{wallet_balance}", formatted_balance).replace("{nickname}", bot_nickname)
         else:
             welcome_text = (
-                f"<b>📱 داشبورد ساده {bot_nickname}</b>\n\n"
+                f"<b>{btn_simple_text} {bot_nickname}</b>\n\n"
                 f"با خرید از شبکه پرسرعت ما، از اتصال ایمن، پینگ پایین و آی‌پی ثابت لذت ببرید.\n\n"
                 f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
                 f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان\n\n"
@@ -8144,32 +8234,54 @@ def callback_handler(call):
             
         markup = get_custom_keyboard(tg_id, force_classic=True)
         is_miniapp_enabled = bool(cfg.get("USE_MINI_APP_MODE", False)) and not bool(cfg.get("HIDE_MINI_APP", False))
-        if is_miniapp_enabled:
-            markup.add(types.InlineKeyboardButton("🚀 رفتن به داشبورد حرفه‌ای", callback_data="dash_mode_pro"))
+        hide_pro = cfg.get("HIDE_DASH_PRO", False)
+        if is_miniapp_enabled and not hide_pro:
+            btn_pro_text = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 داشبورد حرفه‌ای"))
+            mini_app_url = get_miniapp_url(cfg)
+            if mini_app_url:
+                btn_pro = types.InlineKeyboardButton(btn_pro_text, web_app=types.WebAppInfo(url=mini_app_url))
+            else:
+                btn_pro = types.InlineKeyboardButton(btn_pro_text, callback_data="dash_mode_pro")
+            style_pro = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashPro") or cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnMiniApp")
+            if style_pro and style_pro != "none":
+                btn_pro.style = style_pro
+            markup.add(btn_pro)
             
         edit_or_reply_message(call, welcome_text, reply_markup=markup)
         return
 
     elif call.data == "dash_mode_pro":
-        bot.answer_callback_query(call.id, "🚀 داشبورد حرفه‌ای")
+        btn_pro_text = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 داشبورد حرفه‌ای"))
+        bot.answer_callback_query(call.id, btn_pro_text)
         user = get_user_data(tg_id)
         bot_nickname = cfg.get("BOT_NICKNAME", "دالتون بات")
         
         mini_app_url = get_miniapp_url(cfg)
         
         pro_text = (
-            f"<b>🚀 داشبورد حرفه‌ای و هوشمند {bot_nickname}</b>\n\n"
+            f"<b>{btn_pro_text} و هوشمند {bot_nickname}</b>\n\n"
             f"✨ جهت ورود به محیط مدرن، مشاهده وضعیت سرویس‌ها، تست سرعت، خرید آنلاین و اتصال سریع، بر روی دکمه زیر کلیک نمایید:"
         )
         
         markup = types.InlineKeyboardMarkup(row_width=1)
-        btn_text = cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند")
+        btn_pro_title = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند"))
         if mini_app_url:
-            markup.add(types.InlineKeyboardButton(btn_text, web_app=types.WebAppInfo(url=mini_app_url)))
+            btn_web = types.InlineKeyboardButton(btn_pro_title, web_app=types.WebAppInfo(url=mini_app_url))
+            style_pro = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashPro") or cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnMiniApp")
+            if style_pro and style_pro != "none":
+                btn_web.style = style_pro
+            markup.add(btn_web)
         else:
-            markup.add(types.InlineKeyboardButton(btn_text, callback_data="dash_mode_pro_missing"))
+            markup.add(types.InlineKeyboardButton(btn_pro_title, callback_data="dash_mode_pro_missing"))
             
-        markup.add(types.InlineKeyboardButton("📱 ورود به داشبورد ساده", callback_data="dash_mode_simple"))
+        hide_simple = cfg.get("HIDE_DASH_SIMPLE", False)
+        if not hide_simple:
+            btn_simple_text = cfg.get("BTN_DASH_SIMPLE", "📱 ورود به داشبورد ساده")
+            btn_simp = types.InlineKeyboardButton(btn_simple_text, callback_data="dash_mode_simple")
+            style_simple = cfg.get("PRIMARY_BUTTON_COLORS", {}).get("btnDashSimple")
+            if style_simple and style_simple != "none":
+                btn_simp.style = style_simple
+            markup.add(btn_simp)
         
         edit_or_reply_message(call, pro_text, reply_markup=markup)
         return
