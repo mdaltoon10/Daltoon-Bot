@@ -6872,17 +6872,7 @@ app.get("/api/miniapp/data", async (req, res) => {
       });
     }
 
-    const isColleagueServer = (s: any) => {
-      if (!s) return false;
-      if (s.isColleague === true || s.is_reseller === true || s.isReseller === true || s.is_colleague === true) return true;
-      if (s.id && colleagueServerIds.has(String(s.id))) return true;
-      if (s.panelUrl && colleagueServerIds.has(String(s.panelUrl))) return true;
-      const name = (s.name || s.remark || "").toLowerCase();
-      if (name.includes("همکار") || name.includes("colleague") || name.includes("نماینده") || name.includes("reseller") || name.includes("بسته همکار")) return true;
-      return false;
-    };
-
-    const mapServerFormat = (s: any) => {
+    const mapServerFormat = (s: any, forceIsColleague = false) => {
       let flag = "🌐";
       const nameLower = (s.name || s.remark || "").toLowerCase();
       if (nameLower.includes("germany") || nameLower.includes("آلمان") || nameLower.includes("de")) flag = "🇩🇪";
@@ -6903,14 +6893,27 @@ app.get("/api/miniapp/data", async (req, res) => {
         status: s.status || "active",
         protocol: s.protocol || "VLESS",
         inbounds: s.inbounds || [],
-        isColleague: isColleagueServer(s),
+        isColleague: forceIsColleague || s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true,
       };
     };
 
-    // Active public servers defined in server management (non-colleague)
-    const activeServers = rawServers.filter((s: any) => !isColleagueServer(s)).map(mapServerFormat);
-    // Colleague-only servers
-    const colleagueServers = rawServers.filter((s: any) => isColleagueServer(s)).map(mapServerFormat);
+    // Standard Servers - EXACTLY from settings.servers (where status is active)
+    let standardServersRaw = Array.isArray(settings.servers) ? settings.servers.filter((s: any) => s && s.status !== "inactive") : [];
+    if (standardServersRaw.length === 0 && settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
+      standardServersRaw = [{
+        id: "legacy_server",
+        name: "پنل اصلی",
+        panelUrl: settings.baseUrl,
+        subUrl: settings.subUrl,
+        panelType: settings.panelType || "sanaei",
+        status: "active"
+      }];
+    }
+    const activeServers = standardServersRaw.map((s: any) => mapServerFormat(s, false));
+
+    // Colleague Servers - EXACTLY from settings.colleagueServers (where status is active)
+    const colleagueServersRaw = Array.isArray(settings.colleagueServers) ? settings.colleagueServers.filter((s: any) => s && s.status !== "inactive") : [];
+    const colleagueServers = colleagueServersRaw.map((s: any) => mapServerFormat(s, true));
 
     // Colleague Packages & User Accounts
     let dbColleaguePackages = db.colleague_packages;
@@ -7024,7 +7027,14 @@ app.get("/api/miniapp/data", async (req, res) => {
 
     // User Subscriptions (Configs)
     const userSubs = tgId > 0
-      ? (db.subscription_keys || []).filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId)
+      ? (db.subscription_keys || []).filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId).map((k: any) => {
+          const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
+          return {
+            ...k,
+            serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
+            serverFlag: srv ? mapServerFormat(srv).flag : "🌐"
+          };
+        })
       : [];
 
     // Check if free test used
@@ -7079,7 +7089,7 @@ app.get("/api/miniapp/data", async (req, res) => {
       } : null,
       isAdmin,
       servers: activeServers,
-      colleagueServers: colleagueServers.length > 0 ? colleagueServers : rawServers.map(mapServerFormat),
+      colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
       colleaguePackages,
       colleagueAccounts: userColleagueAccounts,
       planCategories,
@@ -7500,9 +7510,10 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
     }
 
     const prefix = (acc.prefix || "Col").trim();
-    let baseName = (clientUsername || `usr_${Math.random().toString(36).substring(2, 6)}`)
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "");
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    let baseName = clientUsername && clientUsername.trim()
+      ? `${clientUsername.trim().replace(/[^a-zA-Z0-9_-]/g, "")}-${randomSuffix}`
+      : `usr_${randomSuffix}`;
 
     if (!baseName.startsWith(prefix)) {
       baseName = `${prefix}_${baseName}`;
@@ -7671,9 +7682,10 @@ app.post("/api/miniapp/purchase", async (req, res) => {
 
     const trafficGb = Math.max(1, Number(customGb) || 30);
     const durationDays = Math.max(1, Number(customDays) || 30);
-    const cleanClientName = (clientUsername || `usr_${tgId}_${Math.random().toString(36).substring(2, 6)}`)
-      .trim()
-      .replace(/[^a-zA-Z0-9_-]/g, "");
+    const randomSuffix = Math.random().toString(36).substring(2, 8);
+    const cleanClientName = clientUsername && clientUsername.trim()
+      ? `${clientUsername.trim().replace(/[^a-zA-Z0-9_-]/g, "")}-${randomSuffix}`
+      : `usr_${tgId}_${randomSuffix}`;
 
     // Calculate Original Price
     let originalPrice = 0;

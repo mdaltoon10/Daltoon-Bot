@@ -2004,10 +2004,16 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                     >
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-extrabold text-sm text-white">
                               {sub.planName || "اشتراک اختصاصی"}
                             </span>
+                            {sub.serverName && (
+                              <span className="text-[10px] bg-purple-950/40 text-purple-300 border border-purple-800/40 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold">
+                                <span>{sub.serverFlag || "🌐"}</span>
+                                <span>{sub.serverName}</span>
+                              </span>
+                            )}
                             <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold border ${
                               (sub.status || "").toLowerCase() === "disabled" || (sub.status || "").toLowerCase() === "inactive" || (sub.status || "").toLowerCase() === "expired" || sub.disabled === true
                                 ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
