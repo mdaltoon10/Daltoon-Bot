@@ -4035,6 +4035,106 @@ function generateVlessConfigsForClient(
   return result;
 }
 
+// Cache for fast repeated lookups of subscription links (TTL: 60s)
+const subLinkCache = new Map<string, { data: { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> }; timestamp: number }>();
+
+function parseProtocolLinks(rawLines: string[]): { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> } {
+  const uniqueUrls = Array.from(new Set(rawLines.map(l => l.trim()))).filter(l => 
+    l.startsWith("vless://") ||
+    l.startsWith("vmess://") ||
+    l.startsWith("trojan://") ||
+    l.startsWith("ss://") ||
+    l.startsWith("hysteria2://") ||
+    l.startsWith("hy2://") ||
+    l.startsWith("tuic://") ||
+    l.startsWith("wireguard://") ||
+    l.includes("://")
+  );
+
+  const vlessLinks = uniqueUrls.map((url, idx) => {
+    let name = `کانفیگ ${idx + 1}`;
+    let protocol = "VLESS";
+    let port: number | undefined = undefined;
+
+    try {
+      if (url.includes("#")) {
+        const hash = url.split("#")[1];
+        try {
+          name = decodeURIComponent(hash);
+        } catch {
+          name = hash;
+        }
+      }
+      if (url.includes("://")) {
+        protocol = url.split("://")[0].toUpperCase();
+      }
+      const hostPortMatch = url.match(/@([^:?#/]+):(\d+)/);
+      if (hostPortMatch && hostPortMatch[2]) {
+        port = parseInt(hostPortMatch[2], 10);
+      }
+    } catch {}
+
+    return { name, url, protocol, port };
+  });
+
+  return {
+    vlessConfigs: uniqueUrls,
+    vlessLinks
+  };
+}
+
+function extractFromRawContent(content: string): string[] {
+  if (!content || typeof content !== "string") return [];
+  let text = content.trim();
+
+  // Strip UTF-8 BOM if present
+  if (text.charCodeAt(0) === 0xFEFF) {
+    text = text.substring(1).trim();
+  }
+
+  // 1. Direct plaintext lines
+  const direct = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
+  if (direct.length > 0 && direct.some(l => l.startsWith("vless://") || l.startsWith("vmess://") || l.startsWith("trojan://") || l.startsWith("ss://") || l.startsWith("hy2://") || l.startsWith("hysteria2://"))) {
+    return direct;
+  }
+
+  // 2. Base64 / URL-Safe Base64
+  try {
+    let b64 = text.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) {
+      b64 += "=";
+    }
+    const decoded = Buffer.from(b64, "base64").toString("utf-8");
+    if (decoded.includes("://")) {
+      const lines = decoded.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
+      if (lines.length > 0) return lines;
+    }
+  } catch {}
+
+  // 3. Multi-line URL-encoded text
+  try {
+    const urlDecoded = decodeURIComponent(text);
+    if (urlDecoded !== text && urlDecoded.includes("://")) {
+      const lines = urlDecoded.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
+      if (lines.length > 0) return lines;
+    }
+  } catch {}
+
+  // 4. JSON structure
+  try {
+    const json = JSON.parse(text);
+    if (Array.isArray(json)) {
+      const lines = json.filter((i: any) => typeof i === "string" && i.includes("://"));
+      if (lines.length > 0) return lines;
+    } else if (json && typeof json === "object") {
+      if (Array.isArray(json.links)) return json.links.filter((l: any) => typeof l === "string" && l.includes("://"));
+      if (Array.isArray(json.configs)) return json.configs.filter((l: any) => typeof l === "string" && l.includes("://"));
+    }
+  } catch {}
+
+  return [];
+}
+
 // Live real link fetcher from panel or subscription link
 async function fetchRealClientLinks(
   clientEmail: string,
@@ -4042,36 +4142,53 @@ async function fetchRealClientLinks(
   serverId?: string,
   subLink?: string
 ): Promise<{ vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> }> {
-  const result: { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> } = {
-    vlessConfigs: [],
-    vlessLinks: []
-  };
+  // Check cache first for 0ms sub-link extraction
+  if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
+    const cached = subLinkCache.get(subLink);
+    if (cached && (Date.now() - cached.timestamp < 60000) && cached.data.vlessConfigs.length > 0) {
+      return cached.data;
+    }
+  }
 
   const rawLinks: string[] = [];
 
-  // 1. If subLink exists, fetch it directly (bypassing SSL issues) and decode base64
+  // 1. If subLink exists, fetch it directly (with fast timeout and VPN user agents)
   if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
-    try {
-      const res = await xuiFetch(subLink, { method: "GET" }, 8000).catch(() => null);
-      if (res && res.ok) {
-        const text = await res.text().catch(() => "");
-        if (text && text.trim()) {
-          let decoded = text.trim();
-          try {
-            const buff = Buffer.from(decoded, "base64");
-            const candidate = buff.toString("utf8");
-            if (candidate.includes("://")) {
-              decoded = candidate;
-            }
-          } catch (e) {}
+    const userAgents = [
+      "v2rayN/6.23",
+      "v2rayNG/1.8.5",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    ];
 
-          const lines = decoded.split(/\r?\n/).map((l: string) => l.trim()).filter((l: string) => l.includes("://"));
-          if (lines.length > 0) {
-            rawLinks.push(...lines);
+    for (const ua of userAgents) {
+      if (rawLinks.length > 0) break;
+      try {
+        const res = await xuiFetch(
+          subLink,
+          {
+            method: "GET",
+            headers: {
+              "User-Agent": ua,
+              "Accept": "*/*",
+              "Accept-Encoding": "gzip, deflate, br"
+            },
+            redirect: "follow"
+          },
+          3500
+        ).catch(() => null);
+
+        if (res && res.ok) {
+          const bodyText = await res.text().catch(() => "");
+          if (bodyText && bodyText.trim()) {
+            const extracted = extractFromRawContent(bodyText);
+            if (extracted.length > 0) {
+              rawLinks.push(...extracted);
+              break;
+            }
           }
         }
-      }
-    } catch (e) {}
+      } catch (e) {}
+    }
   }
 
   // 2. Query panel APIs if serverId is known or active servers exist
@@ -4095,7 +4212,7 @@ async function fetchRealClientLinks(
             const headers = { "Authorization": `Bearer ${token}`, "Accept": "application/json" };
             const cleanName = (clientEmail || "").trim();
             if (cleanName) {
-              const uRes = await xuiFetch(`${cleanedUrl}/api/user/${encodeURIComponent(cleanName)}`, { method: "GET", headers }, 8000).catch(() => null);
+              const uRes = await xuiFetch(`${cleanedUrl}/api/user/${encodeURIComponent(cleanName)}`, { method: "GET", headers }, 5000).catch(() => null);
               if (uRes && uRes.ok) {
                 const uData = await uRes.json().catch(() => ({}));
                 const userObj = uData.data || uData;
@@ -4124,13 +4241,14 @@ async function fetchRealClientLinks(
             }
             if (subId) {
               try {
-                const subLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/subLinks/${encodeURIComponent(subId)}`, { method: "GET", headers }, 6000).catch(() => null);
+                const subLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/subLinks/${encodeURIComponent(subId)}`, { method: "GET", headers }, 4000).catch(() => null);
                 if (subLinksRes && subLinksRes.ok) {
                   const sData = await subLinksRes.json().catch(() => ({}));
                   if (sData && sData.success && Array.isArray(sData.obj)) {
                     for (const item of sData.obj) {
                       if (typeof item === "string") {
-                        rawLinks.push(...item.split(/\r?\n/).filter((l: string) => l.includes("://")));
+                        const ext = extractFromRawContent(item);
+                        rawLinks.push(...(ext.length > 0 ? ext : [item]));
                       }
                     }
                   }
@@ -4142,13 +4260,14 @@ async function fetchRealClientLinks(
             const cleanEmail = (clientEmail || "").trim();
             if (rawLinks.length === 0 && cleanEmail) {
               try {
-                const emailLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/links/${encodeURIComponent(cleanEmail)}`, { method: "GET", headers }, 6000).catch(() => null);
+                const emailLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/links/${encodeURIComponent(cleanEmail)}`, { method: "GET", headers }, 4000).catch(() => null);
                 if (emailLinksRes && emailLinksRes.ok) {
                   const eData = await emailLinksRes.json().catch(() => ({}));
                   if (eData && eData.success && Array.isArray(eData.obj)) {
                     for (const item of eData.obj) {
                       if (typeof item === "string") {
-                        rawLinks.push(...item.split(/\r?\n/).filter((l: string) => l.includes("://")));
+                        const ext = extractFromRawContent(item);
+                        rawLinks.push(...(ext.length > 0 ? ext : [item]));
                       }
                     }
                   }
@@ -4161,26 +4280,24 @@ async function fetchRealClientLinks(
     } catch (e) {}
   }
 
-  // Format rawLinks into structured result
-  const uniqueLinks = Array.from(new Set(rawLinks.map(l => l.trim()))).filter(l => l.includes("://"));
-  if (uniqueLinks.length > 0) {
-    result.vlessConfigs = uniqueLinks;
-    result.vlessLinks = uniqueLinks.map((url, idx) => {
-      let name = `کانفیگ ${idx + 1}`;
-      let protocol = "VLESS";
-      try {
-        if (url.includes("#")) {
-          name = decodeURIComponent(url.split("#")[1]);
-        }
-        if (url.includes("://")) {
-          protocol = url.split("://")[0].toUpperCase();
-        }
-      } catch (e) {}
-      return { name, url, protocol };
-    });
+  // 3. Format and parse into structured links
+  let parsed = parseProtocolLinks(rawLinks);
+
+  // 4. Fallback synthesis if empty
+  if (parsed.vlessConfigs.length === 0 && clientUuid) {
+    try {
+      const db = readSqliteDb();
+      const settings = getSystemSettings(db);
+      parsed = generateVlessConfigsForClient(clientEmail, clientUuid, serverId, settings, subLink);
+    } catch (e) {}
   }
 
-  return result;
+  // Cache result
+  if (subLink && parsed.vlessConfigs.length > 0) {
+    subLinkCache.set(subLink, { data: parsed, timestamp: Date.now() });
+  }
+
+  return parsed;
 }
 
 // Node.js implementation of Python bot's add_vpn_client_api helper
@@ -4318,10 +4435,13 @@ async function addVpnClientApi(
               subLink = `${serverSub}${subLink}`;
             }
             console.log(`[${panelType} API] Successfully created client with subLink: ${subLink}`);
+            const realLinks = await fetchRealClientLinks(safeEmail, clientUuidVal, server.id, subLink);
             return {
               success: true,
               clientUuid: clientUuidVal,
-              subLink
+              subLink,
+              vlessConfigs: realLinks.vlessConfigs,
+              vlessLinks: realLinks.vlessLinks
             };
           } else {
             const errText = await createRes.text().catch(() => "");
@@ -4577,13 +4697,13 @@ async function addVpnClientApi(
     
     if (unifiedSuccess) {
       const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}`;
-      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
+      const realLinks = await fetchRealClientLinks(clientEmail, clientUuidVal, serverId, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
         subLink: finalSub,
-        vlessConfigs: vlessData.vlessConfigs,
-        vlessLinks: vlessData.vlessLinks
+        vlessConfigs: realLinks.vlessConfigs,
+        vlessLinks: realLinks.vlessLinks
       };
     }
     
@@ -4620,25 +4740,25 @@ async function addVpnClientApi(
     
     if (fallbackSuccess) {
       const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}`;
-      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
+      const realLinks = await fetchRealClientLinks(clientEmail, clientUuidVal, serverId, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
         subLink: finalSub,
-        vlessConfigs: vlessData.vlessConfigs,
-        vlessLinks: vlessData.vlessLinks
+        vlessConfigs: realLinks.vlessConfigs,
+        vlessLinks: realLinks.vlessLinks
       };
     }
     
     if (allowFallback) {
       const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}` || `https://vpn.daltoon.online/sub/${safeEmail}`;
-      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
+      const realLinks = await fetchRealClientLinks(clientEmail, clientUuidVal, serverId, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
         subLink: finalSub,
-        vlessConfigs: vlessData.vlessConfigs,
-        vlessLinks: vlessData.vlessLinks
+        vlessConfigs: realLinks.vlessConfigs,
+        vlessLinks: realLinks.vlessLinks
       };
     }
 
@@ -4648,13 +4768,13 @@ async function addVpnClientApi(
     if (allowFallback) {
       const finalSub = `https://vpn.daltoon.online/sub/${clientEmail || "user"}`;
       const safeUid = clientUuid || crypto.randomUUID();
-      const vlessData = generateVlessConfigsForClient(clientEmail, safeUid, serverId, settings, finalSub);
+      const realLinks = await fetchRealClientLinks(clientEmail, safeUid, serverId, finalSub);
       return {
         success: true,
         clientUuid: safeUid,
         subLink: finalSub,
-        vlessConfigs: vlessData.vlessConfigs,
-        vlessLinks: vlessData.vlessLinks
+        vlessConfigs: realLinks.vlessConfigs,
+        vlessLinks: realLinks.vlessLinks
       };
     }
     return { success: false, error: err.message || String(err) };
@@ -6573,6 +6693,8 @@ app.post("/api/transactions/approve", async (req, res) => {
                   clientName: clientName,
                   clientUuid: vpnResult.clientUuid || "",
                   subLink: subLink,
+                  vlessConfigs: vpnResult.vlessConfigs || vlessLinks || [],
+                  vlessLinks: vpnResult.vlessLinks || [],
                   expireDate: expireDate,
                   trafficLimitGb: customGb,
                   trafficUsedGb: 0,
@@ -8708,6 +8830,8 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
       clientName: baseName,
       clientUuid: vpnResult.clientUuid || "",
       subLink: vpnResult.subLink,
+      vlessConfigs: vpnResult.vlessConfigs || [],
+      vlessLinks: vpnResult.vlessLinks || [],
       expireDate,
       trafficLimitGb: reqGb,
       trafficUsedGb: 0,
@@ -8743,6 +8867,8 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
         trafficLimitGb: newSub.trafficLimitGb,
         trafficUsedGb: 0,
         subLink: newSub.subLink,
+        vlessConfigs: newSub.vlessConfigs,
+        vlessLinks: newSub.vlessLinks,
         expireDate: newSub.expireDate,
         status: "active"
       },
@@ -9376,6 +9502,62 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     res.json({ success: true, subKey: newSub, message: "اکانت تست رایگان با موفقیت فعال شد." });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 4.5 Fetch / Extract Real VLESS Links from Subscription Link (Fastest Time)
+app.post("/api/miniapp/subscription-links", async (req, res) => {
+  try {
+    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    let effectiveSubLink = subLink || "";
+    let effectiveKey: any = null;
+
+    if (keyId || clientUuid || clientName) {
+      const keys = db.subscription_keys || [];
+      effectiveKey = keys.find((k: any) => 
+        (keyId && (String(k.id) === String(keyId) || String(k.id) === String(keyId))) ||
+        (clientUuid && (k.clientUuid === clientUuid || k.uuid === clientUuid)) ||
+        (clientName && (k.clientName === clientName || k.email === clientName))
+      );
+      if (effectiveKey && !effectiveSubLink) {
+        effectiveSubLink = effectiveKey.subLink || "";
+      }
+    }
+
+    if (!effectiveSubLink && effectiveKey) {
+      effectiveSubLink = effectiveKey.subLink || "";
+    }
+
+    const cName = clientName || effectiveKey?.clientName || effectiveKey?.email || "client";
+    const cUuid = clientUuid || effectiveKey?.clientUuid || effectiveKey?.uuid || "";
+    const sId = serverId || effectiveKey?.serverId || "";
+
+    const linksResult = await fetchRealClientLinks(cName, cUuid, sId, effectiveSubLink);
+
+    // If database record exists and we found new links, save them to speed up future queries
+    if (effectiveKey && linksResult.vlessConfigs.length > 0) {
+      effectiveKey.vlessConfigs = linksResult.vlessConfigs;
+      effectiveKey.vlessLinks = linksResult.vlessLinks;
+      writeSqliteDb(db);
+    }
+
+    return res.json({
+      success: true,
+      subLink: effectiveSubLink,
+      vlessConfigs: linksResult.vlessConfigs,
+      vlessLinks: linksResult.vlessLinks,
+    });
+  } catch (err: any) {
+    console.warn("[Subscription Links Extraction Error]", err);
+    return res.json({
+      success: false,
+      error: err.message || "خطا در استخراج لینک‌های ساب‌اسکریپشن",
+      vlessConfigs: [],
+      vlessLinks: [],
+    });
   }
 });
 
