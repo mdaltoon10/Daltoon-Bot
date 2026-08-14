@@ -24,6 +24,10 @@ get-pip_fresh.py
 server.cjs.map
 bot.db
 database.sqlite
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
 app/
 assets/
 workspace/

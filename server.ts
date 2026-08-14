@@ -4083,56 +4083,194 @@ function parseProtocolLinks(rawLines: string[]): { vlessConfigs: string[]; vless
   };
 }
 
-function extractFromRawContent(content: string): string[] {
+// Helper to extract protocol links from any raw text, base64, JSON or HTML content
+function extractAllProtocolLinks(content: string): string[] {
   if (!content || typeof content !== "string") return [];
-  let text = content.trim();
+  const results: string[] = [];
+  const seen = new Set<string>();
 
-  // Strip UTF-8 BOM if present
+  const addLink = (raw: string) => {
+    if (!raw || typeof raw !== "string") return;
+    const clean = raw.trim();
+    if (!clean) return;
+    if (/^(vless|vmess|trojan|ss|ssr|hy2|hysteria2|tuic|wireguard|socks5):\/\//i.test(clean)) {
+      if (!seen.has(clean)) {
+        seen.add(clean);
+        results.push(clean);
+      }
+    }
+  };
+
+  let text = content.trim();
   if (text.charCodeAt(0) === 0xFEFF) {
     text = text.substring(1).trim();
   }
 
-  // 1. Direct plaintext lines
-  const direct = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
-  if (direct.length > 0 && direct.some(l => l.startsWith("vless://") || l.startsWith("vmess://") || l.startsWith("trojan://") || l.startsWith("ss://") || l.startsWith("hy2://") || l.startsWith("hysteria2://"))) {
-    return direct;
+  // 1. Scan direct protocol regex matches
+  const regex = /(?:vless|vmess|trojan|ss|ssr|hy2|hysteria2|tuic|wireguard|socks5):\/\/[^\s<>"'\r\n]+/gi;
+  const matches = text.match(regex);
+  if (matches) {
+    matches.forEach(addLink);
   }
 
-  // 2. Base64 / URL-Safe Base64
-  try {
-    let b64 = text.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
-    while (b64.length % 4 !== 0) {
-      b64 += "=";
-    }
-    const decoded = Buffer.from(b64, "base64").toString("utf-8");
-    if (decoded.includes("://")) {
-      const lines = decoded.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
-      if (lines.length > 0) return lines;
-    }
-  } catch {}
+  // 2. Line by line parsing
+  text.split(/\r?\n/).forEach(line => {
+    const l = line.trim();
+    if (l.includes("://")) addLink(l);
+  });
 
-  // 3. Multi-line URL-encoded text
+  // 3. Base64 decoding (standard and URL-safe Base64)
+  try {
+    const cleanB64 = text.replace(/[\r\n\s\t]/g, "").replace(/-/g, "+").replace(/_/g, "/");
+    let padded = cleanB64;
+    while (padded.length % 4 !== 0) padded += "=";
+    const decoded = Buffer.from(padded, "base64").toString("utf-8");
+    if (decoded && decoded !== text) {
+      const decMatches = decoded.match(regex);
+      if (decMatches) {
+        decMatches.forEach(addLink);
+      }
+      decoded.split(/\r?\n/).forEach(line => {
+        const l = line.trim();
+        if (l.includes("://")) addLink(l);
+      });
+      // Handle potential double base64
+      try {
+        const dCleanB64 = decoded.replace(/[\r\n\s\t]/g, "").replace(/-/g, "+").replace(/_/g, "/");
+        let dPadded = dCleanB64;
+        while (dPadded.length % 4 !== 0) dPadded += "=";
+        const dDecoded = Buffer.from(dPadded, "base64").toString("utf-8");
+        if (dDecoded && dDecoded.includes("://")) {
+          const dMatches = dDecoded.match(regex);
+          if (dMatches) dMatches.forEach(addLink);
+          dDecoded.split(/\r?\n/).forEach(line => {
+            if (line.trim().includes("://")) addLink(line.trim());
+          });
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+
+  // 4. URL-decode
   try {
     const urlDecoded = decodeURIComponent(text);
-    if (urlDecoded !== text && urlDecoded.includes("://")) {
-      const lines = urlDecoded.split(/\r?\n/).map(l => l.trim()).filter(l => l.includes("://"));
-      if (lines.length > 0) return lines;
+    if (urlDecoded !== text) {
+      const uMatches = urlDecoded.match(regex);
+      if (uMatches) uMatches.forEach(addLink);
     }
-  } catch {}
+  } catch (_) {}
 
-  // 4. JSON structure
+  // 5. JSON parsing (Clash / Sing-box / X-UI obj)
   try {
     const json = JSON.parse(text);
     if (Array.isArray(json)) {
-      const lines = json.filter((i: any) => typeof i === "string" && i.includes("://"));
-      if (lines.length > 0) return lines;
+      json.forEach((item: any) => {
+        if (typeof item === "string") addLink(item);
+        else if (item?.url) addLink(item.url);
+      });
     } else if (json && typeof json === "object") {
-      if (Array.isArray(json.links)) return json.links.filter((l: any) => typeof l === "string" && l.includes("://"));
-      if (Array.isArray(json.configs)) return json.configs.filter((l: any) => typeof l === "string" && l.includes("://"));
+      const arr = json.obj || json.links || json.data || json.configs || json.proxies;
+      if (Array.isArray(arr)) {
+        arr.forEach((item: any) => {
+          if (typeof item === "string") addLink(item);
+          else if (item?.url) addLink(item.url);
+        });
+      }
     }
-  } catch {}
+  } catch (_) {}
 
-  return [];
+  return results;
+}
+
+// Extract real inbound protocol link for a client from an inbound configuration object
+function buildProtocolLinkFromInbound(
+  inbound: any,
+  clientObj: any,
+  defaultHost: string,
+  serverName: string
+): string | null {
+  try {
+    if (!inbound || !clientObj) return null;
+    const port = Number(inbound.port) || 443;
+    const protocol = (inbound.protocol || "vless").toLowerCase();
+    const safeUuid = clientObj.id || clientObj.password || crypto.randomUUID();
+    const safeEmail = clientObj.email || "user";
+    const rawRemark = inbound.remark || inbound.name || inbound.tag || `Inbound #${inbound.id || port}`;
+    const remark = `[${serverName}] ${rawRemark} - ${safeEmail}`;
+
+    let streamSettings: any = {};
+    if (typeof inbound.streamSettings === "string") {
+      try { streamSettings = JSON.parse(inbound.streamSettings); } catch (_) {}
+    } else if (typeof inbound.streamSettings === "object" && inbound.streamSettings !== null) {
+      streamSettings = inbound.streamSettings;
+    }
+
+    const network = streamSettings.network || inbound.network || "tcp";
+    const security = streamSettings.security || inbound.security || (port === 443 ? "tls" : "none");
+
+    const host = defaultHost || "127.0.0.1";
+    const params = new URLSearchParams();
+    params.set("type", network);
+    params.set("security", security);
+
+    if (security === "reality") {
+      const realitySettings = streamSettings.realitySettings || {};
+      const sni = (realitySettings.serverNames && realitySettings.serverNames[0]) || realitySettings.dest?.split(":")[0] || host;
+      if (sni) params.set("sni", sni);
+      if (realitySettings.publicKey || realitySettings.password) params.set("pbk", realitySettings.publicKey || realitySettings.password);
+      if (realitySettings.shortIds && realitySettings.shortIds[0]) params.set("sid", realitySettings.shortIds[0]);
+      if (realitySettings.spiderX) params.set("spx", realitySettings.spiderX);
+      params.set("fp", realitySettings.fingerprint || realitySettings.settings?.fingerprint || "chrome");
+    } else if (security === "tls") {
+      const tlsSettings = streamSettings.tlsSettings || {};
+      const sni = tlsSettings.serverName || host;
+      if (sni) params.set("sni", sni);
+      if (tlsSettings.alpn && tlsSettings.alpn.length > 0) {
+        params.set("alpn", Array.isArray(tlsSettings.alpn) ? tlsSettings.alpn.join(",") : tlsSettings.alpn);
+      }
+      params.set("fp", tlsSettings.fingerprint || "chrome");
+    }
+
+    if (network === "ws") {
+      const wsSettings = streamSettings.wsSettings || {};
+      if (wsSettings.path) params.set("path", wsSettings.path);
+      if (wsSettings.headers?.Host) params.set("host", wsSettings.headers.Host);
+    } else if (network === "grpc") {
+      const grpcSettings = streamSettings.grpcSettings || {};
+      if (grpcSettings.serviceName) params.set("serviceName", grpcSettings.serviceName);
+    } else if (network === "httpupgrade") {
+      const httpupgradeSettings = streamSettings.httpupgradeSettings || {};
+      if (httpupgradeSettings.path) params.set("path", httpupgradeSettings.path);
+      if (httpupgradeSettings.host) params.set("host", httpupgradeSettings.host);
+    }
+
+    if (protocol === "vmess") {
+      const vmessJson = {
+        v: "2",
+        ps: remark,
+        add: host,
+        port: port,
+        id: safeUuid,
+        aid: clientObj.alterId || 0,
+        net: network,
+        type: "none",
+        host: params.get("host") || "",
+        path: params.get("path") || params.get("serviceName") || "",
+        tls: security === "tls" ? "tls" : "none",
+        sni: params.get("sni") || host,
+        fp: params.get("fp") || "chrome"
+      };
+      return `vmess://${Buffer.from(JSON.stringify(vmessJson)).toString("base64")}`;
+    }
+
+    if (protocol === "trojan") {
+      return `trojan://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
+    }
+
+    return `vless://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
+  } catch (err) {
+    return null;
+  }
 }
 
 // Live real link fetcher from panel or subscription link
@@ -4140,91 +4278,152 @@ async function fetchRealClientLinks(
   clientEmail: string,
   clientUuid?: string,
   serverId?: string,
-  subLink?: string
+  subLink?: string,
+  forceRefresh: boolean = false
 ): Promise<{ vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> }> {
-  // Check cache first for 0ms sub-link extraction
-  if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
-    const cached = subLinkCache.get(subLink);
+  const cacheKey = (subLink || "") + "___" + (clientEmail || "") + "___" + (clientUuid || "");
+
+  // Check cache first unless forceRefresh is set
+  if (!forceRefresh && subLink && typeof subLink === "string" && subLink.startsWith("http")) {
+    const cached = subLinkCache.get(subLink) || subLinkCache.get(cacheKey);
     if (cached && (Date.now() - cached.timestamp < 60000) && cached.data.vlessConfigs.length > 0) {
       return cached.data;
     }
   }
 
   const rawLinks: string[] = [];
+  const db = readSqliteDb();
+  const settings = getSystemSettings(db);
+  const activeServers = getActiveServers(settings);
 
-  // 1. If subLink exists, fetch it directly (with fast timeout and VPN user agents)
-  if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
-    const userAgents = [
-      "v2rayN/6.23",
-      "v2rayNG/1.8.5",
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    ];
+  // Extract subId if present
+  let extractedSubId: string | null = null;
+  if (subLink && typeof subLink === "string" && subLink.includes("/sub/")) {
+    try {
+      extractedSubId = subLink.split("/sub/")[1].split("?")[0].trim();
+    } catch (_) {}
+  }
 
+  // 1. Build all candidate subscription URLs to fetch from
+  const candidateUrls: string[] = [];
+  if (subLink && typeof subLink === "string" && subLink.trim()) {
+    const cleanSub = subLink.trim();
+    if (cleanSub.startsWith("http://") || cleanSub.startsWith("https://")) {
+      candidateUrls.push(cleanSub);
+    } else {
+      candidateUrls.push(`https://${cleanSub}`);
+      candidateUrls.push(`http://${cleanSub}`);
+    }
+  }
+
+  if (extractedSubId) {
+    for (const srv of activeServers) {
+      if (srv.subUrl) {
+        const cleanSubUrl = srv.subUrl.replace(/\/+$/, "");
+        if (cleanSubUrl.endsWith("/sub")) {
+          candidateUrls.push(`${cleanSubUrl}/${extractedSubId}`);
+        } else {
+          candidateUrls.push(`${cleanSubUrl}/sub/${extractedSubId}`);
+        }
+      }
+      if (srv.panelUrl) {
+        const cleanPanel = normalizeXuiUrl(srv.panelUrl);
+        candidateUrls.push(`${cleanPanel}/sub/${extractedSubId}`);
+      }
+    }
+    if (settings.subUrl) {
+      const cleanSettingsSub = settings.subUrl.replace(/\/+$/, "");
+      candidateUrls.push(`${cleanSettingsSub}/sub/${extractedSubId}`);
+    }
+    if (settings.baseUrl) {
+      const cleanBase = settings.baseUrl.replace(/\/+$/, "");
+      candidateUrls.push(`${cleanBase}/sub/${extractedSubId}`);
+    }
+  }
+
+  const uniqueCandidateUrls = Array.from(new Set(candidateUrls)).filter(Boolean);
+
+  // 2. Fetch directly from candidate subscription URLs with VPN User Agents
+  const userAgents = [
+    "v2rayNG/1.8.5",
+    "v2rayN/6.23",
+    "ClashMeta",
+    "Sing-box",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  ];
+
+  for (const url of uniqueCandidateUrls) {
+    if (rawLinks.length > 0) break;
     for (const ua of userAgents) {
       if (rawLinks.length > 0) break;
       try {
         const res = await xuiFetch(
-          subLink,
+          url,
           {
             method: "GET",
             headers: {
               "User-Agent": ua,
               "Accept": "*/*",
-              "Accept-Encoding": "gzip, deflate, br"
             },
-            redirect: "follow"
+            redirect: "follow",
           },
-          3500
+          8000
         ).catch(() => null);
 
         if (res && res.ok) {
           const bodyText = await res.text().catch(() => "");
           if (bodyText && bodyText.trim()) {
-            const extracted = extractFromRawContent(bodyText);
+            const extracted = extractAllProtocolLinks(bodyText);
             if (extracted.length > 0) {
               rawLinks.push(...extracted);
               break;
             }
           }
         }
-      } catch (e) {}
+      } catch (_) {}
     }
   }
 
-  // 2. Query panel APIs if serverId is known or active servers exist
+  // 3. If rawLinks still empty, connect directly to Panel APIs (Sanaei / 3x-ui / Marzban / Pasarguard)
   if (rawLinks.length === 0) {
     try {
-      const db = readSqliteDb();
-      const settings = getSystemSettings(db);
-      const activeServers = getActiveServers(settings);
       let targetServer = serverId ? activeServers.find((s: any) => String(s.id).trim() === String(serverId).trim()) : null;
       if (!targetServer && activeServers.length > 0) {
         targetServer = activeServers.find((s: any) => s.status === "active") || activeServers[0];
       }
 
-      if (targetServer) {
-        const cleanedUrl = normalizeXuiUrl(targetServer.panelUrl);
-        const panelType = (targetServer.panelType || "sanaei").toLowerCase();
+      // Check all active servers if targetServer fails
+      const serversToTry = targetServer ? [targetServer, ...activeServers.filter((s: any) => s.id !== targetServer.id)] : activeServers;
+
+      for (const srv of serversToTry) {
+        if (rawLinks.length > 0) break;
+        const cleanedUrl = normalizeXuiUrl(srv.panelUrl);
+        const panelType = (srv.panelType || "sanaei").toLowerCase();
+        const serverHost = srv.subUrl ? srv.subUrl.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0] : cleanedUrl.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0];
+        const srvName = srv.name || srv.remark || "Daltoon";
 
         if (["rebecca", "pasarguard", "marzban", "d-ui", "dui"].includes(panelType)) {
-          const token = await loginReebekaPasarguard(cleanedUrl, targetServer.panelUsername, targetServer.panelPassword);
+          const token = await loginReebekaPasarguard(cleanedUrl, srv.panelUsername, srv.panelPassword);
           if (token) {
             const headers = { "Authorization": `Bearer ${token}`, "Accept": "application/json" };
             const cleanName = (clientEmail || "").trim();
             if (cleanName) {
-              const uRes = await xuiFetch(`${cleanedUrl}/api/user/${encodeURIComponent(cleanName)}`, { method: "GET", headers }, 5000).catch(() => null);
+              const uRes = await xuiFetch(`${cleanedUrl}/api/user/${encodeURIComponent(cleanName)}`, { method: "GET", headers }, 6000).catch(() => null);
               if (uRes && uRes.ok) {
                 const uData = await uRes.json().catch(() => ({}));
                 const userObj = uData.data || uData;
-                if (Array.isArray(userObj.links)) {
-                  rawLinks.push(...userObj.links);
+                if (Array.isArray(userObj.links) && userObj.links.length > 0) {
+                  userObj.links.forEach((l: string) => {
+                    const ext = extractAllProtocolLinks(l);
+                    rawLinks.push(...(ext.length > 0 ? ext : [l]));
+                  });
                 }
               }
             }
           }
         } else {
           // Sanaei / 3x-ui / X-UI
-          const loginResult = await loginXuiPanel(cleanedUrl, targetServer.panelUsername, targetServer.panelPassword);
+          const loginResult = await loginXuiPanel(cleanedUrl, srv.panelUsername, srv.panelPassword);
           if (loginResult.success && loginResult.cookie) {
             const headers: Record<string, string> = {
               Cookie: loginResult.cookie,
@@ -4234,67 +4433,104 @@ async function fetchRealClientLinks(
 
             const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
 
-            // SubLinks by SubId
-            let subId: string | null = null;
-            if (subLink && subLink.includes("/sub/")) {
-              subId = subLink.split("/sub/")[1].split("?")[0].trim();
-            }
-            if (subId) {
+            // A) Direct SubLinks endpoint by SubId
+            if (extractedSubId) {
               try {
-                const subLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/subLinks/${encodeURIComponent(subId)}`, { method: "GET", headers }, 4000).catch(() => null);
+                const subLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/subLinks/${encodeURIComponent(extractedSubId)}`, { method: "GET", headers }, 5000).catch(() => null);
                 if (subLinksRes && subLinksRes.ok) {
                   const sData = await subLinksRes.json().catch(() => ({}));
                   if (sData && sData.success && Array.isArray(sData.obj)) {
                     for (const item of sData.obj) {
                       if (typeof item === "string") {
-                        const ext = extractFromRawContent(item);
+                        const ext = extractAllProtocolLinks(item);
                         rawLinks.push(...(ext.length > 0 ? ext : [item]));
                       }
                     }
                   }
                 }
-              } catch (e) {}
+              } catch (_) {}
             }
 
-            // Links by Email
+            // B) Direct Links endpoint by Email
             const cleanEmail = (clientEmail || "").trim();
             if (rawLinks.length === 0 && cleanEmail) {
               try {
-                const emailLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/links/${encodeURIComponent(cleanEmail)}`, { method: "GET", headers }, 4000).catch(() => null);
+                const emailLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/links/${encodeURIComponent(cleanEmail)}`, { method: "GET", headers }, 5000).catch(() => null);
                 if (emailLinksRes && emailLinksRes.ok) {
                   const eData = await emailLinksRes.json().catch(() => ({}));
                   if (eData && eData.success && Array.isArray(eData.obj)) {
                     for (const item of eData.obj) {
                       if (typeof item === "string") {
-                        const ext = extractFromRawContent(item);
+                        const ext = extractAllProtocolLinks(item);
                         rawLinks.push(...(ext.length > 0 ? ext : [item]));
                       }
                     }
                   }
                 }
-              } catch (e) {}
+              } catch (_) {}
+            }
+
+            // C) Inspect ALL Inbounds in Panel to extract live links for this client
+            if (rawLinks.length === 0) {
+              try {
+                const inbRes = await xuiFetch(`${baseUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 8000).catch(() => null);
+                if (inbRes && inbRes.ok) {
+                  const inbJson = await inbRes.json().catch(() => ({}));
+                  if (inbJson && inbJson.success && Array.isArray(inbJson.obj)) {
+                    const cleanEmailLower = (cleanEmail || "").toLowerCase();
+                    const cleanUuidLower = (clientUuid || "").toLowerCase();
+                    const subIdLower = (extractedSubId || "").toLowerCase();
+
+                    for (const inbound of inbJson.obj) {
+                      let clients: any[] = [];
+                      try {
+                        const inbSettings = typeof inbound.settings === "string" ? JSON.parse(inbound.settings) : inbound.settings;
+                        clients = inbSettings?.clients || [];
+                      } catch (_) {}
+
+                      const matchedClient = clients.find((c: any) => {
+                        if (!c) return false;
+                        const cEmail = String(c.email || "").trim().toLowerCase();
+                        const cId = String(c.id || "").trim().toLowerCase();
+                        const cSubId = String(c.subId || "").trim().toLowerCase();
+
+                        if (cleanUuidLower && cId === cleanUuidLower) return true;
+                        if (cleanEmailLower && cEmail === cleanEmailLower) return true;
+                        if (subIdLower && (cSubId === subIdLower || cEmail === subIdLower)) return true;
+                        return false;
+                      });
+
+                      if (matchedClient) {
+                        const configLink = buildProtocolLinkFromInbound(inbound, matchedClient, serverHost, srvName);
+                        if (configLink) {
+                          rawLinks.push(configLink);
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (_) {}
             }
           }
         }
       }
-    } catch (e) {}
+    } catch (_) {}
   }
 
-  // 3. Format and parse into structured links
+  // 4. Format and parse into structured links
   let parsed = parseProtocolLinks(rawLinks);
 
-  // 4. Fallback synthesis if empty
+  // 5. Fallback synthesis ONLY if totally empty and clientUuid is available
   if (parsed.vlessConfigs.length === 0 && clientUuid) {
     try {
-      const db = readSqliteDb();
-      const settings = getSystemSettings(db);
       parsed = generateVlessConfigsForClient(clientEmail, clientUuid, serverId, settings, subLink);
-    } catch (e) {}
+    } catch (_) {}
   }
 
-  // Cache result
-  if (subLink && parsed.vlessConfigs.length > 0) {
-    subLinkCache.set(subLink, { data: parsed, timestamp: Date.now() });
+  // Cache result for fast 0ms future lookups
+  if (parsed.vlessConfigs.length > 0) {
+    if (subLink) subLinkCache.set(subLink, { data: parsed, timestamp: Date.now() });
+    subLinkCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
   }
 
   return parsed;
@@ -7562,22 +7798,26 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
   }
 });
 
-// Real-time link fetcher & synchronizer for individual subscriptions
-app.post("/api/miniapp/subscription-links", async (req, res) => {
+// Real-time link fetcher & synchronizer for individual subscriptions (MiniApp & Dashboard)
+const handleFetchSubscriptionLinks = async (req: any, res: any) => {
   try {
-    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
+    const { keyId, clientName, clientUuid, serverId, subLink, forceRefresh } = req.body;
     const db = readSqliteDb();
 
     let targetKey = (db.subscription_keys || []).find(
-      (k: any) => String(k.id) === String(keyId) || (clientUuid && String(k.clientUuid) === String(clientUuid))
+      (k: any) =>
+        (keyId && String(k.id) === String(keyId)) ||
+        (clientUuid && (String(k.clientUuid) === String(clientUuid) || String(k.uuid) === String(clientUuid))) ||
+        (clientName && (String(k.clientName) === String(clientName) || String(k.email) === String(clientName))) ||
+        (subLink && k.subLink && String(k.subLink).trim() === String(subLink).trim())
     );
 
-    const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || "";
-    const cUuid = clientUuid || targetKey?.clientUuid || "";
+    const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || targetKey?.email || "";
+    const cUuid = clientUuid || targetKey?.clientUuid || targetKey?.uuid || "";
     const sId = serverId || targetKey?.serverId || "";
     const sLink = subLink || targetKey?.subLink || "";
 
-    const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink);
+    const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink, Boolean(forceRefresh));
 
     if (liveData.vlessConfigs.length > 0 && targetKey) {
       targetKey.vlessConfigs = liveData.vlessConfigs;
@@ -7589,45 +7829,17 @@ app.post("/api/miniapp/subscription-links", async (req, res) => {
       success: true,
       vlessConfigs: liveData.vlessConfigs.length > 0 ? liveData.vlessConfigs : (targetKey?.vlessConfigs || []),
       vlessLinks: liveData.vlessLinks.length > 0 ? liveData.vlessLinks : (targetKey?.vlessLinks || []),
-      subLink: sLink
+      subLink: sLink || targetKey?.subLink || "",
+      inboundsCount: liveData.vlessConfigs.length
     });
   } catch (error: any) {
+    console.error("[/api/miniapp/subscription-links error]:", error);
     res.status(500).json({ success: false, error: error.message });
   }
-});
+};
 
-app.post("/api/subscription-keys/get-links", async (req, res) => {
-  try {
-    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
-    const db = readSqliteDb();
-
-    const targetKey = (db.subscription_keys || []).find(
-      (k: any) => String(k.id) === String(keyId) || (clientUuid && String(k.clientUuid) === String(clientUuid))
-    );
-
-    const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || "";
-    const cUuid = clientUuid || targetKey?.clientUuid || "";
-    const sId = serverId || targetKey?.serverId || "";
-    const sLink = subLink || targetKey?.subLink || "";
-
-    const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink);
-
-    if (liveData.vlessConfigs.length > 0 && targetKey) {
-      targetKey.vlessConfigs = liveData.vlessConfigs;
-      targetKey.vlessLinks = liveData.vlessLinks;
-      writeSqliteDb(db);
-    }
-
-    res.json({
-      success: true,
-      vlessConfigs: liveData.vlessConfigs.length > 0 ? liveData.vlessConfigs : (targetKey?.vlessConfigs || []),
-      vlessLinks: liveData.vlessLinks.length > 0 ? liveData.vlessLinks : (targetKey?.vlessLinks || []),
-      subLink: sLink
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+app.post("/api/miniapp/subscription-links", handleFetchSubscriptionLinks);
+app.post("/api/subscription-keys/get-links", handleFetchSubscriptionLinks);
 
 // 6. Custom menu buttons
 app.post("/api/custom-buttons", async (req, res) => {
@@ -9502,62 +9714,6 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     res.json({ success: true, subKey: newSub, message: "اکانت تست رایگان با موفقیت فعال شد." });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// 4.5 Fetch / Extract Real VLESS Links from Subscription Link (Fastest Time)
-app.post("/api/miniapp/subscription-links", async (req, res) => {
-  try {
-    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
-    const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-
-    let effectiveSubLink = subLink || "";
-    let effectiveKey: any = null;
-
-    if (keyId || clientUuid || clientName) {
-      const keys = db.subscription_keys || [];
-      effectiveKey = keys.find((k: any) => 
-        (keyId && (String(k.id) === String(keyId) || String(k.id) === String(keyId))) ||
-        (clientUuid && (k.clientUuid === clientUuid || k.uuid === clientUuid)) ||
-        (clientName && (k.clientName === clientName || k.email === clientName))
-      );
-      if (effectiveKey && !effectiveSubLink) {
-        effectiveSubLink = effectiveKey.subLink || "";
-      }
-    }
-
-    if (!effectiveSubLink && effectiveKey) {
-      effectiveSubLink = effectiveKey.subLink || "";
-    }
-
-    const cName = clientName || effectiveKey?.clientName || effectiveKey?.email || "client";
-    const cUuid = clientUuid || effectiveKey?.clientUuid || effectiveKey?.uuid || "";
-    const sId = serverId || effectiveKey?.serverId || "";
-
-    const linksResult = await fetchRealClientLinks(cName, cUuid, sId, effectiveSubLink);
-
-    // If database record exists and we found new links, save them to speed up future queries
-    if (effectiveKey && linksResult.vlessConfigs.length > 0) {
-      effectiveKey.vlessConfigs = linksResult.vlessConfigs;
-      effectiveKey.vlessLinks = linksResult.vlessLinks;
-      writeSqliteDb(db);
-    }
-
-    return res.json({
-      success: true,
-      subLink: effectiveSubLink,
-      vlessConfigs: linksResult.vlessConfigs,
-      vlessLinks: linksResult.vlessLinks,
-    });
-  } catch (err: any) {
-    console.warn("[Subscription Links Extraction Error]", err);
-    return res.json({
-      success: false,
-      error: err.message || "خطا در استخراج لینک‌های ساب‌اسکریپشن",
-      vlessConfigs: [],
-      vlessLinks: [],
-    });
   }
 });
 

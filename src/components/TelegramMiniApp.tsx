@@ -378,62 +378,71 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [expandedSubId, setExpandedSubId] = useState<string | null>(null);
   const [fetchingSubLinksId, setFetchingSubLinksId] = useState<string | null>(null);
 
+  const fetchLiveSubLinksForService = async (sub: any, forceRefresh: boolean = false) => {
+    const subId = String(sub.id || sub.clientUuid || sub.uuid || "");
+    if (!subId) return;
+
+    setFetchingSubLinksId(subId);
+    try {
+      const res = await fetch("/api/miniapp/subscription-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          keyId: sub.id,
+          clientName: sub.clientName || sub.email || sub.remark,
+          clientUuid: sub.clientUuid || sub.uuid,
+          serverId: sub.serverId,
+          subLink: sub.subLink,
+          forceRefresh: forceRefresh,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        const newConfigs = Array.isArray(data.vlessConfigs) ? data.vlessConfigs : [];
+        const newLinks = Array.isArray(data.vlessLinks) ? data.vlessLinks : [];
+        const newSubLink = data.subLink || sub.subLink;
+
+        setSubscriptions((prev) =>
+          prev.map((item) =>
+            (sub.id && String(item.id) === String(sub.id)) || (sub.clientUuid && item.clientUuid === sub.clientUuid)
+              ? {
+                  ...item,
+                  vlessConfigs: newConfigs.length > 0 ? newConfigs : item.vlessConfigs,
+                  vlessLinks: newLinks.length > 0 ? newLinks : item.vlessLinks,
+                  subLink: newSubLink || item.subLink,
+                }
+              : item
+          )
+        );
+        setColleagueClients((prev) =>
+          prev.map((item) =>
+            (sub.id && String(item.id) === String(sub.id)) || (sub.clientUuid && item.clientUuid === sub.clientUuid)
+              ? {
+                  ...item,
+                  vlessConfigs: newConfigs.length > 0 ? newConfigs : item.vlessConfigs,
+                  vlessLinks: newLinks.length > 0 ? newLinks : item.vlessLinks,
+                  subLink: newSubLink || item.subLink,
+                }
+              : item
+          )
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to fetch live links:", e);
+    } finally {
+      setFetchingSubLinksId(null);
+    }
+  };
+
   const handleToggleSubAccordion = async (sub: any) => {
-    const subId = String(sub.id || sub.clientUuid);
+    const subId = String(sub.id || sub.clientUuid || sub.uuid || "");
     if (expandedSubId === subId) {
       setExpandedSubId(null);
       return;
     }
 
     setExpandedSubId(subId);
-
-    if (!fetchingSubLinksId) {
-      setFetchingSubLinksId(subId);
-      try {
-        const res = await fetch("/api/miniapp/subscription-links", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            keyId: sub.id,
-            clientName: sub.clientName || sub.email || sub.remark,
-            clientUuid: sub.clientUuid || sub.uuid,
-            serverId: sub.serverId,
-            subLink: sub.subLink,
-          }),
-        });
-        const data = await res.json();
-        if (data.success && (data.vlessConfigs?.length > 0 || data.vlessLinks?.length > 0)) {
-          setSubscriptions((prev) =>
-            prev.map((item) =>
-              item.id === sub.id || item.clientUuid === sub.clientUuid
-                ? {
-                    ...item,
-                    vlessConfigs: data.vlessConfigs?.length > 0 ? data.vlessConfigs : item.vlessConfigs,
-                    vlessLinks: data.vlessLinks?.length > 0 ? data.vlessLinks : item.vlessLinks,
-                    subLink: data.subLink || item.subLink,
-                  }
-                : item
-            )
-          );
-          setColleagueClients((prev) =>
-            prev.map((item) =>
-              item.id === sub.id || item.clientUuid === sub.clientUuid
-                ? {
-                    ...item,
-                    vlessConfigs: data.vlessConfigs?.length > 0 ? data.vlessConfigs : item.vlessConfigs,
-                    vlessLinks: data.vlessLinks?.length > 0 ? data.vlessLinks : item.vlessLinks,
-                    subLink: data.subLink || item.subLink,
-                  }
-                : item
-            )
-          );
-        }
-      } catch (e) {
-        console.warn("Failed to fetch live links:", e);
-      } finally {
-        setFetchingSubLinksId(null);
-      }
-    }
+    await fetchLiveSubLinksForService(sub, false);
   };
 
   // Action Handlers for My Services
@@ -3474,21 +3483,35 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                   <Zap className="w-3.5 h-3.5 text-yellow-400" />
                                   <span>لینک‌های مستقیم VLESS:</span>
                                 </span>
-                                <span className="text-slate-400 font-mono text-[10px]">
-                                  {fetchingSubLinksId === subIdStr ? (
-                                    <span className="text-amber-400 flex items-center gap-1">
-                                      <RefreshCw className="w-3 h-3 animate-spin" /> دریافت لینک‌های واقعی...
-                                    </span>
-                                  ) : (
-                                    `${sub.vlessLinks?.length || sub.vlessConfigs?.length || 0} اینباند`
-                                  )}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      fetchLiveSubLinksForService(sub, true);
+                                    }}
+                                    disabled={fetchingSubLinksId === subIdStr}
+                                    title="بروزرسانی اینباندها از لینک ساب"
+                                    className="text-[10px] text-purple-400 hover:text-purple-300 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-800/40 px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all"
+                                  >
+                                    <RefreshCw className={`w-3 h-3 ${fetchingSubLinksId === subIdStr ? "animate-spin text-amber-400" : ""}`} />
+                                    <span>بروزرسانی</span>
+                                  </button>
+                                  <span className="text-slate-400 font-mono text-[10px]">
+                                    {fetchingSubLinksId === subIdStr ? (
+                                      <span className="text-amber-400 flex items-center gap-1">
+                                        در حال استخراج...
+                                      </span>
+                                    ) : (
+                                      `${sub.vlessLinks?.length || sub.vlessConfigs?.length || 0} اینباند`
+                                    )}
+                                  </span>
+                                </div>
                               </div>
 
                               {fetchingSubLinksId === subIdStr && (!sub.vlessConfigs || sub.vlessConfigs.length === 0) ? (
                                 <div className="p-3 text-center text-xs text-slate-400 space-y-1">
                                   <RefreshCw className="w-4 h-4 animate-spin text-purple-400 mx-auto" />
-                                  <p>در حال فراخوانی لینک‌های واقعی از سرور...</p>
+                                  <p>در حال استخراج اینباندهای واقعی از ساب‌اسکریپشن...</p>
                                 </div>
                               ) : ((sub.vlessConfigs && sub.vlessConfigs.length > 0) || (sub.vlessLinks && sub.vlessLinks.length > 0)) ? (
                                 <div className="space-y-1.5">
@@ -4441,21 +4464,35 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                     <Zap className="w-3.5 h-3.5 text-yellow-400" />
                                     <span>لینک‌های مستقیم VLESS:</span>
                                   </span>
-                                  <span className="text-slate-400 font-mono text-[10px]">
-                                    {fetchingSubLinksId === clientIdStr ? (
-                                      <span className="text-amber-400 flex items-center gap-1">
-                                        <RefreshCw className="w-3 h-3 animate-spin" /> دریافت لینک‌های واقعی...
-                                      </span>
-                                    ) : (
-                                      `${client.vlessLinks?.length || client.vlessConfigs?.length || 0} اینباند`
-                                    )}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        fetchLiveSubLinksForService(client, true);
+                                      }}
+                                      disabled={fetchingSubLinksId === clientIdStr}
+                                      title="بروزرسانی اینباندها از لینک ساب"
+                                      className="text-[10px] text-purple-400 hover:text-purple-300 bg-purple-950/40 hover:bg-purple-900/50 border border-purple-800/40 px-2 py-0.5 rounded-lg flex items-center gap-1 transition-all"
+                                    >
+                                      <RefreshCw className={`w-3 h-3 ${fetchingSubLinksId === clientIdStr ? "animate-spin text-amber-400" : ""}`} />
+                                      <span>بروزرسانی</span>
+                                    </button>
+                                    <span className="text-slate-400 font-mono text-[10px]">
+                                      {fetchingSubLinksId === clientIdStr ? (
+                                        <span className="text-amber-400 flex items-center gap-1">
+                                          در حال استخراج...
+                                        </span>
+                                      ) : (
+                                        `${client.vlessLinks?.length || client.vlessConfigs?.length || 0} اینباند`
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
 
                                 {fetchingSubLinksId === clientIdStr && (!client.vlessConfigs || client.vlessConfigs.length === 0) ? (
                                   <div className="p-3 text-center text-xs text-slate-400 space-y-1">
                                     <RefreshCw className="w-4 h-4 animate-spin text-purple-400 mx-auto" />
-                                    <p>در حال فراخوانی لینک‌های واقعی از سرور...</p>
+                                    <p>در حال استخراج اینباندهای واقعی از ساب‌اسکریپشن...</p>
                                   </div>
                                 ) : ((client.vlessConfigs && client.vlessConfigs.length > 0) || (client.vlessLinks && client.vlessLinks.length > 0)) ? (
                                   <div className="space-y-1.5">
