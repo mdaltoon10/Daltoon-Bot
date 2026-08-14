@@ -177,7 +177,7 @@ export default function BotButtonsPanel({
     "buttons" | "miniapp" | "dual_choice"
   >(
     settings.startCommandMode ||
-      (settings.useMiniAppMode ? "dual_choice" : "buttons"),
+      (settings.useMiniAppMode ? "miniapp" : "buttons"),
   );
   const [btnTextMiniApp, setBtnTextMiniApp] = useState(
     settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند",
@@ -905,7 +905,7 @@ export default function BotButtonsPanel({
                     if (!checked) {
                       setStartCommandMode("buttons");
                     } else if (startCommandMode === "buttons") {
-                      setStartCommandMode("dual_choice");
+                      setStartCommandMode("miniapp");
                     }
                   }}
                   className="sr-only peer"
