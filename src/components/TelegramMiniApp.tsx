@@ -171,6 +171,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [cardReceiptImage, setCardReceiptImage] = useState<string>("");
   const [purchasing, setPurchasing] = useState<boolean>(false);
   const [deliveredSubKey, setDeliveredSubKey] = useState<any>(null);
+  const [pendingReceiptPurchase, setPendingReceiptPurchase] = useState<{
+    txId?: string;
+    planName?: string;
+    submittedAt: number;
+    prevSubIds: string[];
+  } | null>(null);
 
   // Free Test State
   const [claimingTest, setClaimingTest] = useState<boolean>(false);
@@ -399,6 +405,75 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     setRefreshing(true);
     fetchMiniAppData();
   };
+
+  // Silent poller for real-time background sync and instant receipt approval delivery
+  const silentFetchMiniAppData = async () => {
+    if (!tgUser?.id) return;
+    try {
+      const params = new URLSearchParams({
+        tg_id: String(tgUser.id),
+        username: tgUser.username || "",
+        first_name: tgUser.first_name || "",
+        last_name: tgUser.last_name || "",
+      });
+
+      const { ok, data } = await safeFetchJson(`/api/miniapp/data?${params.toString()}`);
+      if (ok && data?.success) {
+        setUserData(data.user);
+        setIsAdmin(!!data.isAdmin || !!data.user?.isAdmin);
+        setServers(data.servers || []);
+        setColleagueServers(data.colleagueServers || []);
+        setPlanCategories(data.planCategories || []);
+        setVpnPlans(data.vpnPlans || []);
+        if (data.testAccount) setTestAccountSettings(data.testAccount);
+        if (data.settings) setSystemSettings(data.settings);
+        if (data.tickets) setTickets(data.tickets);
+        if (data.transactions) setTransactions(data.transactions);
+        if (data.colleaguePackages) setColleaguePackages(data.colleaguePackages);
+        if (data.userColleagueAccounts) setUserColleagueAccounts(data.userColleagueAccounts);
+
+        const newSubs = data.subscriptions || [];
+
+        // Check if a pending receipt purchase was approved by admin
+        if (pendingReceiptPurchase) {
+          const matchingNewSub = newSubs.find((s: any) => {
+            const isNewId = !pendingReceiptPurchase.prevSubIds.includes(s.id);
+            const isRecent = s.createdAtMs && s.createdAtMs >= pendingReceiptPurchase.submittedAt - 15000;
+            return isNewId || isRecent;
+          });
+
+          if (matchingNewSub) {
+            setPendingReceiptPurchase(null);
+            setDeliveredSubKey(matchingNewSub);
+            setPurchaseStep(5);
+            setActiveTab("plans");
+            showThemedModal(
+              "🎉 رسید شما تایید شد!",
+              "سرویس شما توسط مدیریت تایید و بلافاصله فعال گردید. کانفیگ و لینک‌های اتصال روی صفحه آماده استفاده هستند.",
+              "success"
+            );
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+              window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+            }
+          }
+        }
+
+        setSubscriptions(newSubs);
+      }
+    } catch (e) {
+      // Silent error handling for background poller
+    }
+  };
+
+  // Background poller effect
+  useEffect(() => {
+    if (!tgUser?.id) return;
+    const intervalMs = pendingReceiptPurchase ? 3000 : 8000;
+    const timer = setInterval(() => {
+      silentFetchMiniAppData();
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [tgUser?.id, pendingReceiptPurchase]);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -684,14 +759,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           fetchMiniAppData(); // Refresh balance and subs
           showThemedModal("🎉 سرویس با موفقیت فعال شد!", "اشتراک شما بلافاصله ساخته شد و آماده اتصال است.", "success");
         } else if (data.pendingApproval) {
+          const currentSubIds = (subscriptions || []).map((s: any) => s.id);
+          setPendingReceiptPurchase({
+            txId: data.transactionId,
+            planName: planMode === "custom" ? `پلن دلخواه (${customGb}GB - ${customDays} روز)` : selectedPlan?.name,
+            submittedAt: Date.now(),
+            prevSubIds: currentSubIds,
+          });
           showThemedModal(
-            "رسید ثبت شد",
-            data.message || "رسید شما با موفقیت ثبت شد و اعلانی جهت تایید به مدیریت ارسال گردید. پس از تایید مدیریت، سرویس شما فعال خواهد شد.",
+            "رسید ثبت شد ⏳",
+            data.message || "رسید شما با موفقیت ثبت شد و اعلانی جهت تایید به مدیریت ارسال گردید. به محض تایید مدیریت، سرویس شما به طور خودکار و درجا روی صفحه ظاهر خواهد شد.",
             "success",
-            "باشه",
+            "متوجه شدم",
             () => {
-              setPurchaseStep(1);
-              setActiveTab("wallet");
               fetchMiniAppData();
             }
           );
@@ -706,32 +786,71 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
   };
 
-  // Claim Free Test Account
-  const handleClaimFreeTest = async () => {
+  // Claim Free Test Account (One-Click Delivery)
+  const handleClaimFreeTest = async (overrideServerId?: string) => {
+    if (!testAccountSettings.enabled) {
+      showThemedModal(
+        "تست رایگان",
+        testAccountSettings.disabledMessage || "اکانت تست رایگان فعلا موجود نیست.",
+        "warning"
+      );
+      return;
+    }
+
+    if (testAccountSettings.hasUsed && !isAdmin) {
+      showThemedModal(
+        "تست رایگان",
+        "❌ شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.",
+        "warning"
+      );
+      return;
+    }
+
     if (!servers || servers.length === 0) {
       showThemedModal("سرور یافت نشد", "سرور فعالی برای دریافت تست یافت نشد.", "warning");
       return;
     }
 
+    if (window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred("medium");
+    }
+
     setClaimingTest(true);
     try {
-      const defaultServer = selectedServer || servers[0];
+      const targetServer = overrideServerId
+        ? servers.find((s) => String(s.id) === String(overrideServerId))
+        : testAccountSettings.serverId
+        ? servers.find((s) => String(s.id) === String(testAccountSettings.serverId)) || selectedServer || servers[0]
+        : selectedServer || servers[0];
+
       const { ok, data, error } = await safeFetchJson("/api/miniapp/free-test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: tgUser?.id,
           username: tgUser?.username,
-          serverId: String(defaultServer.id),
+          serverId: targetServer ? String(targetServer.id) : undefined,
         }),
       });
 
       if (ok && data?.success && data?.subKey) {
         setTestSuccessSub(data.subKey);
+        setTestAccountSettings((prev: any) => ({ ...prev, hasUsed: true }));
+        setSubscriptions((prev: any[]) => [data.subKey, ...prev.filter((k: any) => k.id !== data.subKey.id)]);
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+        }
+        showThemedModal("تبریک! 🎉", "اکانت تست رایگان شما با ۱ کلیک با موفقیت صادر و فعال شد.", "success");
         fetchMiniAppData();
-        showThemedModal("تبریک!", "اکانت تست رایگان شما با موفقیت فعال شد.", "success");
       } else {
-        showThemedModal("خطا در دریافت تست", error || data?.error || "خطا در دریافت تست رایگان", "error");
+        if (window.Telegram?.WebApp?.HapticFeedback) {
+          window.Telegram.WebApp.HapticFeedback.notificationOccurred("error");
+        }
+        showThemedModal(
+          "تست رایگان",
+          error || data?.error || testAccountSettings.disabledMessage || "خطا در دریافت تست رایگان",
+          "warning"
+        );
       }
     } catch (err: any) {
       showThemedModal("خطای سرور", err.message || "خطا در دریافت اکانت تست", "error");
@@ -1168,7 +1287,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   </span>
                 ) : (
                   <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded-full font-medium">
-                    نسخه مینی‌اپ
+                    کاربر مهمان
                   </span>
                 )}
               </div>
@@ -1234,79 +1353,36 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           </div>
         )}
 
+        {/* Live Pending Receipt Approval Pulse Banner */}
+        {pendingReceiptPurchase && !loading && (
+          <div className="mb-4 p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/50 via-slate-900 to-amber-950/40 border border-amber-500/40 text-amber-200 text-xs shadow-xl flex items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <span>رسید پرداختی شما در انتظار تایید مدیریت است</span>
+                </div>
+                <p className="text-[11px] text-slate-300 truncate mt-0.5">
+                  به محض تایید، سرویس به صورت خودکار و بدون نیاز به رفرش فعال می‌شود...
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => silentFetchMiniAppData()}
+              className="px-2.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 rounded-xl text-[10px] font-bold shrink-0 border border-amber-500/30 active:scale-95 transition-all"
+            >
+              بررسی آنی
+            </button>
+          </div>
+        )}
+
         {/* ========================================================================= */}
         {/* TAB 1: PLANS & PURCHASE WIZARD                                            */}
         {/* ========================================================================= */}
         {activeTab === "plans" && !loading && (
           <div id="view-plans-wizard" className="space-y-4">
-            {/* Free Test Account Card (If Enabled & Not Used) */}
-            {testAccountSettings.enabled && !testAccountSettings.hasUsed && !testSuccessSub && purchaseStep === 1 && (
-              <div
-                id="card-free-test-banner"
-                className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-900/40 via-teal-900/30 to-slate-900 border border-emerald-500/40 p-4 shadow-xl shadow-emerald-950/40"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <Gift className="w-4 h-4 text-emerald-400 animate-bounce" />
-                      <span className="text-xs font-bold text-emerald-300">
-                        هدیه ویژه عضویت: تست رایگان
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-300 leading-relaxed">
-                      هم‌اکنون می‌توانید یک اکانت {testAccountSettings.trafficGb} گیگابایتی ({testAccountSettings.durationHours} ساعته) کاملاً رایگان دریافت کنید.
-                    </p>
-                  </div>
-                  <button
-                    id="btn-claim-free-test"
-                    onClick={handleClaimFreeTest}
-                    disabled={claimingTest}
-                    className="shrink-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-bold shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    {claimingTest ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Zap className="w-3.5 h-3.5 fill-slate-950" />
-                    )}
-                    <span>دریافت تست</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Test Success Modal View */}
-            {testSuccessSub && (
-              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-emerald-950/30 border border-emerald-500/40 p-5 space-y-4 shadow-2xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-emerald-400">
-                    <CheckCircle2 className="w-6 h-6" />
-                    <span className="font-extrabold text-sm">اکانت تست شما آماده شد!</span>
-                  </div>
-                  <button
-                    onClick={() => setTestSuccessSub(null)}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    بستن
-                  </button>
-                </div>
-                <div className="bg-slate-950/80 rounded-2xl p-3 border border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span>لینک ساب‌اسکریپشن هوشمند:</span>
-                    <button
-                      onClick={() => copyToClipboard(testSuccessSub.subLink, "test-sub")}
-                      className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium"
-                    >
-                      {copiedId === "test-sub" ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedId === "test-sub" ? "کپی شد" : "کپی لینک"}</span>
-                    </button>
-                  </div>
-                  <div className="text-[11px] text-slate-300 font-mono break-all bg-slate-900 p-2 rounded-xl border border-slate-800/80 select-all">
-                    {testSuccessSub.subLink}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Purchase Step Progress Header */}
             {purchaseStep < 5 && (
               <div className="flex items-center justify-between bg-slate-900/60 backdrop-blur-md p-2.5 rounded-2xl border border-slate-800/80">
@@ -1408,6 +1484,262 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                     })}
                   </div>
                 )}
+
+                {/* ------------------------------------------------------------- */}
+                {/* FREE TEST SECTION UNDER SERVERS LIST (1-Click Delivery)        */}
+                {/* ------------------------------------------------------------- */}
+                <div
+                  id="section-free-test-under-servers"
+                  className="mt-3.5 rounded-3xl overflow-hidden border border-emerald-500/30 bg-gradient-to-b from-emerald-950/40 via-slate-900/90 to-slate-950 p-4 shadow-xl shadow-emerald-950/30 space-y-3.5 relative"
+                >
+                  {/* Top glowing accent */}
+                  <div className="absolute top-0 right-0 left-0 h-[2px] bg-gradient-to-r from-transparent via-emerald-400/80 to-transparent" />
+
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10 shrink-0">
+                        <Gift className="w-5 h-5 animate-bounce" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-xs font-black text-white flex items-center gap-1.5">
+                            <span>تست رایگان کیفیت و سرعت</span>
+                          </h4>
+                          {testAccountSettings.enabled ? (
+                            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                              فعال
+                            </span>
+                          ) : (
+                            <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                              غیرفعال
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                          {testAccountSettings.enabled ? (
+                            <>
+                              یک کانفیگ اختصاصی{" "}
+                              <b className="text-emerald-300">
+                                {testAccountSettings.trafficGb < 1
+                                  ? `${Math.round(testAccountSettings.trafficGb * 1024)} مگابایتی`
+                                  : `${testAccountSettings.trafficGb} گیگابایتی`}
+                              </b>{" "}
+                              (
+                              <b className="text-emerald-300">
+                                {testAccountSettings.durationDays
+                                  ? `${testAccountSettings.durationDays} روزه`
+                                  : `${testAccountSettings.durationHours} ساعته`}
+                              </b>
+                              ) بدون هزینه دریافت کنید.
+                            </>
+                          ) : (
+                            <span className="text-slate-400">
+                              {testAccountSettings.disabledMessage || "اکانت تست رایگان فعلا موجود نیست."}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Free Test Server & Specs Chips */}
+                  <div className="grid grid-cols-2 gap-2 pt-1">
+                    <div className="bg-slate-900/80 rounded-xl p-2 border border-slate-800 flex items-center gap-2">
+                      <HardDrive className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] text-slate-400">حجم تست:</div>
+                        <div className="text-[11px] font-bold text-slate-200 truncate">
+                          {testAccountSettings.trafficGb < 1
+                            ? `${Math.round(testAccountSettings.trafficGb * 1024)} مگابایت`
+                            : `${testAccountSettings.trafficGb} گیگابایت`}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-900/80 rounded-xl p-2 border border-slate-800 flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="text-[10px] text-slate-400">مدت اعتبار:</div>
+                        <div className="text-[11px] font-bold text-slate-200 truncate">
+                          {testAccountSettings.durationDays
+                            ? `${testAccountSettings.durationDays} روز`
+                            : `${testAccountSettings.durationHours} ساعت`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Claim Button / Status Action */}
+                  <div className="pt-1">
+                    {testAccountSettings.hasUsed && !isAdmin ? (
+                      <button
+                        onClick={() =>
+                          showThemedModal(
+                            "تست رایگان قبلاً دریافت شده",
+                            "❌ شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد.",
+                            "warning"
+                          )
+                        }
+                        className="w-full bg-slate-800/80 hover:bg-slate-800 text-slate-400 py-2.5 rounded-2xl text-xs font-bold border border-slate-700/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>شما قبلاً تست رایگان دریافت کرده‌اید (استفاده شده)</span>
+                      </button>
+                    ) : !testAccountSettings.enabled ? (
+                      <button
+                        onClick={() =>
+                          showThemedModal(
+                            "تست رایگان غیرفعال است",
+                            testAccountSettings.disabledMessage || "اکانت تست رایگان فعلا موجود نیست.",
+                            "warning"
+                          )
+                        }
+                        className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 py-2.5 rounded-2xl text-xs font-bold border border-amber-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <AlertCircle className="w-4 h-4 text-amber-400" />
+                        <span>تست رایگان موقتاً غیرفعال است (مشاهده پیام)</span>
+                      </button>
+                    ) : (
+                      <button
+                        id="btn-claim-free-test-under-servers"
+                        onClick={() => handleClaimFreeTest()}
+                        disabled={claimingTest}
+                        className="w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3 rounded-2xl text-xs shadow-xl shadow-emerald-500/25 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {claimingTest ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                            <span>در حال ساخت و تحویل آنی کانفیگ...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-4 h-4 fill-slate-950" />
+                            <span>دریافت تست رایگان</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Inlined Instant Delivery Card if just claimed */}
+                  {testSuccessSub && (
+                    <div className="mt-3 rounded-2xl bg-slate-950 border border-emerald-500/50 p-4 space-y-3 shadow-2xl animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-emerald-400">
+                          <CheckCircle2 className="w-5 h-5" />
+                          <span className="font-extrabold text-xs">اکانت تست شما با موفقیت صادر شد!</span>
+                        </div>
+                        <button
+                          onClick={() => setTestSuccessSub(null)}
+                          className="text-[11px] text-slate-400 hover:text-white"
+                        >
+                          بستن
+                        </button>
+                      </div>
+
+                      {/* QR Code */}
+                      <div className="bg-white p-2.5 rounded-xl mx-auto w-36 h-36 flex items-center justify-center shadow-md">
+                        <img
+                          src={getQrUrl(testSuccessSub.subLink)}
+                          alt="QR Code"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+
+                      {/* Sub Link Copy Box */}
+                      <div className="bg-slate-900 rounded-xl p-2.5 border border-slate-800 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>لینک ساب‌اسکریپشن هوشمند:</span>
+                          <button
+                            onClick={() => copyToClipboard(testSuccessSub.subLink, "free-test-inline-sub")}
+                            className="text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold"
+                          >
+                            {copiedId === "free-test-inline-sub" ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                            <span>{copiedId === "free-test-inline-sub" ? "کپی شد" : "کپی لینک"}</span>
+                          </button>
+                        </div>
+                        <div className="text-[10px] text-emerald-200 font-mono break-all bg-slate-950 p-2 rounded-lg border border-slate-800 select-all">
+                          {testSuccessSub.subLink}
+                        </div>
+                      </div>
+
+                      {/* Individual Direct VLESS Links */}
+                      {((testSuccessSub.vlessConfigs && testSuccessSub.vlessConfigs.length > 0) || (testSuccessSub.vlessLinks && testSuccessSub.vlessLinks.length > 0)) && (
+                        <div className="bg-slate-900 rounded-xl p-2.5 border border-slate-800 space-y-2">
+                          <div className="text-[11px] font-bold text-teal-300 flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                            <span>لینک‌های مستقیم اتصال (VLESS):</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {(testSuccessSub.vlessLinks && testSuccessSub.vlessLinks.length > 0
+                              ? testSuccessSub.vlessLinks
+                              : (testSuccessSub.vlessConfigs || []).map((url: string, idx: number) => ({
+                                  name: `کانفیگ VLESS ${idx + 1}`,
+                                  url: url
+                                }))
+                            ).map((item: any, idx: number) => {
+                              const vlessUrl = typeof item === "string" ? item : item.url;
+                              const vlessName = typeof item === "string" ? `کانفیگ ${idx + 1}` : (item.name || `کانفیگ ${idx + 1}`);
+                              const copyId = `test-vless-${idx}`;
+                              return (
+                                <div key={idx} className="bg-slate-950 p-2 rounded-lg border border-slate-800/80 flex items-center justify-between gap-2">
+                                  <span className="text-[10px] text-slate-300 font-mono truncate flex-1 select-all" dir="ltr">
+                                    {vlessUrl}
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard(vlessUrl, copyId)}
+                                    className="text-emerald-400 hover:text-emerald-300 px-2 py-0.5 bg-emerald-500/10 rounded-md border border-emerald-500/20 text-[10px] font-bold shrink-0 flex items-center gap-1"
+                                  >
+                                    {copiedId === copyId ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                    <span>{copiedId === copyId ? "کپی شد" : "کپی"}</span>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Quick Connect Apps */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <a
+                          href={`v2rayng://install-sub?url=${encodeURIComponent(testSuccessSub.subLink)}`}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-lg text-[10px] font-bold transition-all border border-slate-700/60"
+                        >
+                          v2rayNG
+                        </a>
+                        <a
+                          href={`streisand://install-sub?url=${encodeURIComponent(testSuccessSub.subLink)}`}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-lg text-[10px] font-bold transition-all border border-slate-700/60"
+                        >
+                          Streisand
+                        </a>
+                        <a
+                          href={`v2box://install-sub?url=${encodeURIComponent(testSuccessSub.subLink)}`}
+                          className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center rounded-lg text-[10px] font-bold transition-all border border-slate-700/60"
+                        >
+                          V2Box
+                        </a>
+                      </div>
+
+                      {/* Go to My Subscriptions */}
+                      <button
+                        onClick={() => {
+                          setTestSuccessSub(null);
+                          setActiveTab("subscriptions");
+                        }}
+                        className="w-full bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 py-2 rounded-xl text-[11px] font-bold border border-purple-500/40 flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
+                        <span>مشاهده در اشتراک‌های من</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <button
                   id="btn-step1-next"
@@ -2085,6 +2417,57 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   </div>
                 </div>
 
+                {/* Direct VLESS Links Row by Row */}
+                {((deliveredSubKey.vlessConfigs && deliveredSubKey.vlessConfigs.length > 0) || (deliveredSubKey.vlessLinks && deliveredSubKey.vlessLinks.length > 0)) && (
+                  <div className="bg-slate-950 rounded-2xl p-3.5 border border-slate-800 space-y-2.5">
+                    <div className="flex items-center justify-between text-xs text-slate-300">
+                      <span className="font-bold flex items-center gap-1.5 text-purple-300">
+                        <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                        <span>لینک‌های مستقیم پروتکل VLESS:</span>
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono bg-purple-950/40 px-2 py-0.5 rounded-md border border-purple-800/30">
+                        {deliveredSubKey.vlessLinks?.length || deliveredSubKey.vlessConfigs?.length} اینباند
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {(deliveredSubKey.vlessLinks && deliveredSubKey.vlessLinks.length > 0
+                        ? deliveredSubKey.vlessLinks
+                        : (deliveredSubKey.vlessConfigs || []).map((url: string, idx: number) => ({
+                            name: `کانفیگ VLESS مستقیم ${idx + 1}`,
+                            url: url
+                          }))
+                      ).map((item: any, idx: number) => {
+                        const linkUrl = typeof item === "string" ? item : item.url;
+                        const linkName = typeof item === "string" ? `کانفیگ ${idx + 1}` : (item.name || `کانفیگ ${idx + 1}`);
+                        const copyKey = `deliv-vless-${idx}`;
+                        return (
+                          <div key={idx} className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800/80 flex items-center justify-between gap-2.5 hover:border-slate-700 transition-all">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] font-bold text-slate-200 truncate">
+                                {linkName}
+                              </div>
+                              <div className="text-[10px] text-purple-300/80 font-mono truncate select-all" dir="ltr">
+                                {linkUrl}
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(linkUrl, copyKey)}
+                              className="text-purple-300 hover:text-purple-200 px-2.5 py-1.5 bg-purple-600/20 hover:bg-purple-600/30 rounded-xl border border-purple-500/30 text-[11px] font-bold shrink-0 flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                            >
+                              {copiedId === copyKey ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5 text-purple-300" />
+                              )}
+                              <span>{copiedId === copyKey ? "کپی شد" : "کپی"}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Quick App Connect Links */}
                 <div className="space-y-1.5">
                   <div className="text-[11px] text-slate-400 font-medium">اتصال مستقیم به نرم‌افزارها:</div>
@@ -2251,9 +2634,51 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           className="bg-purple-600 hover:bg-purple-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-md shadow-purple-600/30"
                         >
                           {copiedId === `sub-${sub.id}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-                          <span>{copiedId === `sub-${sub.id}` ? "کپی شد" : "کپی"}</span>
+                          <span>{copiedId === `sub-${sub.id}` ? "کپی شد" : "کپی ساب"}</span>
                         </button>
                       </div>
+
+                      {/* Direct VLESS Links */}
+                      {((sub.vlessConfigs && sub.vlessConfigs.length > 0) || (sub.vlessLinks && sub.vlessLinks.length > 0)) && (
+                        <div className="bg-slate-950/80 rounded-2xl p-2.5 border border-slate-800/80 space-y-1.5">
+                          <div className="text-[10px] font-bold text-slate-400 flex items-center justify-between">
+                            <span className="flex items-center gap-1 text-purple-300">
+                              <Zap className="w-3 h-3 text-yellow-400" />
+                              <span>لینک‌های مستقیم VLESS:</span>
+                            </span>
+                            <span className="text-slate-500 font-mono text-[9px]">
+                              {sub.vlessLinks?.length || sub.vlessConfigs?.length} اینباند
+                            </span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {(sub.vlessLinks && sub.vlessLinks.length > 0
+                              ? sub.vlessLinks
+                              : (sub.vlessConfigs || []).map((url: string, idx: number) => ({
+                                  name: `کانفیگ VLESS ${idx + 1}`,
+                                  url: url
+                                }))
+                            ).map((item: any, idx: number) => {
+                              const linkUrl = typeof item === "string" ? item : item.url;
+                              const linkName = typeof item === "string" ? `کانفیگ ${idx + 1}` : (item.name || `کانفیگ ${idx + 1}`);
+                              const copyKey = `sub-vless-${sub.id}-${idx}`;
+                              return (
+                                <div key={idx} className="bg-slate-900 p-2 rounded-xl border border-slate-800 flex items-center justify-between gap-2">
+                                  <span className="text-[10px] text-slate-300 font-mono truncate flex-1 select-all" dir="ltr">
+                                    {linkUrl}
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard(linkUrl, copyKey)}
+                                    className="text-purple-300 hover:text-purple-200 px-2 py-0.5 bg-purple-500/10 hover:bg-purple-500/20 rounded-lg border border-purple-500/20 text-[10px] font-bold shrink-0 flex items-center gap-1"
+                                  >
+                                    {copiedId === copyKey ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                                    <span>{copiedId === copyKey ? "کپی شد" : "کپی"}</span>
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

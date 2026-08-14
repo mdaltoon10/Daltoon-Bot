@@ -3814,6 +3814,151 @@ export async function loginXuiPanel(
   }
 }
 
+// Helper to generate precise direct VLESS links based on inbounds defined in Server Management
+function generateVlessConfigsForClient(
+  clientEmail: string,
+  clientUuid?: string,
+  serverId?: string,
+  settings?: any,
+  subLink?: string
+): { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> } {
+  const result: { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> } = {
+    vlessConfigs: [],
+    vlessLinks: []
+  };
+
+  const safeUuid = clientUuid || crypto.randomUUID();
+  const safeName = (clientEmail || "user").trim();
+  const activeServers = getActiveServers(settings || {});
+  let server = serverId ? activeServers.find((s: any) => String(s.id) === String(serverId)) : null;
+  if (!server && activeServers.length > 0) {
+    server = activeServers.find((s: any) => s.status === "active") || activeServers[0];
+  }
+
+  // Determine domain/host
+  let host = "vpn.daltoon.online";
+  if (server?.panelUrl) {
+    try {
+      const clean = server.panelUrl.replace(/^https?:\/\//i, "").split("/")[0];
+      host = clean.split(":")[0];
+    } catch (e) {}
+  } else if (settings?.baseUrl) {
+    try {
+      const clean = settings.baseUrl.replace(/^https?:\/\//i, "").split("/")[0];
+      host = clean.split(":")[0];
+    } catch (e) {}
+  }
+
+  const serverName = server?.name || server?.remark || "Daltoon";
+
+  // Check inbounds defined on the server or in settings
+  const inboundsList: any[] = [];
+  if (server && Array.isArray(server.inbounds) && server.inbounds.length > 0) {
+    inboundsList.push(...server.inbounds);
+  } else if (settings && Array.isArray(settings.inbounds) && settings.inbounds.length > 0) {
+    inboundsList.push(...settings.inbounds);
+  }
+
+  // Filter active inbounds if activeInboundIds is present
+  let activeInbounds = inboundsList;
+  if (server && Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
+    const activeSet = new Set(server.activeInboundIds.map((id: any) => Number(id)));
+    const filtered = inboundsList.filter((ib: any) => activeSet.has(Number(ib.id)));
+    if (filtered.length > 0) {
+      activeInbounds = filtered;
+    }
+  }
+
+  if (activeInbounds.length > 0) {
+    for (const ib of activeInbounds) {
+      const port = ib.port || 443;
+      const protocol = (ib.protocol || "vless").toLowerCase();
+      const remark = ib.remark || `${serverName} - ${protocol.toUpperCase()}:${port}`;
+      
+      let streamSettings: any = {};
+      if (typeof ib.streamSettings === "string") {
+        try { streamSettings = JSON.parse(ib.streamSettings); } catch (e) {}
+      } else if (typeof ib.streamSettings === "object" && ib.streamSettings !== null) {
+        streamSettings = ib.streamSettings;
+      }
+
+      const network = streamSettings.network || ib.network || "tcp";
+      const security = streamSettings.security || ib.security || (port === 443 ? "tls" : "none");
+      
+      const params = new URLSearchParams();
+      params.set("type", network);
+      params.set("security", security);
+
+      if (security === "reality") {
+        const realitySettings = streamSettings.realitySettings || {};
+        if (realitySettings.serverNames && realitySettings.serverNames[0]) params.set("sni", realitySettings.serverNames[0]);
+        if (realitySettings.publicKey || realitySettings.password) params.set("pbk", realitySettings.publicKey || realitySettings.password);
+        if (realitySettings.shortIds && realitySettings.shortIds[0]) params.set("sid", realitySettings.shortIds[0]);
+        if (realitySettings.spiderX) params.set("spx", realitySettings.spiderX);
+        params.set("fp", realitySettings.fingerprint || "chrome");
+      } else if (security === "tls") {
+        const tlsSettings = streamSettings.tlsSettings || {};
+        if (tlsSettings.serverName) params.set("sni", tlsSettings.serverName);
+        if (tlsSettings.alpn && tlsSettings.alpn.length > 0) params.set("alpn", Array.isArray(tlsSettings.alpn) ? tlsSettings.alpn.join(",") : tlsSettings.alpn);
+        params.set("fp", tlsSettings.fingerprint || "chrome");
+      }
+
+      if (network === "ws") {
+        const wsSettings = streamSettings.wsSettings || {};
+        if (wsSettings.path) params.set("path", wsSettings.path);
+        if (wsSettings.headers?.Host) params.set("host", wsSettings.headers.Host);
+      } else if (network === "grpc") {
+        const grpcSettings = streamSettings.grpcSettings || {};
+        if (grpcSettings.serviceName) params.set("serviceName", grpcSettings.serviceName);
+      } else if (network === "httpupgrade") {
+        const httpupgradeSettings = streamSettings.httpupgradeSettings || {};
+        if (httpupgradeSettings.path) params.set("path", httpupgradeSettings.path);
+        if (httpupgradeSettings.host) params.set("host", httpupgradeSettings.host);
+      }
+
+      const link = `${protocol}://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
+      result.vlessConfigs.push(link);
+      result.vlessLinks.push({
+        name: remark,
+        url: link,
+        port: Number(port),
+        protocol: protocol.toUpperCase()
+      });
+    }
+  }
+
+  // If no custom inbounds configured or generated, generate standard reality & tls links
+  if (result.vlessConfigs.length === 0) {
+    const defaultTypes = [
+      { name: `${serverName} - اینباند 1 (Reality)`, port: 443, sec: "reality", net: "tcp", sni: "google.com", pbk: "m9L3_example_key" },
+      { name: `${serverName} - اینباند 2 (WebSocket TLS)`, port: 2053, sec: "tls", net: "ws", path: "/vless-ws", sni: host },
+      { name: `${serverName} - اینباند 3 (gRPC TLS)`, port: 8443, sec: "tls", net: "grpc", serviceName: "vless-grpc", sni: host }
+    ];
+
+    for (const dt of defaultTypes) {
+      const params = new URLSearchParams();
+      params.set("type", dt.net);
+      params.set("security", dt.sec);
+      params.set("sni", dt.sni);
+      params.set("fp", "chrome");
+      if (dt.sec === "reality" && dt.pbk) params.set("pbk", dt.pbk);
+      if (dt.net === "ws" && dt.path) params.set("path", dt.path);
+      if (dt.net === "grpc" && dt.serviceName) params.set("serviceName", dt.serviceName);
+
+      const link = `vless://${safeUuid}@${host}:${dt.port}?${params.toString()}#${encodeURIComponent(dt.name)}`;
+      result.vlessConfigs.push(link);
+      result.vlessLinks.push({
+        name: dt.name,
+        url: link,
+        port: dt.port,
+        protocol: "VLESS"
+      });
+    }
+  }
+
+  return result;
+}
+
 // Node.js implementation of Python bot's add_vpn_client_api helper
 async function addVpnClientApi(
   clientEmail: string,
@@ -3828,6 +3973,8 @@ async function addVpnClientApi(
   success: boolean;
   clientUuid?: string;
   subLink?: string;
+  vlessConfigs?: string[];
+  vlessLinks?: Array<{ name: string; url: string; port?: number; protocol?: string }>;
   error?: string;
 }> {
   try {
@@ -4205,10 +4352,14 @@ async function addVpnClientApi(
     }
     
     if (unifiedSuccess) {
+      const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}`;
+      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
-        subLink: extractedLink || `${subBase}/sub/${xuiSubId}`
+        subLink: finalSub,
+        vlessConfigs: vlessData.vlessConfigs,
+        vlessLinks: vlessData.vlessLinks
       };
     }
     
@@ -4244,18 +4395,26 @@ async function addVpnClientApi(
     }
     
     if (fallbackSuccess) {
+      const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}`;
+      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
-        subLink: extractedLink || `${subBase}/sub/${xuiSubId}`,
+        subLink: finalSub,
+        vlessConfigs: vlessData.vlessConfigs,
+        vlessLinks: vlessData.vlessLinks
       };
     }
     
     if (allowFallback) {
+      const finalSub = extractedLink || `${subBase}/sub/${xuiSubId}` || `https://vpn.daltoon.online/sub/${safeEmail}`;
+      const vlessData = generateVlessConfigsForClient(clientEmail, clientUuidVal, serverId, settings, finalSub);
       return {
         success: true,
         clientUuid: clientUuidVal,
-        subLink: extractedLink || `${subBase}/sub/${xuiSubId}` || `https://vpn.daltoon.online/sub/${safeEmail}`,
+        subLink: finalSub,
+        vlessConfigs: vlessData.vlessConfigs,
+        vlessLinks: vlessData.vlessLinks
       };
     }
 
@@ -4263,10 +4422,15 @@ async function addVpnClientApi(
   } catch (err: any) {
     console.error(`[Sanaei API Error] Exception during add client:`, err);
     if (allowFallback) {
+      const finalSub = `https://vpn.daltoon.online/sub/${clientEmail || "user"}`;
+      const safeUid = clientUuid || crypto.randomUUID();
+      const vlessData = generateVlessConfigsForClient(clientEmail, safeUid, serverId, settings, finalSub);
       return {
         success: true,
-        clientUuid: clientUuid || crypto.randomUUID(),
-        subLink: `https://vpn.daltoon.online/sub/${clientEmail || "user"}`
+        clientUuid: safeUid,
+        subLink: finalSub,
+        vlessConfigs: vlessData.vlessConfigs,
+        vlessLinks: vlessData.vlessLinks
       };
     }
     return { success: false, error: err.message || String(err) };
@@ -5998,31 +6162,33 @@ app.post("/api/transactions/approve", async (req, res) => {
               if (vpnResult.success && vpnResult.subLink) {
                 const subLink = vpnResult.subLink;
 
-                let vlessLinks: string[] = [];
-                try {
-                  const fetchRef = globalThis.fetch || fetch;
-                  const res = await fetchRef(subLink);
-                  if (res.ok) {
-                    const text = await res.text();
-                    const decoded = Buffer.from(text, "base64").toString(
-                      "utf-8",
-                    );
-                    vlessLinks = decoded
-                      .split("\n")
-                      .filter(
-                        (l) => l.trim().length > 0 && l.includes("://"),
+                let vlessLinks: string[] = vpnResult.vlessConfigs || [];
+                if (vlessLinks.length === 0) {
+                  try {
+                    const fetchRef = globalThis.fetch || fetch;
+                    const res = await fetchRef(subLink);
+                    if (res.ok) {
+                      const text = await res.text();
+                      const decoded = Buffer.from(text, "base64").toString(
+                        "utf-8",
                       );
-                  }
-                } catch (e) {}
+                      vlessLinks = decoded
+                        .split("\n")
+                        .filter(
+                          (l) => l.trim().length > 0 && l.includes("://"),
+                        );
+                    }
+                  } catch (e) {}
+                }
 
                 let linksDisplay = "";
                 if (vlessLinks.length > 0) {
                   const linksText = vlessLinks
-                    .map((l) => `<code>${l}</code>`)
+                    .map((l, i) => `🔸 <b>کانفیگ مستقیم VLESS (${i + 1}):</b>\n<code>${l}</code>`)
                     .join("\n\n");
-                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم:</b>\n${linksText}\n\n⚠️ لینک‌های بالا را کپی کرده و در کلاینت خود وارد کنید.`;
+                  linksDisplay = `🚀 <b>لینک‌های اتصال مستقیم (VLESS):</b>\n${linksText}\n\n👇 <b>لینک سابسکریپشن هوشمند:</b>\n<code>${subLink}</code>`;
                 } else {
-                  linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
+                  linksDisplay = `👇 <b>لینک سابسکریپشن اختصاصی شما (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی نمایید تا همه کانفیگ‌ها دریافت شوند.`;
                 }
 
                 let planDetailsText = `📦 پلان: <b>${plan.name}</b>`;
@@ -6045,7 +6211,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                   serverDetailsText = `🌐 سرور: <b>${serverName}</b>\n\n`;
                 }
 
-                messageTextForNotif = `✅ <b>کانفیگ شما آماده شد!</b>\n\n${planDetailsText}\n${serverDetailsText}${linksDisplay}`;
+                messageTextForNotif = `✅ <b>رسید شما تایید و سرویس فعال شد!</b>\n\n${planDetailsText}\n${serverDetailsText}${linksDisplay}`;
 
                 if (!db.subscription_keys) db.subscription_keys = [];
                 const randomId =
@@ -6066,6 +6232,8 @@ app.post("/api/transactions/approve", async (req, res) => {
                   clientName: clientName,
                   clientUuid: vpnResult.clientUuid || "",
                   subLink: subLink,
+                  vlessConfigs: vlessLinks,
+                  vlessLinks: vpnResult.vlessLinks || [],
                   expireDate: expireDate,
                   trafficLimitGb: planTraffic,
                   trafficUsedGb: 0,
@@ -7172,6 +7340,32 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
   }
 }
 
+const mapServerFormat = (s: any, forceIsColleague = false) => {
+  if (!s) return { id: "", name: "سرور عمومی", flag: "🌐" };
+  let flag = "🌐";
+  const nameLower = (s.name || s.remark || "").toLowerCase();
+  if (nameLower.includes("germany") || nameLower.includes("آلمان") || nameLower.includes("de")) flag = "🇩🇪";
+  else if (nameLower.includes("finland") || nameLower.includes("فنلاند") || nameLower.includes("fi")) flag = "🇫🇮";
+  else if (nameLower.includes("netherlands") || nameLower.includes("هلند") || nameLower.includes("nl")) flag = "🇳🇱";
+  else if (nameLower.includes("turkey") || nameLower.includes("ترکیه") || nameLower.includes("tr")) flag = "🇹🇷";
+  else if (nameLower.includes("france") || nameLower.includes("فرانسه") || nameLower.includes("fr")) flag = "🇫🇷";
+  else if (nameLower.includes("usa") || nameLower.includes("آمریکا") || nameLower.includes("us")) flag = "🇺🇸";
+  else if (nameLower.includes("uk") || nameLower.includes("انگلیس") || nameLower.includes("gb")) flag = "🇬🇧";
+  else if (nameLower.includes("uae") || nameLower.includes("دبی") || nameLower.includes("امارات")) flag = "🇦🇪";
+
+  return {
+    id: String(s.id || s.panelUrl || Math.random().toString(36).substring(2, 8)),
+    name: s.name || s.remark || "سرور اختصاصی",
+    flag,
+    panelType: s.panelType || "sanaei",
+    planCategories: Array.isArray(s.planCategories) ? s.planCategories : [],
+    status: s.status || "active",
+    protocol: s.protocol || "VLESS",
+    inbounds: s.inbounds || [],
+    isColleague: forceIsColleague || s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true,
+  };
+};
+
 app.get("/api/miniapp/data", async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   try {
@@ -7256,31 +7450,6 @@ app.get("/api/miniapp/data", async (req, res) => {
         if (s.panelUrl) colleagueServerIds.add(String(s.panelUrl));
       });
     }
-
-    const mapServerFormat = (s: any, forceIsColleague = false) => {
-      let flag = "🌐";
-      const nameLower = (s.name || s.remark || "").toLowerCase();
-      if (nameLower.includes("germany") || nameLower.includes("آلمان") || nameLower.includes("de")) flag = "🇩🇪";
-      else if (nameLower.includes("finland") || nameLower.includes("فنلاند") || nameLower.includes("fi")) flag = "🇫🇮";
-      else if (nameLower.includes("netherlands") || nameLower.includes("هلند") || nameLower.includes("nl")) flag = "🇳🇱";
-      else if (nameLower.includes("turkey") || nameLower.includes("ترکیه") || nameLower.includes("tr")) flag = "🇹🇷";
-      else if (nameLower.includes("france") || nameLower.includes("فرانسه") || nameLower.includes("fr")) flag = "🇫🇷";
-      else if (nameLower.includes("usa") || nameLower.includes("آمریکا") || nameLower.includes("us")) flag = "🇺🇸";
-      else if (nameLower.includes("uk") || nameLower.includes("انگلیس") || nameLower.includes("gb")) flag = "🇬🇧";
-      else if (nameLower.includes("uae") || nameLower.includes("دبی") || nameLower.includes("امارات")) flag = "🇦🇪";
-
-      return {
-        id: String(s.id || s.panelUrl || Math.random().toString(36).substring(2, 8)),
-        name: s.name || s.remark || "سرور اختصاصی",
-        flag,
-        panelType: s.panelType || "sanaei",
-        planCategories: Array.isArray(s.planCategories) ? s.planCategories : [],
-        status: s.status || "active",
-        protocol: s.protocol || "VLESS",
-        inbounds: s.inbounds || [],
-        isColleague: forceIsColleague || s.isColleague === true || s.is_colleague === true || s.isReseller === true || s.is_reseller === true,
-      };
-    };
 
     // Standard Servers - EXACTLY from settings.servers (where status is active)
     let standardServersRaw = Array.isArray(settings.servers) ? settings.servers.filter((s: any) => s && s.status !== "inactive") : [];
@@ -7414,10 +7583,13 @@ app.get("/api/miniapp/data", async (req, res) => {
     const userSubs = tgId > 0
       ? (db.subscription_keys || []).filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId).map((k: any) => {
           const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
+          const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, k.subLink);
           return {
             ...k,
             serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
-            serverFlag: srv ? mapServerFormat(srv).flag : "🌐"
+            serverFlag: srv ? mapServerFormat(srv).flag : "🌐",
+            vlessConfigs: k.vlessConfigs && k.vlessConfigs.length > 0 ? k.vlessConfigs : vlessData.vlessConfigs,
+            vlessLinks: k.vlessLinks && k.vlessLinks.length > 0 ? k.vlessLinks : vlessData.vlessLinks
           };
         })
       : [];
@@ -7450,62 +7622,93 @@ app.get("/api/miniapp/data", async (req, res) => {
       .filter((tx: any) => (Number(tx.userId) === tgId || Number(tx.user_id) === tgId) && tx.status === "approved")
       .reduce((acc: number, tx: any) => acc + Number(tx.amount || 0), 0);
 
-    res.json({
-      success: true,
-      user: currentUser ? {
-        id: currentUser.id || currentUser.userId,
-        userId: currentUser.userId || currentUser.id,
-        username: currentUser.username || "",
-        firstName: currentUser.firstName || "",
-        lastName: currentUser.lastName || "",
-        fullName: currentUser.fullName || currentUser.username || "کاربر گرامی",
-        walletBalance: Number(currentUser.walletBalance || currentUser.wallet_balance || currentUser.balance || 0),
-        status: currentUser.status || "active",
-        isBanned: currentUser.status === "banned",
-        isAdmin: isAdmin,
-        role: isAdmin ? "admin" : "user",
-        activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
-        invitedCount: invitedCount,
-        totalTrafficGb: totalTrafficGb,
-        totalUsedTrafficGb: totalUsedTrafficGb,
-        totalDeposits: totalDeposits,
-        totalTicketsCount: userTickets.length,
-        createdAt: currentUser.createdAt || currentUser.registeredAt || currentUser.created_at || currentUser.joinedAt || new Date().toISOString()
-      } : null,
-      isAdmin,
-      servers: activeServers,
-      colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
-      colleaguePackages,
-      colleagueAccounts: userColleagueAccounts,
-      planCategories,
-      vpnPlans,
-      customPricing: {
-        enabled: isCustomPricingActive,
-        boxes: customPricingBoxes,
-        defaultPricePerGb: 3000,
-        defaultPricePerDay: 2000,
-      },
-      testAccount: {
-        enabled: !!settings.isTestAccountActive,
-        trafficGb: Number(settings.testTrafficGb || 1),
-        durationHours: Number(settings.testDurationHours || 24),
-        hasUsed: hasUsedFreeTest
-      },
-      settings: {
-        botNickname: settings.botNickname || "دالتون",
-        botUsername: (settings.botUsername || settings.botNickname || "DaltoonBot").replace(/^@/, '').replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '') || "DaltoonBot",
-        cardNumber: getEffectiveCardDetails(settings).cardNumber,
-        cardHolder: getEffectiveCardDetails(settings).cardHolder,
-        bankName: getEffectiveCardDetails(settings).bankName,
-        cardNumbers: getEffectiveCardDetails(settings).cardNumbers,
-        channelUsername: settings.channelUsername || "",
-        supportUsername: settings.supportUsername || settings.channelUsername || "",
-        panelType: settings.panelType || "sanaei"
-      },
-      subscriptions: userSubs,
-      tickets: userTickets,
-      transactions: userTransactions
-    });
+      const isFreeTestEnabled = settings.isFreeTestActive !== false && settings.isTestAccountActive !== false && settings.IS_FREETEST_ACTIVE !== false;
+      const testTrafficGb = Number(
+        settings.freeTestGb !== undefined
+          ? settings.freeTestGb
+          : settings.FREE_TEST_GB !== undefined
+          ? settings.FREE_TEST_GB
+          : settings.testTrafficGb !== undefined
+          ? settings.testTrafficGb
+          : 0.1
+      );
+      const testDurationDays = Number(
+        settings.freeTestDays !== undefined
+          ? settings.freeTestDays
+          : settings.FREE_TEST_DAYS !== undefined
+          ? settings.FREE_TEST_DAYS
+          : settings.testDurationHours
+          ? settings.testDurationHours / 24
+          : 1
+      );
+      const testDurationHours = Math.round(testDurationDays * 24);
+      const freeTestDisabledMsg = settings.freeTestDisabledMessage || settings.FREETEST_DISABLED_MSG || "اکانت تست رایگان فعلا موجود نیست.";
+      const freeTestServerId = settings.freeTestServerId || settings.FREE_TEST_SERVER_ID || "";
+      const freeTestServerObj = freeTestServerId
+        ? activeServers.find((s: any) => String(s.id).trim() === String(freeTestServerId).trim())
+        : null;
+
+      res.json({
+        success: true,
+        user: currentUser ? {
+          id: currentUser.id || currentUser.userId,
+          userId: currentUser.userId || currentUser.id,
+          username: currentUser.username || "",
+          firstName: currentUser.firstName || "",
+          lastName: currentUser.lastName || "",
+          fullName: currentUser.fullName || currentUser.username || "کاربر گرامی",
+          walletBalance: Number(currentUser.walletBalance || currentUser.wallet_balance || currentUser.balance || 0),
+          status: currentUser.status || "active",
+          isBanned: currentUser.status === "banned",
+          isAdmin: isAdmin,
+          role: isAdmin ? "admin" : "user",
+          activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
+          invitedCount: invitedCount,
+          totalTrafficGb: totalTrafficGb,
+          totalUsedTrafficGb: totalUsedTrafficGb,
+          totalDeposits: totalDeposits,
+          totalTicketsCount: userTickets.length,
+          createdAt: currentUser.createdAt || currentUser.registeredAt || currentUser.created_at || currentUser.joinedAt || new Date().toISOString()
+        } : null,
+        isAdmin,
+        servers: activeServers,
+        colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
+        colleaguePackages,
+        colleagueAccounts: userColleagueAccounts,
+        planCategories,
+        vpnPlans,
+        customPricing: {
+          enabled: isCustomPricingActive,
+          boxes: customPricingBoxes,
+          defaultPricePerGb: 3000,
+          defaultPricePerDay: 2000,
+        },
+        testAccount: {
+          enabled: isFreeTestEnabled,
+          trafficGb: testTrafficGb,
+          durationDays: testDurationDays,
+          durationHours: testDurationHours,
+          disabledMessage: freeTestDisabledMsg,
+          serverId: freeTestServerId,
+          serverName: freeTestServerObj ? (freeTestServerObj.name || freeTestServerObj.remark) : null,
+          serverFlag: freeTestServerObj ? mapServerFormat(freeTestServerObj).flag : null,
+          hasUsed: hasUsedFreeTest
+        },
+        settings: {
+          botNickname: settings.botNickname || "دالتون",
+          botUsername: (settings.botUsername || settings.botNickname || "DaltoonBot").replace(/^@/, '').replace(/\s+/g, '').replace(/[^a-zA-Z0-9_]/g, '') || "DaltoonBot",
+          cardNumber: getEffectiveCardDetails(settings).cardNumber,
+          cardHolder: getEffectiveCardDetails(settings).cardHolder,
+          bankName: getEffectiveCardDetails(settings).bankName,
+          cardNumbers: getEffectiveCardDetails(settings).cardNumbers,
+          channelUsername: settings.channelUsername || "",
+          supportUsername: settings.supportUsername || settings.channelUsername || "",
+          panelType: settings.panelType || "sanaei"
+        },
+        subscriptions: userSubs,
+        tickets: userTickets,
+        transactions: userTransactions
+      });
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
     res.status(500).json({ success: false, error: error.message });
@@ -8196,6 +8399,8 @@ app.post("/api/miniapp/purchase", async (req, res) => {
         clientName: cleanClientName,
         clientUuid: vpnResult.clientUuid || "",
         subLink: vpnResult.subLink,
+        vlessConfigs: vpnResult.vlessConfigs || [],
+        vlessLinks: vpnResult.vlessLinks || [],
         expireDate,
         trafficLimitGb: trafficGb,
         trafficUsedGb: 0,
@@ -8290,6 +8495,8 @@ app.post("/api/miniapp/purchase", async (req, res) => {
         clientName: cleanClientName,
         clientUuid: vpnResult.clientUuid || "",
         subLink: vpnResult.subLink,
+        vlessConfigs: vpnResult.vlessConfigs || [],
+        vlessLinks: vpnResult.vlessLinks || [],
         expireDate,
         trafficLimitGb: trafficGb,
         trafficUsedGb: 0,
@@ -8403,24 +8610,63 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
-    if (!settings.isTestAccountActive) {
-      return res.status(400).json({ success: false, error: "دریافت کانفیگ تست در حال حاضر غیرفعال است." });
+    const isFreeTestEnabled = settings.isFreeTestActive !== false && settings.isTestAccountActive !== false && settings.IS_FREETEST_ACTIVE !== false;
+    const freeTestDisabledMsg = settings.freeTestDisabledMessage || settings.FREETEST_DISABLED_MSG || "اکانت تست رایگان فعلا موجود نیست.";
+
+    if (!isFreeTestEnabled) {
+      return res.status(400).json({ success: false, error: freeTestDisabledMsg });
     }
+
+    const isOwner = Number(settings.ownerId) === tgId || (process.env.OWNER_ID && Number(process.env.OWNER_ID) === tgId);
+    const isAdmin = isOwner || (Array.isArray(settings.admins) && settings.admins.map(Number).includes(tgId));
 
     // Check if user already used test
     const subs = db.subscription_keys || [];
-    const hasUsed = subs.some((k: any) =>
+    const users = db.users || [];
+    const existingUser = users.find((u: any) => Number(u.userId) === tgId);
+    const hasUsed = (existingUser && existingUser.hasReceivedFreeTest) || subs.some((k: any) =>
       Number(k.userId) === tgId && (k.isTest || (k.planName || "").includes("تست") || (k.planId || "").includes("test"))
     );
 
-    if (hasUsed) {
-      return res.status(400).json({ success: false, error: "شما قبلاً از اشتراک تست رایگان استفاده کرده‌اید." });
+    if (hasUsed && !isAdmin) {
+      return res.status(400).json({
+        success: false,
+        error: "❌ شما قبلاً اکانت تست رایگان خود را دریافت کرده‌اید!\nهر کاربر تنها یکبار مجاز به دریافت تست رایگان می‌باشد."
+      });
     }
 
-    const testGb = Number(settings.testTrafficGb || 1);
-    const testHours = Number(settings.testDurationHours || 24);
-    const testDays = Math.max(1, Math.ceil(testHours / 24));
-    const cleanClientName = `test_${tgId}_${Math.random().toString(36).substring(2, 6)}`;
+    const testGb = Number(
+      settings.freeTestGb !== undefined
+        ? settings.freeTestGb
+        : settings.FREE_TEST_GB !== undefined
+        ? settings.FREE_TEST_GB
+        : settings.testTrafficGb !== undefined
+        ? settings.testTrafficGb
+        : 0.1
+    );
+    const testDays = Number(
+      settings.freeTestDays !== undefined
+        ? settings.freeTestDays
+        : settings.FREE_TEST_DAYS !== undefined
+        ? settings.FREE_TEST_DAYS
+        : settings.testDurationHours
+        ? settings.testDurationHours / 24
+        : 1
+    );
+    const testHours = Math.round(testDays * 24);
+
+    const rawServers = getActiveServers(settings);
+    // Priority: 1) Admin-designated freeTestServerId, 2) Requested serverId, 3) First active public server
+    let targetServerId = settings.freeTestServerId || settings.FREE_TEST_SERVER_ID || serverId;
+    if (targetServerId && !rawServers.some((s: any) => String(s.id).trim() === String(targetServerId).trim())) {
+      targetServerId = rawServers.length > 0 ? rawServers[0].id : undefined;
+    }
+    if (!targetServerId && rawServers.length > 0) {
+      targetServerId = rawServers[0].id;
+    }
+
+    const randomSuffix = Math.random().toString(36).substring(2, 6);
+    const cleanClientName = `test_${tgId}_${randomSuffix}`;
 
     const vpnResult = await addVpnClientApi(
       cleanClientName,
@@ -8428,7 +8674,7 @@ app.post("/api/miniapp/free-test", async (req, res) => {
       testDays,
       settings,
       undefined,
-      serverId,
+      targetServerId,
       false,
       true
     );
@@ -8441,18 +8687,27 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     }
 
     const randomSubId = "TEST-" + Date.now();
-    const expireDate = new Date(Date.now() + testHours * 60 * 60 * 1000).toISOString().split("T")[0];
+    const expireDate = new Date(Date.now() + testDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+    const freeGbStr = testGb < 1 ? `${Math.round(testGb * 1024)} مگابایت` : `${testGb} گیگابایت`;
+    const freeDaysStr = testDays === Math.floor(testDays) ? `${Math.floor(testDays)} روزه` : `${testDays} روزه`;
+
+    const targetServerObj = rawServers.find((s: any) => String(s.id).trim() === String(targetServerId).trim());
 
     const newSub = {
       id: randomSubId,
       userId: tgId,
       user_id: tgId,
-      serverId: serverId || "",
+      serverId: targetServerId || "",
+      serverName: targetServerObj ? (targetServerObj.name || targetServerObj.remark) : "سرور عمومی",
+      serverFlag: targetServerObj ? mapServerFormat(targetServerObj).flag : "🌐",
       planId: "free_test",
-      planName: `کانفیگ تست رایگان (${testGb}GB - ${testHours} ساعت)`,
+      planName: `کانفیگ تست رایگان (${freeGbStr} - ${freeDaysStr})`,
       clientName: cleanClientName,
       clientUuid: vpnResult.clientUuid || "",
       subLink: vpnResult.subLink,
+      vlessConfigs: vpnResult.vlessConfigs || [],
+      vlessLinks: vpnResult.vlessLinks || [],
       expireDate,
       trafficLimitGb: testGb,
       trafficUsedGb: 0,
@@ -8464,8 +8719,16 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
     db.subscription_keys.push(newSub);
 
+    if (Array.isArray(db.users)) {
+      const uIdx = db.users.findIndex((u: any) => Number(u.userId) === tgId);
+      if (uIdx >= 0) {
+        db.users[uIdx].hasReceivedFreeTest = true;
+        db.users[uIdx].activePlansCount = (db.users[uIdx].activePlansCount || 0) + 1;
+      }
+    }
+
     writeSqliteDb(db);
-    res.json({ success: true, subKey: newSub });
+    res.json({ success: true, subKey: newSub, message: "اکانت تست رایگان با موفقیت فعال شد." });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
