@@ -5239,6 +5239,59 @@ app.post("/api/broadcast", async (req, res) => {
     // Build inline keyboard array if buttons provided
     let inlineKeyboard: any[] = [];
     if (Array.isArray(buttons) && buttons.length > 0) {
+      const useButtonColors = String(settings.useButtonColors || "false") === "true";
+      const usePremium = String(settings.usePremiumEmojis || "false") === "true";
+      const primaryColors = settings.primaryButtonColors || {};
+      const primaryTexts: Record<string, string> = {
+        [settings.btnTextBuyNew || "🛒 خرید اشتراک جدید"]: "btnBuyNew",
+        [settings.btnTextMySubs || "🗂 اشتراک های من / تمدید"]: "btnMySubs",
+        [settings.btnTextGuides || "💡 آموزش ها"]: "btnGuides",
+        [settings.btnTextProfile || "👤 حساب کاربری"]: "btnProfile",
+        [settings.btnTextSupport || "📞 پشتیبانی"]: "btnSupport",
+        [settings.btnTextTicketSupport || "🎫 تیکت به پشتیبانی"]: "btnTicketSupport",
+        [settings.btnTextFreeTest || "🎁 موجودی رایگان"]: "btnFreeTest",
+        [settings.btnTextInstantSupport || "🤖 پشتیبانی آنی"]: "btnInstantSupport",
+        [settings.btnTextFeedback || "💌 بازخورد کاربر ها"]: "btnFeedback",
+        [settings.btnTextReferral || "👥 زیرمجموعه گیری"]: "btnReferral",
+        [settings.btnTextWallet || "شارژ کیف پول 💳"]: "btnWallet",
+        [settings.btnTextColleagues || "بسته ویژه همکاران"]: "btnColleagues",
+        [settings.btnTextAiChat || "🤖 چت با ربات"]: "btnAiChat",
+        [settings.btnTextAi || "🧠 هوش مصنوعی"]: "btnAi",
+        [settings.btnTextAddConfig || "➕ افزودن کانفیگ به ربات"]: "btnAddConfig",
+        [settings.btnTextConfigDetails || "📊 مشخصات کانفیگ"]: "btnConfigDetails",
+        [settings.btnTextSearchConfig || "🔍 سرچ کانفیگ (مدیریت)"]: "btnSearchConfig",
+      };
+
+      const cleanBtnText = (t: string) => {
+        if (!t) return "";
+        return Array.from(t).filter(c => c.charCodeAt(0) < 0x2000 || (c.charCodeAt(0) >= 0xFB00 && c.charCodeAt(0) <= 0xFEFF)).join("").trim();
+      };
+
+      const getButtonStyle = (btnText: string) => {
+        const cleaned = cleanBtnText(btnText);
+        let matchedKey = null;
+        for (const [txt, key] of Object.entries(primaryTexts)) {
+          if (txt === btnText || cleanBtnText(txt) === cleaned) {
+            matchedKey = key;
+            break;
+          }
+        }
+        if (matchedKey) {
+          const color = primaryColors[matchedKey];
+          if (color && color !== "none") return color;
+          return null;
+        }
+        const customStyles = settings.buttonStylesMapping || { "success": [], "danger": [], "primary": [] };
+        for (const [style, keywords] of Object.entries(customStyles)) {
+          if (Array.isArray(keywords)) {
+            for (const kw of keywords) {
+              if (kw && btnText.includes(kw)) return style;
+            }
+          }
+        }
+        return null;
+      };
+
       const formattedButtons = buttons.map((btn: any) => {
         let item: any = { text: btn.text || "دکمه" };
         if (btn.type === "miniapp" || btn.id === "btnMiniApp" || btn.id === "miniapp") {
@@ -5264,6 +5317,88 @@ app.post("/api/broadcast", async (req, res) => {
         } else {
           item.callback_data = btn.callbackData || `mm_${btn.key || btn.id}`;
         }
+
+        // Apply styles if enabled
+        if (useButtonColors) {
+          let assignedStyle = btn.color || (btn.id ? primaryColors[btn.id] : null);
+          if (!assignedStyle || assignedStyle === "none") {
+            assignedStyle = getButtonStyle(item.text);
+          }
+          if (assignedStyle && assignedStyle !== "none") {
+            item.style = assignedStyle;
+          }
+        }
+
+        // Apply premium custom emojis if enabled
+        if (usePremium) {
+          const customEmojis = settings.premiumEmojiMapping || {
+            "🛒": "5449640306352655512",
+            "🎁": "5368324170671202286",
+            "👤": "5368324170671202287",
+            "🎧": "5368324170671202288",
+            "🚀": "5368324170671202289",
+            "✅": "5368324170671202290",
+            "❌": "5368324170671202291",
+            "⚠️": "5368324170671202292",
+            "💎": "5368324170671202293",
+            "💰": "5368324170671202294",
+            "📊": "5368324170671202295",
+            "🔄": "5368324170671202296",
+            "🎫": "5368324170671202297",
+            "⚡": "5368324170671202298",
+            "💳": "5368324170671202299",
+            "📝": "5368324170671202300",
+            "⏳": "5368324170671202301",
+            "🌐": "5368324170671202302",
+            "⚙️": "5368324170671202303",
+            "🔌": "5368324170671202304",
+            "🔋": "5368324170671202305",
+            "💡": "5368324170671202306",
+            "🔒": "5368324170671202307",
+            "🔓": "5368324170671202308",
+            "🔑": "5368324170671202309",
+            "🇮🇷": "5368324170671202310",
+            "🇩🇪": "5368324170671202311",
+            "🇺🇸": "5368324170671202312",
+            "🇬🇧": "5368324170671202313",
+            "🇫🇷": "5368324170671202314",
+            "🇳🇱": "5368324170671202315",
+            "🇹🇷": "5368324170671202316",
+            "🇨🇦": "5368324170671202317",
+            "🇫🇮": "5368324170671202318",
+            "🇷🇺": "5368324170671202319",
+            "🇦🇪": "5368324170671202320",
+            "🇺🇦": "5368324170671202321",
+            "🇵🇱": "5368324170671202322",
+            "🇸🇪": "5368324170671202323",
+            "🇦🇹": "5368324170671202324",
+            "🇨🇭": "5368324170671202325",
+            "🇮🇹": "5368324170671202326",
+            "🇪🇸": "5368324170671202327",
+            "🇧🇷": "5368324170671202328",
+            "🇮🇳": "5368324170671202329",
+            "🇨🇳": "5368324170671202330",
+            "🇯🇵": "5368324170671202331",
+            "🇰🇷": "5368324170671202332",
+            "🇦🇺": "5368324170671202333",
+            "🇿🇦": "5368324170671202334",
+            "🇲🇽": "5368324170671202335",
+            "🇦🇷": "5368324170671202336",
+            "🇸🇦": "5368324170671202337",
+            "🇮🇶": "5368324170671202338",
+          };
+          let hasCustom = false;
+          for (const [std, customId] of Object.entries(customEmojis)) {
+            if (item.text.includes(std)) {
+              if (!hasCustom) {
+                item.icon_custom_emoji_id = String(customId);
+                hasCustom = true;
+              }
+              item.text = item.text.split(std).join("").split("  ").join(" ").trim();
+            }
+          }
+        }
+
         return item;
       });
 
@@ -9766,19 +9901,8 @@ async function sendTelegramMessage(
       parse_mode: "HTML",
     };
     if (replyMarkup) {
-      // Clean up custom non-Telegram button properties like 'style'
+      // Retain custom non-Telegram button properties like 'style' and 'icon_custom_emoji_id' so custom clients (like Telegraph) can render them
       const cleanMarkup = JSON.parse(JSON.stringify(replyMarkup));
-      const rows = cleanMarkup.inline_keyboard || cleanMarkup.keyboard || [];
-      for (const row of rows) {
-        if (Array.isArray(row)) {
-          for (const btn of row) {
-            if (btn && typeof btn === "object") {
-              delete btn.style;
-              delete btn.icon_custom_emoji_id;
-            }
-          }
-        }
-      }
       body.reply_markup = cleanMarkup;
     }
 
@@ -9801,17 +9925,6 @@ async function sendTelegramMessage(
       if (replyMarkup) {
         try {
           const cleanMarkup = JSON.parse(JSON.stringify(replyMarkup));
-          const rows = cleanMarkup.inline_keyboard || cleanMarkup.keyboard || [];
-          for (const row of rows) {
-            if (Array.isArray(row)) {
-              for (const btn of row) {
-                if (btn && typeof btn === "object") {
-                  delete btn.style;
-                  delete btn.icon_custom_emoji_id;
-                }
-              }
-            }
-          }
           fallbackBody.reply_markup = cleanMarkup;
         } catch (e) {}
       }

@@ -873,7 +873,7 @@ export default function SettingsPanel({
   };
 
   const getBroadcastButtonColorStyle = (color?: string, isMiniApp?: boolean) => {
-    if (isMiniApp || color === "purple") {
+    if (color === "purple") {
       return "bg-gradient-to-r from-purple-900/90 via-purple-800/90 to-indigo-900/90 text-purple-100 border-purple-500/60 shadow-purple-950/50 hover:from-purple-800 hover:to-indigo-800";
     }
     switch (color) {
@@ -890,7 +890,7 @@ export default function SettingsPanel({
   };
 
   const getBroadcastButtonBadgeStyle = (color?: string, isMiniApp?: boolean) => {
-    if (isMiniApp || color === "purple") return "bg-purple-950/90 text-purple-200 border-purple-500/50";
+    if (color === "purple") return "bg-purple-950/90 text-purple-200 border-purple-500/50";
     switch (color) {
       case "success": return "bg-emerald-950/90 text-emerald-200 border-emerald-500/50";
       case "danger": return "bg-rose-950/90 text-rose-200 border-rose-500/50";
@@ -900,7 +900,7 @@ export default function SettingsPanel({
   };
 
   const getBroadcastButtonBadgeLabel = (color?: string, isMiniApp?: boolean) => {
-    if (isMiniApp || color === "purple") return "🟣 بنفش مینی‌اپ";
+    if (color === "purple") return "🟣 بنفش مینی‌اپ";
     switch (color) {
       case "success": return "🟢 سبز";
       case "danger": return "🔴 قرمز";
