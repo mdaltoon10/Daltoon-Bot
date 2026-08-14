@@ -5178,7 +5178,7 @@ app.post("/api/xui/test-connection", async (req, res) => {
 // BROADCAST ENDPOINT
 app.post("/api/broadcast", async (req, res) => {
   try {
-    const { text, attachment, serverUrl, captionPosition } = req.body;
+    const { text, attachment, serverUrl, captionPosition, buttons, buttonLayout } = req.body;
     if (!text && !attachment) {
       return res.status(400).json({
         success: false,
@@ -5236,6 +5236,52 @@ app.post("/api/broadcast", async (req, res) => {
     const users = db.users || [];
     let count = 0;
 
+    // Build inline keyboard array if buttons provided
+    let inlineKeyboard: any[] = [];
+    if (Array.isArray(buttons) && buttons.length > 0) {
+      const formattedButtons = buttons.map((btn: any) => {
+        let item: any = { text: btn.text || "دکمه" };
+        if (btn.type === "miniapp" || btn.id === "btnMiniApp" || btn.id === "miniapp") {
+          let miniAppUrl = btn.url || settings.miniAppUrl || `${serverUrl || ""}/miniapp`;
+          if (miniAppUrl && !miniAppUrl.startsWith("http://") && !miniAppUrl.startsWith("https://")) {
+            miniAppUrl = "https://" + miniAppUrl;
+          }
+          item.web_app = { url: miniAppUrl };
+        } else if (btn.type === "url" || btn.url) {
+          let targetUrl = btn.url || btn.targetUrl || "";
+          if (targetUrl && !targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+            targetUrl = "https://" + targetUrl;
+          }
+          item.url = targetUrl;
+        } else if (btn.type === "custom") {
+          if (btn.replyText && (btn.replyText.startsWith("http://") || btn.replyText.startsWith("https://"))) {
+            item.url = btn.replyText;
+          } else if (btn.index !== undefined) {
+            item.callback_data = `mm_custom_${btn.index}`;
+          } else {
+            item.callback_data = `mm_custom_${btn.id || 0}`;
+          }
+        } else {
+          item.callback_data = btn.callbackData || `mm_${btn.key || btn.id}`;
+        }
+        return item;
+      });
+
+      if (buttonLayout === "pair") {
+        for (let i = 0; i < formattedButtons.length; i += 2) {
+          if (i + 1 < formattedButtons.length) {
+            inlineKeyboard.push([formattedButtons[i], formattedButtons[i + 1]]);
+          } else {
+            inlineKeyboard.push([formattedButtons[i]]);
+          }
+        }
+      } else {
+        formattedButtons.forEach((b: any) => {
+          inlineKeyboard.push([b]);
+        });
+      }
+    }
+
     if (botToken && botToken !== "DUMMY_TOKEN") {
       for (const u of users) {
         if (u.userId) {
@@ -5249,6 +5295,12 @@ app.post("/api/broadcast", async (req, res) => {
               parse_mode: "HTML",
             };
 
+            if (inlineKeyboard.length > 0) {
+              payload.reply_markup = {
+                inline_keyboard: inlineKeyboard,
+              };
+            }
+
             if (attachmentBuffer && attachment) {
               useFormData = true;
               formData = new FormData();
@@ -5259,6 +5311,11 @@ app.post("/api/broadcast", async (req, res) => {
               }
               if (captionPosition === "above") {
                 formData.append("show_caption_above_media", "true");
+              }
+              if (inlineKeyboard.length > 0) {
+                formData.append("reply_markup", JSON.stringify({
+                  inline_keyboard: inlineKeyboard,
+                }));
               }
 
               const fileType = attachment.fileType || "file";

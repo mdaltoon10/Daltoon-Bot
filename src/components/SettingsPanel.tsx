@@ -35,7 +35,10 @@ import {
   Clock,
   Calendar,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  MousePointer,
+  Smartphone,
+  Search
 } from "lucide-react";
 
 interface SettingsPanelProps {
@@ -178,6 +181,26 @@ export default function SettingsPanel({
   >("file");
   const broadcastAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Broadcast buttons selection state
+  interface BroadcastSelectedButton {
+    id: string;
+    type: "miniapp" | "main" | "custom" | "url";
+    text: string;
+    url?: string;
+    callbackData?: string;
+    color?: string;
+    index?: number;
+    key?: string;
+    replyText?: string;
+  }
+  const [broadcastButtons, setBroadcastButtons] = useState<BroadcastSelectedButton[]>([]);
+  const [broadcastButtonLayout, setBroadcastButtonLayout] = useState<"single" | "pair">("single");
+  const [buttonSearchQuery, setButtonSearchQuery] = useState("");
+  const [adhocUrlButtons, setAdhocUrlButtons] = useState<BroadcastSelectedButton[]>([]);
+  const [showAddCustomLinkModal, setShowAddCustomLinkModal] = useState(false);
+  const [customLinkLabel, setCustomLinkLabel] = useState("");
+  const [customLinkUrl, setCustomLinkUrl] = useState("");
 
   // Dashboard credentials, Port, and Admins management
   const [dashboardUsername, setDashboardUsername] = useState(
@@ -413,6 +436,8 @@ export default function SettingsPanel({
           attachment: activeAttachment,
           captionPosition,
           serverUrl: window.location.origin,
+          buttons: broadcastButtons,
+          buttonLayout: broadcastButtonLayout,
         }),
       });
       const data = await response.json();
@@ -424,6 +449,7 @@ export default function SettingsPanel({
         });
         setBroadcastText("");
         setActiveAttachment(null);
+        setBroadcastButtons([]);
       } else {
         setBroadcastStatus({
           type: "error",
@@ -697,6 +723,192 @@ export default function SettingsPanel({
     setTimeout(() => setSaved(false), 3000);
   };
 
+  const currentButtonColors = settings.primaryButtonColors || {};
+
+  const allMainBotButtons: BroadcastSelectedButton[] = [
+    {
+      id: "btnMiniApp",
+      key: "btnMiniApp",
+      type: "miniapp",
+      text: settings.btnTextMiniApp || "📱 ورود به مینی اپ",
+      color: currentButtonColors["btnMiniApp"] || "purple",
+      url: settings.miniAppUrl || "",
+    },
+    {
+      id: "btnBuyNew",
+      key: "btnBuyNew",
+      type: "main",
+      text: settings.btnTextBuyNew || "🛒 خرید اشتراک جدید",
+      callbackData: "mm_btnBuyNew",
+      color: currentButtonColors["btnBuyNew"] || "none",
+    },
+    {
+      id: "btnMySubs",
+      key: "btnMySubs",
+      type: "main",
+      text: settings.btnTextMySubs || "🔑 اشتراک‌های من",
+      callbackData: "mm_btnMySubs",
+      color: currentButtonColors["btnMySubs"] || "none",
+    },
+    {
+      id: "btnWallet",
+      key: "btnWallet",
+      type: "main",
+      text: settings.btnTextWallet || "💳 کیف پول و شارژ",
+      callbackData: "mm_btnWallet",
+      color: currentButtonColors["btnWallet"] || "none",
+    },
+    {
+      id: "btnTicketSupport",
+      key: "btnTicketSupport",
+      type: "main",
+      text: settings.btnTextTicketSupport || "🎫 پشتیبانی و تیکت",
+      callbackData: "mm_btnTicketSupport",
+      color: currentButtonColors["btnTicketSupport"] || "none",
+    },
+    {
+      id: "btnSupport",
+      key: "btnSupport",
+      type: "main",
+      text: settings.btnTextSupport || "👨‍💻 پشتیبانی آنلاین",
+      callbackData: "mm_btnSupport",
+      color: currentButtonColors["btnSupport"] || "none",
+    },
+    {
+      id: "btnReferral",
+      key: "btnReferral",
+      type: "main",
+      text: settings.btnTextReferral || "👥 زیرمجموعه‌گیری",
+      callbackData: "mm_btnReferral",
+      color: currentButtonColors["btnReferral"] || "none",
+    },
+    {
+      id: "btnGuides",
+      key: "btnGuides",
+      type: "main",
+      text: settings.btnTextGuides || "📚 راهنمای اتصال",
+      callbackData: "mm_btnGuides",
+      color: currentButtonColors["btnGuides"] || "none",
+    },
+    {
+      id: "btnFreeTest",
+      key: "btnFreeTest",
+      type: "main",
+      text: settings.btnTextFreeTest || "🧪 تست رایگان",
+      callbackData: "mm_btnFreeTest",
+      color: currentButtonColors["btnFreeTest"] || "none",
+    },
+    {
+      id: "btnColleagues",
+      key: "btnColleagues",
+      type: "main",
+      text: settings.btnTextColleagues || "👔 پنل همکاران",
+      callbackData: "mm_btnColleagues",
+      color: currentButtonColors["btnColleagues"] || "none",
+    },
+    {
+      id: "btnAiChat",
+      key: "btnAiChat",
+      type: "main",
+      text: settings.btnTextAiChat || "🤖 چت هوشمند",
+      callbackData: "mm_btnAiChat",
+      color: currentButtonColors["btnAiChat"] || "none",
+    },
+    {
+      id: "btnAddConfig",
+      key: "btnAddConfig",
+      type: "main",
+      text: settings.btnTextAddConfig || "➕ افزودن کانفیگ",
+      callbackData: "mm_btnAddConfig",
+      color: currentButtonColors["btnAddConfig"] || "none",
+    },
+    {
+      id: "btnConfigDetails",
+      key: "btnConfigDetails",
+      type: "main",
+      text: settings.btnTextConfigDetails || "📊 وضعیت کانفیگ",
+      callbackData: "mm_btnConfigDetails",
+      color: currentButtonColors["btnConfigDetails"] || "none",
+    },
+    {
+      id: "btnSearchConfig",
+      key: "btnSearchConfig",
+      type: "main",
+      text: settings.btnTextSearchConfig || "🔍 جستجوی کانفیگ",
+      callbackData: "mm_btnSearchConfig",
+      color: currentButtonColors["btnSearchConfig"] || "none",
+    },
+  ];
+
+  const allCustomButtons: BroadcastSelectedButton[] = (customButtons || []).map((cb, idx) => ({
+    id: `custom_${cb.id || idx}`,
+    type: "custom",
+    text: cb.text,
+    replyText: cb.replyText,
+    index: idx,
+    url: cb.replyText?.startsWith("http") ? cb.replyText : undefined,
+    callbackData: cb.replyText?.startsWith("http") ? undefined : `mm_custom_${idx}`,
+    color: cb.replyText?.startsWith("http") ? "primary" : "none",
+  }));
+
+  const allDashboardButtons: BroadcastSelectedButton[] = [
+    ...allMainBotButtons,
+    ...allCustomButtons,
+    ...adhocUrlButtons,
+  ];
+
+  const filteredDashboardButtons = allDashboardButtons.filter((btn) =>
+    btn.text.toLowerCase().includes(buttonSearchQuery.toLowerCase().trim())
+  );
+
+  const toggleSelectBroadcastButton = (btn: BroadcastSelectedButton) => {
+    setBroadcastButtons((prev) => {
+      const exists = prev.some((b) => b.id === btn.id);
+      if (exists) {
+        return prev.filter((b) => b.id !== btn.id);
+      } else {
+        return [...prev, btn];
+      }
+    });
+  };
+
+  const getBroadcastButtonColorStyle = (color?: string, isMiniApp?: boolean) => {
+    if (isMiniApp || color === "purple") {
+      return "bg-gradient-to-r from-purple-900/90 via-purple-800/90 to-indigo-900/90 text-purple-100 border-purple-500/60 shadow-purple-950/50 hover:from-purple-800 hover:to-indigo-800";
+    }
+    switch (color) {
+      case "success":
+        return "bg-emerald-950/90 text-emerald-200 border-emerald-500/60 shadow-emerald-950/50 hover:bg-emerald-900";
+      case "danger":
+        return "bg-rose-950/90 text-rose-200 border-rose-500/60 shadow-rose-950/50 hover:bg-rose-900";
+      case "primary":
+        return "bg-indigo-950/90 text-indigo-200 border-indigo-500/60 shadow-indigo-950/50 hover:bg-indigo-900";
+      case "none":
+      default:
+        return "bg-slate-900/90 text-slate-200 border-slate-700/80 shadow-slate-950/40 hover:bg-slate-800";
+    }
+  };
+
+  const getBroadcastButtonBadgeStyle = (color?: string, isMiniApp?: boolean) => {
+    if (isMiniApp || color === "purple") return "bg-purple-950/90 text-purple-200 border-purple-500/50";
+    switch (color) {
+      case "success": return "bg-emerald-950/90 text-emerald-200 border-emerald-500/50";
+      case "danger": return "bg-rose-950/90 text-rose-200 border-rose-500/50";
+      case "primary": return "bg-indigo-950/90 text-indigo-200 border-indigo-500/50";
+      default: return "bg-slate-900 text-slate-300 border-slate-700";
+    }
+  };
+
+  const getBroadcastButtonBadgeLabel = (color?: string, isMiniApp?: boolean) => {
+    if (isMiniApp || color === "purple") return "🟣 بنفش مینی‌اپ";
+    switch (color) {
+      case "success": return "🟢 سبز";
+      case "danger": return "🔴 قرمز";
+      case "primary": return "🔵 آبی";
+      default: return "⚪ بدون رنگ";
+    }
+  };
+
   return (
     <div id="settings-tab" className="max-w-4xl mx-auto space-y-6">
       {/* Broadcast Message Card */}
@@ -924,6 +1136,331 @@ export default function SettingsPanel({
               </div>
             </div>
           )}
+
+          {/* 🔘 Bot Buttons Attachment & Selection for Broadcast */}
+          <div className="p-4 rounded-xl bg-[#111827] border border-indigo-500/20 space-y-4 animate-fadeIn mt-3" dir="rtl">
+            <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <MousePointer className="w-4 h-4 text-indigo-400" />
+                <span className="font-semibold text-xs text-white">
+                  {translateText("Attach Bot Buttons (Inline Keyboard)", "انتخاب دکمه‌های ربات جهت پیوست زیر پیام", lang)}
+                </span>
+                {broadcastButtons.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {broadcastButtons.length} {translateText("selected", "دکمه تیک خورده", lang)}
+                  </span>
+                )}
+              </div>
+
+              {/* Button Layout selector (Pair vs Single) */}
+              {broadcastButtons.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-gray-400">چیدمان ارسال:</span>
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastButtonLayout("single")}
+                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition cursor-pointer ${
+                      broadcastButtonLayout === "single"
+                        ? "bg-indigo-600 text-white border-indigo-500"
+                        : "bg-gray-800 text-gray-400 border-gray-700 hover:text-white"
+                    }`}
+                  >
+                    👤 تکی (سطری)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastButtonLayout("pair")}
+                    className={`px-2.5 py-1 text-[11px] rounded-lg border transition cursor-pointer ${
+                      broadcastButtonLayout === "pair"
+                        ? "bg-indigo-600 text-white border-indigo-500"
+                        : "bg-gray-800 text-gray-400 border-gray-700 hover:text-white"
+                    }`}
+                  >
+                    👥 دوتایی (کنارهم)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBroadcastButtons([])}
+                    className="text-[11px] text-rose-400 hover:text-rose-300 mr-1 underline cursor-pointer"
+                  >
+                    حذف تیک همه
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              تمامی دکمه‌های تعریف شده در داشبورد ربات در لیست زیر قرار دارند. دکمه‌هایی که تیک بزنید، دقیقا زیر پیام همگانی در تلگرام ارسال خواهند شد:
+            </p>
+
+            {/* 🔍 Search Bar & Quick Select Controls */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="جستجوی سریع دکمه..."
+                  value={buttonSearchQuery}
+                  onChange={(e) => setButtonSearchQuery(e.target.value)}
+                  className="w-full bg-gray-900 border border-gray-700 rounded-lg pr-8 pl-3 py-1.5 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBroadcastButtons((prev) => {
+                      const newButtons = [...prev];
+                      filteredDashboardButtons.forEach((btn) => {
+                        if (!newButtons.some((b) => b.id === btn.id)) {
+                          newButtons.push(btn);
+                        }
+                      });
+                      return newButtons;
+                    });
+                  }}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-indigo-950/60 hover:bg-indigo-900 text-indigo-300 border border-indigo-500/30 transition cursor-pointer"
+                >
+                  ✓ تیک زدن همه
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBroadcastButtons((prev) =>
+                      prev.filter((b) => !filteredDashboardButtons.some((f) => f.id === b.id))
+                    );
+                  }}
+                  className="px-2.5 py-1 text-[11px] rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 transition cursor-pointer"
+                >
+                  ✕ برداشتن تیک
+                </button>
+              </div>
+            </div>
+
+            {/* 📜 SCROLLABLE LIST OF ALL DEFINED BUTTONS */}
+            <div className="max-h-60 overflow-y-auto space-y-1.5 p-2.5 rounded-xl bg-gray-950 border border-gray-800 custom-scrollbar">
+              {filteredDashboardButtons.length === 0 ? (
+                <div className="text-center py-6 text-gray-500 text-xs">
+                  دکمه‌ای با این مشخصات یافت نشد.
+                </div>
+              ) : (
+                filteredDashboardButtons.map((btn) => {
+                  const isSelected = broadcastButtons.some((b) => b.id === btn.id);
+                  return (
+                    <label
+                      key={btn.id}
+                      className={`flex items-center justify-between p-2.5 rounded-lg border transition cursor-pointer text-xs select-none ${
+                        isSelected
+                          ? "bg-indigo-950/70 border-indigo-500/60 text-white shadow-sm ring-1 ring-indigo-500/30"
+                          : "bg-gray-900/60 border-gray-800 text-gray-300 hover:bg-gray-800/80"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectBroadcastButton(btn)}
+                          className="w-4 h-4 rounded border-gray-700 bg-gray-900 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-gray-900 cursor-pointer shrink-0"
+                        />
+                        <span className="font-medium truncate">{btn.text}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Type badge */}
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700/80">
+                          {btn.type === "miniapp"
+                            ? "📱 مینی‌اپ"
+                            : btn.type === "main"
+                            ? "🤖 اصلی"
+                            : btn.type === "custom"
+                            ? "⚙️ سفارشی"
+                            : "🔗 لینک"}
+                        </span>
+                        {/* Color badge */}
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded font-semibold border ${getBroadcastButtonBadgeStyle(
+                            btn.color,
+                            btn.type === "miniapp"
+                          )}`}
+                        >
+                          {getBroadcastButtonBadgeLabel(btn.color, btn.type === "miniapp")}
+                        </span>
+                      </div>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+
+            {/* 🔗 Ad-hoc URL Button Creator */}
+            <div className="pt-2 border-t border-gray-800/60">
+              {!showAddCustomLinkModal ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAddCustomLinkModal(true)}
+                  className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-indigo-300 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>افزودن دکمه لینک اختصاصی جدید به این پیام...</span>
+                </button>
+              ) : (
+                <div className="p-3 rounded-xl bg-gray-950 border border-indigo-500/30 space-y-2.5 animate-fadeIn">
+                  <span className="text-xs font-semibold text-indigo-300 block">
+                    ساخت دکمه لینک اختصاصی (شیشه‌ای)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      placeholder="عنوان دکمه (مثلا: 📢 عضویت در کانال)"
+                      value={customLinkLabel}
+                      onChange={(e) => setCustomLinkLabel(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <input
+                      type="text"
+                      placeholder="لینک مقصد (مثلاً: https://t.me/your_channel)"
+                      value={customLinkUrl}
+                      onChange={(e) => setCustomLinkUrl(e.target.value)}
+                      className="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-xs text-white placeholder-gray-500 focus:ring-1 focus:ring-indigo-500"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddCustomLinkModal(false);
+                        setCustomLinkLabel("");
+                        setCustomLinkUrl("");
+                      }}
+                      className="px-3 py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs cursor-pointer"
+                    >
+                      لغو
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!customLinkLabel.trim() || !customLinkUrl.trim()) return;
+                        const newUrlBtn: BroadcastSelectedButton = {
+                          id: `url_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                          type: "url",
+                          text: customLinkLabel.trim(),
+                          url: customLinkUrl.trim(),
+                          color: "primary",
+                        };
+                        setAdhocUrlButtons((prev) => [...prev, newUrlBtn]);
+                        setBroadcastButtons((prev) => [...prev, newUrlBtn]);
+                        setCustomLinkLabel("");
+                        setCustomLinkUrl("");
+                        setShowAddCustomLinkModal(false);
+                      }}
+                      className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold cursor-pointer"
+                    >
+                      افزودن و تیک زدن
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 📱 LIVE TELEGRAM PREVIEW BOX */}
+            <div className="mt-4 pt-3 border-t border-indigo-950/60 space-y-2">
+              <span className="text-[11px] font-semibold text-gray-400 flex items-center gap-1.5">
+                <Smartphone className="w-3.5 h-3.5 text-indigo-400" />
+                پیش‌نمایش زنده پیام و دکمه‌های زیرین در تلگرام:
+              </span>
+              <div className="bg-[#0f172a] p-3.5 rounded-2xl border border-slate-800 space-y-3 max-w-lg mx-auto shadow-xl">
+                {/* Sender Header */}
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                  <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shadow-md">
+                    🤖
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-white leading-none">
+                      {settings.botNickname || "ربات تلگرام"}
+                    </div>
+                    <div className="text-[9px] text-indigo-400">پیام همگانی (Broadcast)</div>
+                  </div>
+                </div>
+
+                {/* Media Attachment Preview if any */}
+                {activeAttachment && (
+                  <div className="rounded-xl overflow-hidden bg-slate-950 border border-slate-800 max-h-48 flex items-center justify-center">
+                    {activeAttachment.fileType === "image" && (
+                      <img
+                        src={activeAttachment.fileData}
+                        alt="Media Preview"
+                        className="max-h-48 w-full object-cover"
+                      />
+                    )}
+                    {activeAttachment.fileType === "video" && (
+                      <div className="p-6 text-indigo-400 flex flex-col items-center gap-1">
+                        <Film className="w-8 h-8" />
+                        <span className="text-[11px]">ویدئوی ضمیمه‌شده</span>
+                      </div>
+                    )}
+                    {activeAttachment.fileType === "voice" && (
+                      <div className="p-4 text-emerald-400 flex items-center gap-2">
+                        <Mic className="w-6 h-6" />
+                        <span className="text-[11px]">ویس صوتی ضمیمه‌شده</span>
+                      </div>
+                    )}
+                    {activeAttachment.fileType === "file" && (
+                      <div className="p-4 text-amber-400 flex items-center gap-2">
+                        <Paperclip className="w-6 h-6" />
+                        <span className="text-[11px]">فایل ضمیمه‌شده</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Message Text */}
+                <div className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap font-sans min-h-[20px]">
+                  {broadcastText ? (
+                    <span>{broadcastText}</span>
+                  ) : (
+                    <span className="text-slate-600 italic">متن پیام شما در اینجا قرار خواهد گرفت...</span>
+                  )}
+                </div>
+
+                {/* Selected Buttons rendered underneath */}
+                {broadcastButtons.length > 0 ? (
+                  <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                    <div className="text-[10px] text-slate-500 font-medium">دکمه‌های شیشه‌ای زیر پیام:</div>
+                    <div className={broadcastButtonLayout === "pair" ? "grid grid-cols-2 gap-1.5" : "flex flex-col gap-1.5"}>
+                      {broadcastButtons.map((btn) => (
+                        <div
+                          key={btn.id}
+                          className={`p-2 rounded-xl text-center text-xs font-bold border flex items-center justify-between px-3 shadow-sm transition-all ${getBroadcastButtonColorStyle(
+                            btn.color,
+                            btn.type === "miniapp"
+                          )}`}
+                        >
+                          <span className="flex-1 text-center truncate">{btn.text}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSelectBroadcastButton(btn);
+                            }}
+                            className="w-4 h-4 rounded-full bg-black/40 hover:bg-rose-500 hover:text-white text-slate-400 flex items-center justify-center text-[10px] transition shrink-0 ml-1 cursor-pointer"
+                            title="حذف این دکمه"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-slate-600 text-center py-1 border-t border-slate-800/50">
+                    هیچ دکمه‌ای انتخاب نشده است (پیام بدون دکمه ارسال می‌شود).
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
           {broadcastStatus && (
             <div
