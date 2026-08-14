@@ -10741,7 +10741,7 @@ app.get("/api/system/info", async (req, res) => {
 });
 
 function isVersionNewer(current: string, latest: string): boolean {
-  const parse = (v: string) => v.split('.').map(x => parseInt(x, 10) || 0);
+  const parse = (v: string) => String(v || '').replace(/^v/i, '').replace(/-dev.*$/i, '').split('.').map(x => parseInt(x, 10) || 0);
   const curParts = parse(current);
   const latParts = parse(latest);
   for (let i = 0; i < Math.max(curParts.length, latParts.length); i++) {
@@ -10934,6 +10934,29 @@ app.get("/api/system/check-update", async (req, res) => {
             applyLatestVersion(highestVersion);
           }
         }
+
+        // Also check tags API to ensure we don't miss tags created without a release
+        try {
+          const tagsUrl = `https://api.github.com/repos/mdaltoon10/Daltoon-Bot/tags?t=${Date.now()}`;
+          const tagsResponse = await fetch(tagsUrl, { 
+            headers: { 
+              'User-Agent': 'Daltoon-Dashboard',
+              'Accept': 'application/vnd.github.v3+json'
+            },
+            signal: AbortSignal.timeout(6000)
+          });
+          if (tagsResponse.ok) {
+            const tags = await tagsResponse.json();
+            if (Array.isArray(tags) && tags.length > 0) {
+              for (const tag of tags) {
+                const tVer = (tag.name || '').replace(/^v/i, '');
+                if (isVersionNewer(latestVersion || version, tVer)) {
+                  applyLatestVersion(tVer);
+                }
+              }
+            }
+          }
+        } catch {}
       } else {
         const errorText = await response.text().catch(() => "Unknown error");
         console.warn(`GitHub API failed: ${response.status} ${errorText}. Trying fallbacks...`);
