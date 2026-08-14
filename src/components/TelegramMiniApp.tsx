@@ -415,6 +415,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 : item
             )
           );
+          setColleagueClients((prev) =>
+            prev.map((item) =>
+              item.id === sub.id || item.clientUuid === sub.clientUuid
+                ? {
+                    ...item,
+                    vlessConfigs: data.vlessConfigs?.length > 0 ? data.vlessConfigs : item.vlessConfigs,
+                    vlessLinks: data.vlessLinks?.length > 0 ? data.vlessLinks : item.vlessLinks,
+                    subLink: data.subLink || item.subLink,
+                  }
+                : item
+            )
+          );
         }
       } catch (e) {
         console.warn("Failed to fetch live links:", e);
@@ -444,6 +456,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         const newVless = data.vlessConfigs || updatedKey.vlessConfigs || [];
 
         setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === sub.id || item.clientUuid === sub.clientUuid
+              ? {
+                  ...item,
+                  clientUuid: newUuid || item.clientUuid,
+                  subLink: newSubLink || item.subLink,
+                  vlessConfigs: newVless.length > 0 ? newVless : item.vlessConfigs,
+                }
+              : item
+          )
+        );
+        setColleagueClients((prev) =>
           prev.map((item) =>
             item.id === sub.id || item.clientUuid === sub.clientUuid
               ? {
@@ -507,6 +531,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               : item
           )
         );
+        setColleagueClients((prev) =>
+          prev.map((item) =>
+            item.id === renewModalKey.id || item.clientUuid === renewModalKey.clientUuid
+              ? {
+                  ...item,
+                  expireDate: data.key.expireDate || item.expireDate,
+                  trafficLimitGb: data.key.trafficLimitGb || item.trafficLimitGb,
+                  status: "active",
+                  disabled: false,
+                }
+              : item
+          )
+        );
 
         setRenewModalKey(null);
         showThemedModal(
@@ -541,6 +578,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       const data = await res.json();
       if (data.success) {
         setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === sub.id || item.clientUuid === sub.clientUuid
+              ? { ...item, status: targetStatus, disabled: targetStatus === "suspended" }
+              : item
+          )
+        );
+        setColleagueClients((prev) =>
           prev.map((item) =>
             item.id === sub.id || item.clientUuid === sub.clientUuid
               ? { ...item, status: targetStatus, disabled: targetStatus === "suspended" }
@@ -585,6 +629,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       const data = await res.json();
       if (data.success) {
         setSubscriptions((prev) =>
+          prev.filter((item) => item.id !== confirmDeleteKey.id && item.clientUuid !== confirmDeleteKey.clientUuid)
+        );
+        setColleagueClients((prev) =>
           prev.filter((item) => item.id !== confirmDeleteKey.id && item.clientUuid !== confirmDeleteKey.clientUuid)
         );
         setConfirmDeleteKey(null);
@@ -1578,7 +1625,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const reqGb = Number(colleagueNewGb) || 10;
     const reqDays = Number(colleagueNewDays) || 30;
 
-    const minAllowedGb = Number(colleagueAccount?.minCreateGb || systemSettings?.colleagueMinCreateGb || systemSettings?.minCreateGb || 0);
+    const pkg = (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId);
+    const minAllowedGb = Number(
+      colleagueAccount?.minCreateGb ||
+      pkg?.minCreateGb ||
+      systemSettings?.colleagueMinCreateGb ||
+      systemSettings?.minCreateGb ||
+      0
+    );
     if (minAllowedGb > 0 && reqGb < minAllowedGb) {
       showThemedModal(
         "حداقل حجم مجاز",
@@ -3677,7 +3731,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           />
                         </div>
                         <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-300">توکن امنیتی بازیابی:</label>
+                          <label className="text-xs font-bold text-slate-300">
+                            توکن امنیتی بازیابی <span className="text-rose-400 font-extrabold text-[10px]">* (اجباری)</span>:
+                          </label>
                           <input
                             type="text"
                             dir="ltr"
@@ -3839,7 +3895,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
                       <button
                         onClick={handleColleagueBuyPackage}
-                        disabled={buyingColleaguePkg || (colleaguePaymentMethod === "card_to_card" && !colleagueCardReceipt.trim())}
+                        disabled={buyingColleaguePkg || !colleagueTokenInput.trim() || (colleaguePaymentMethod === "card_to_card" && !colleagueCardReceipt.trim())}
                         className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 py-3 rounded-xl font-extrabold text-xs shadow-lg shadow-amber-500/20 active:scale-98 transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
                       >
                         {buyingColleaguePkg ? (
@@ -4136,7 +4192,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   </div>
 
                   <button
-                    onClick={() => setIsColleagueCreateOpen(true)}
+                    onClick={() => {
+                      const pkg = (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId);
+                      const minAllowedGb = Number(
+                        colleagueAccount?.minCreateGb ||
+                        pkg?.minCreateGb ||
+                        systemSettings?.colleagueMinCreateGb ||
+                        systemSettings?.minCreateGb ||
+                        0
+                      );
+                      setColleagueNewGb(String(minAllowedGb > 0 ? minAllowedGb : 10));
+                      setIsColleagueCreateOpen(true);
+                    }}
                     className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 py-3 rounded-2xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-1.5"
                   >
                     <Plus className="w-4 h-4 stroke-[3]" />
@@ -4186,49 +4253,264 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       هیچ کانفیگی مطابق با عبارت «{colleagueSearch}» یافت نشد.
                     </div>
                   ) : (
-                    filteredColleagueClients.map((client) => (
-                      <div
-                        key={client.id}
-                        className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-2.5"
-                      >
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="font-bold text-xs text-white font-mono">
-                              {client.clientName}
+                    filteredColleagueClients.map((client) => {
+                      const used = Number(client.trafficUsedGb || 0);
+                      const limit = Number(client.trafficLimitGb || 10);
+                      const percent = Math.min(100, Math.round((used / (limit || 1)) * 100));
+                      const clientIdStr = String(client.id || client.clientUuid);
+                      const isExpanded = expandedSubId === clientIdStr;
+
+                      return (
+                        <div
+                          key={client.id || client.clientUuid}
+                          className="rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl overflow-hidden transition-all duration-300"
+                        >
+                          {/* Collapsed Header / Toggle Button */}
+                          <div
+                            onClick={() => handleToggleSubAccordion(client)}
+                            className="p-4 cursor-pointer hover:bg-slate-800/40 transition-colors flex items-center justify-between gap-3 select-none"
+                          >
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-sm text-white truncate">
+                                  {client.clientName || client.remark || "کانفیگ همکار"}
+                                </span>
+                                {client.serverName && (
+                                  <span className="text-[10px] bg-purple-950/40 text-purple-300 border border-purple-800/40 px-2 py-0.5 rounded-full flex items-center gap-1 font-bold shrink-0">
+                                    <span>{client.serverFlag || "🌐"}</span>
+                                    <span>{client.serverName}</span>
+                                  </span>
+                                )}
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
+                                  (client.status || "").toLowerCase() === "disabled" || (client.status || "").toLowerCase() === "inactive" || (client.status || "").toLowerCase() === "expired" || client.disabled === true
+                                    ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                                    : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                }`}>
+                                  {(client.status || "").toLowerCase() === "disabled" || client.disabled === true ? "غیرفعال" : (client.status || "").toLowerCase() === "expired" ? "منقضی" : "فعال"}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between gap-2 pt-0.5">
+                                <p className="text-[11px] text-slate-400 font-mono truncate">
+                                  {client.clientUuid || client.id}
+                                </p>
+                                <span className="text-[11px] text-purple-300 font-extrabold font-mono shrink-0">
+                                  {used.toFixed(1)} / {limit} GB ({percent}%)
+                                </span>
+                              </div>
+
+                              {/* Mini Usage Bar in Collapsed view */}
+                              <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden mt-1">
+                                <div
+                                  className={`h-full rounded-full transition-all ${
+                                    percent > 85 ? "bg-rose-500" : percent > 60 ? "bg-amber-500" : "bg-purple-500"
+                                  }`}
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
                             </div>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
-                              حجم: {client.trafficLimitGb} GB • انقضا: {client.expireDate || "نامشخص"}
+
+                            {/* Expand/Collapse Chevron Indicator */}
+                            <div className="flex flex-col items-center justify-center gap-1 shrink-0 pl-1">
+                              <div className={`p-2 rounded-2xl transition-all ${isExpanded ? "bg-purple-600 text-white shadow-lg shadow-purple-600/30" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
+                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                              </div>
+                              <span className="text-[9px] text-slate-400 font-bold">
+                                {isExpanded ? "بستن" : "جزئیات"}
+                              </span>
                             </div>
                           </div>
 
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
-                            (client.status || "").toLowerCase() === "disabled" || (client.status || "").toLowerCase() === "inactive" || (client.status || "").toLowerCase() === "expired" || client.disabled === true
-                              ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
-                              : "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                          }`}>
-                            {(client.status || "").toLowerCase() === "disabled" || client.disabled === true ? "غیرفعال (Disable)" : (client.status || "").toLowerCase() === "expired" ? "منقضی" : (client.status || "active")}
-                          </span>
+                          {/* Expanded Accordion Content */}
+                          {isExpanded && (
+                            <div className="p-4 pt-2 border-t border-slate-800/80 bg-slate-950/40 space-y-3.5 animate-fade-in">
+                              {/* Detailed Expiration & Connection Status */}
+                              <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-2">
+                                <div className="flex justify-between text-xs text-slate-400 font-medium">
+                                  <span>تاریخ انقضا:</span>
+                                  <span className="text-white font-bold">{client.expireDate || "۳۰ روزه"}</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-slate-400 font-medium">
+                                  <span>وضعیت اتصال:</span>
+                                  <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    پایدار
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Sublink Copy Box */}
+                              {client.subLink && (
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-slate-400 block">لینک ساب‌اسکریپشن (هوشمند):</label>
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={client.subLink || ""}
+                                      className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-purple-200 select-all truncate"
+                                    />
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        copyToClipboard(client.subLink, `col-sub-${client.id}`);
+                                      }}
+                                      className="bg-purple-600 hover:bg-purple-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1 shadow-md shadow-purple-600/30"
+                                    >
+                                      {copiedId === `col-sub-${client.id}` ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+                                      <span>{copiedId === `col-sub-${client.id}` ? "کپی شد" : "کپی ساب"}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Action Buttons: QR, Change Link, Renew, Suspend/Active, Delete */}
+                              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-slate-800/60">
+                                {/* Barcode QR Button */}
+                                {client.subLink && (
+                                  <button
+                                    onClick={() => setActiveQrModal(client.subLink)}
+                                    className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all"
+                                    title="نمایش بارکد QR"
+                                  >
+                                    <QrCode className="w-3.5 h-3.5 text-purple-400" />
+                                    <span>بارکد QR</span>
+                                  </button>
+                                )}
+
+                                {/* Change Link Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleMiniAppRegenerateUuid(client)}
+                                  disabled={regeneratingKeyId === (client.id || client.clientUuid)}
+                                  className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                                  title="تغییر لینک و شناسه اتصال"
+                                >
+                                  <RotateCcw className={`w-3.5 h-3.5 text-rose-400 ${regeneratingKeyId === (client.id || client.clientUuid) ? 'animate-spin' : ''}`} />
+                                  <span>{regeneratingKeyId === (client.id || client.clientUuid) ? "در حال تغییر..." : "تغییر لینک"}</span>
+                                </button>
+
+                                {/* Renew Button */}
+                                <button
+                                  onClick={() => {
+                                    setRenewModalKey(client);
+                                    setRenewModalGb("30");
+                                    setRenewModalDays("30");
+                                  }}
+                                  className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all"
+                                  title="تمدید اشتراک"
+                                >
+                                  <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span>تمدید</span>
+                                </button>
+
+                                {/* Suspend / Active Button */}
+                                <button
+                                  onClick={() => handleMiniAppToggleStatus(client)}
+                                  disabled={togglingKeyId === (client.id || client.clientUuid)}
+                                  className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all disabled:opacity-50 ${
+                                    (client.status || "").toLowerCase() === "active" && !client.disabled
+                                      ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20"
+                                      : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20"
+                                  }`}
+                                >
+                                  <Ban className="w-3.5 h-3.5" />
+                                  <span>
+                                    {togglingKeyId === (client.id || client.clientUuid)
+                                      ? "در حال پردازش..."
+                                      : (client.status || "").toLowerCase() === "active" && !client.disabled
+                                      ? "تعلیق"
+                                      : "فعال"}
+                                  </span>
+                                </button>
+
+                                {/* Delete Button */}
+                                <button
+                                  onClick={() => setConfirmDeleteKey(client)}
+                                  className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 rounded-xl text-[11px] font-bold transition-colors mr-auto flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+
+                              {/* Direct VLESS Links Section */}
+                              <div className="bg-slate-950 rounded-2xl p-3 border border-slate-800/80 space-y-2">
+                                <div className="text-[11px] font-bold text-slate-300 flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5 text-purple-300">
+                                    <Zap className="w-3.5 h-3.5 text-yellow-400" />
+                                    <span>لینک‌های مستقیم VLESS:</span>
+                                  </span>
+                                  <span className="text-slate-400 font-mono text-[10px]">
+                                    {fetchingSubLinksId === clientIdStr ? (
+                                      <span className="text-amber-400 flex items-center gap-1">
+                                        <RefreshCw className="w-3 h-3 animate-spin" /> دریافت لینک‌های واقعی...
+                                      </span>
+                                    ) : (
+                                      `${client.vlessLinks?.length || client.vlessConfigs?.length || 0} اینباند`
+                                    )}
+                                  </span>
+                                </div>
+
+                                {fetchingSubLinksId === clientIdStr && (!client.vlessConfigs || client.vlessConfigs.length === 0) ? (
+                                  <div className="p-3 text-center text-xs text-slate-400 space-y-1">
+                                    <RefreshCw className="w-4 h-4 animate-spin text-purple-400 mx-auto" />
+                                    <p>در حال فراخوانی لینک‌های واقعی از سرور...</p>
+                                  </div>
+                                ) : ((client.vlessConfigs && client.vlessConfigs.length > 0) || (client.vlessLinks && client.vlessLinks.length > 0)) ? (
+                                  <div className="space-y-1.5">
+                                    {(client.vlessLinks && client.vlessLinks.length > 0
+                                      ? client.vlessLinks
+                                      : (client.vlessConfigs || []).map((url: string, idx: number) => ({
+                                          name: `کانفیگ VLESS ${idx + 1}`,
+                                          url: url
+                                        }))
+                                    ).map((item: any, idx: number) => {
+                                      const linkUrl = typeof item === "string" ? item : item.url;
+                                      const copyKey = `col-vless-${client.id}-${idx}`;
+                                      return (
+                                        <div key={idx} className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-slate-800/80">
+                                          <input
+                                            type="text"
+                                            readOnly
+                                            value={linkUrl}
+                                            className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] font-mono text-slate-300 truncate select-all"
+                                          />
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              copyToClipboard(linkUrl, copyKey);
+                                            }}
+                                            className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] font-bold shrink-0 flex items-center gap-1 transition-all"
+                                          >
+                                            {copiedId === copyKey ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                                            <span>{copiedId === copyKey ? "کپی شد" : "کپی"}</span>
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setActiveQrModal(linkUrl);
+                                            }}
+                                            className="p-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg shrink-0 transition-all"
+                                            title="QR Code"
+                                          >
+                                            <QrCode className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="p-2 text-center text-[10px] text-slate-500">
+                                    هیچ اینباند مستقیمی یافت نشد. می‌توانید از لینک ساب‌اسکریپشن بالای صفحه استفاده کنید.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
-
-                        {client.subLink && (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              readOnly
-                              value={client.subLink}
-                              className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-[11px] font-mono text-purple-300 select-all"
-                            />
-                            <button
-                              onClick={() => copyToClipboard(client.subLink, `col-sub-${client.id}`)}
-                              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1"
-                            >
-                              {copiedId === `col-sub-${client.id}` ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
-                              <span>{copiedId === `col-sub-${client.id}` ? "کپی شد" : "کپی"}</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
 

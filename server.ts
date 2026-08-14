@@ -8065,6 +8065,8 @@ app.get("/api/miniapp/data", async (req, res) => {
           const totalPkg = Number(a.trafficGb || 0);
           const sumAlloc = colKeys.reduce((s: number, k: any) => s + Number(k.trafficLimitGb || 0), 0) + Number(a.deletedTrafficGb || 0);
           const sumReal = colKeys.reduce((s: number, k: any) => s + Number(k.trafficUsedGb || 0), 0) + Number(a.deletedRealTrafficGb || 0);
+          const pkg = (db.colleague_packages || []).find((p: any) => p.id === a.packageId);
+          const minCreateGb = Number(a.minCreateGb || a.min_create_gb || pkg?.minCreateGb || pkg?.min_create_gb || settings.colleagueMinCreateGb || settings.minCreateGb || 0);
           return {
             id: a.id,
             username: a.username,
@@ -8072,6 +8074,7 @@ app.get("/api/miniapp/data", async (req, res) => {
             prefix: a.prefix || "Col",
             packageTitle: a.packageTitle || "بسته همکار",
             trafficGb: totalPkg,
+            minCreateGb: minCreateGb,
             allocatedTrafficGb: sumAlloc,
             usedTrafficGb: sumReal,
             remainingTrafficGb: Math.max(0, totalPkg - sumAlloc),
@@ -8285,6 +8288,7 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
       return res.status(401).json({ success: false, error: "نام کاربری یا رمز عبور همکار اشتباه است." });
     }
 
+    const settings = getSystemSettings(db);
     // Calculate usage statistics
     const keys = db.subscription_keys || [];
     const colKeys = keys.filter((k: any) => isKeyForColleague(k, acc));
@@ -8292,6 +8296,8 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
     const sumAlloc = colKeys.reduce((s: number, k: any) => s + Number(k.trafficLimitGb || 0), 0) + Number(acc.deletedTrafficGb || 0);
     const sumReal = colKeys.reduce((s: number, k: any) => s + Number(k.trafficUsedGb || 0), 0) + Number(acc.deletedRealTrafficGb || 0);
     const remainingGb = Math.max(0, totalPkg - sumAlloc);
+    const pkg = (db.colleague_packages || []).find((p: any) => p.id === acc.packageId);
+    const minCreateGb = Number(acc.minCreateGb || acc.min_create_gb || pkg?.minCreateGb || pkg?.min_create_gb || settings.colleagueMinCreateGb || settings.minCreateGb || 0);
 
     res.json({
       success: true,
@@ -8300,7 +8306,9 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
         username: acc.username,
         prefix: acc.prefix || "Col",
         packageTitle: acc.packageTitle || "بسته همکار",
+        packageId: acc.packageId,
         trafficGb: totalPkg,
+        minCreateGb: minCreateGb,
         allocatedTrafficGb: sumAlloc,
         usedTrafficGb: sumReal,
         remainingTrafficGb: remainingGb,
@@ -8308,12 +8316,17 @@ app.post("/api/miniapp/colleague/login", (req, res) => {
       },
       clients: colKeys.map((k: any) => ({
         id: k.id,
-        clientName: k.clientName,
-        trafficLimitGb: k.trafficLimitGb,
-        trafficUsedGb: k.trafficUsedGb || 0,
-        subLink: k.subLink,
-        expireDate: k.expireDate,
+        clientName: k.clientName || k.email || k.remark,
+        clientUuid: k.clientUuid || k.uuid,
+        serverId: k.serverId,
+        trafficLimitGb: Number(k.trafficLimitGb || 0),
+        trafficUsedGb: Number(k.trafficUsedGb || 0),
+        subLink: k.subLink || "",
+        expireDate: k.expireDate || "نامحدود",
         status: k.status || "active",
+        disabled: k.disabled || false,
+        vlessConfigs: k.vlessConfigs || [],
+        vlessLinks: k.vlessLinks || [],
         createdAt: k.createdAt || new Date(k.createdAtMs || Date.now()).toLocaleDateString("fa-IR")
       }))
     });
@@ -8444,9 +8457,10 @@ app.post("/api/miniapp/colleague/buy-package", async (req, res) => {
       return res.status(400).json({ success: false, error: "پسوند کانفیگ‌ها باید ۲ الی ۱۰ کاراکتر انگلیسی باشد." });
     }
 
-    const cleanToken = (token || "").trim().replace(/[^a-zA-Z0-9_]/g, "");
+    const rawToken = req.body.recoveryToken || req.body.token;
+    const cleanToken = (rawToken || "").trim().replace(/[^a-zA-Z0-9_]/g, "");
     if (!cleanToken || cleanToken.length < 3 || cleanToken.length > 30) {
-      return res.status(400).json({ success: false, error: "توکن بازیابی باید حداقل ۳ کاراکتر انگلیسی و بدون فاصله باشد." });
+      return res.status(400).json({ success: false, error: "توکن امنیتی بازیابی الزامی است و باید حداقل ۳ کاراکتر انگلیسی بدون فاصله باشد." });
     }
 
     const tgId = Number(userId);
@@ -8522,6 +8536,7 @@ app.post("/api/miniapp/colleague/buy-package", async (req, res) => {
         packageTitle: pkg.title || pkg.name,
         createdAt: new Date().toISOString().split("T")[0],
         trafficGb: Number(pkg.trafficGb || pkg.traffic_gb || 50),
+        minCreateGb: Number(pkg.minCreateGb || pkg.min_create_gb || settings.colleagueMinCreateGb || settings.minCreateGb || 1),
         usedTrafficGb: 0,
         prefix: cleanPrefix,
         recoveryToken: cleanToken,
@@ -8627,7 +8642,8 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
     const reqDays = Math.max(1, Number(durationDays) || 30);
 
     // Enforce colleague minimum create GB
-    const minAllowedGb = Number(acc.minCreateGb || settings.colleagueMinCreateGb || settings.minCreateGb || 0);
+    const pkg = (db.colleague_packages || []).find((p: any) => p.id === acc.packageId);
+    const minAllowedGb = Number(acc.minCreateGb || acc.min_create_gb || pkg?.minCreateGb || pkg?.min_create_gb || settings.colleagueMinCreateGb || settings.minCreateGb || 0);
     if (minAllowedGb > 0 && reqGb < minAllowedGb) {
       return res.status(400).json({
         success: false,
