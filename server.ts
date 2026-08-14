@@ -3851,12 +3851,14 @@ function generateVlessConfigsForClient(
 
   const serverName = server?.name || server?.remark || "Daltoon";
 
-  // Check inbounds defined on the server or in settings
+  // Check inbounds defined on the server or in settings or in global db
   const inboundsList: any[] = [];
   if (server && Array.isArray(server.inbounds) && server.inbounds.length > 0) {
     inboundsList.push(...server.inbounds);
   } else if (settings && Array.isArray(settings.inbounds) && settings.inbounds.length > 0) {
     inboundsList.push(...settings.inbounds);
+  } else if (typeof db !== "undefined" && db && Array.isArray(db.inbounds) && db.inbounds.length > 0) {
+    inboundsList.push(...db.inbounds);
   }
 
   // Filter active inbounds if activeInboundIds is present
@@ -3873,7 +3875,7 @@ function generateVlessConfigsForClient(
     for (const ib of activeInbounds) {
       const port = ib.port || 443;
       const protocol = (ib.protocol || "vless").toLowerCase();
-      const remark = ib.remark || `${serverName} - ${protocol.toUpperCase()}:${port}`;
+      const remark = ib.remark || `${serverName} - اینباند ${ib.id || port}`;
       
       let streamSettings: any = {};
       if (typeof ib.streamSettings === "string") {
@@ -3927,30 +3929,30 @@ function generateVlessConfigsForClient(
     }
   }
 
-  // If no custom inbounds configured or generated, generate standard reality & tls links
+  // If no detailed inbounds were matched, generate EXACTLY corresponding to server.activeInboundIds!
   if (result.vlessConfigs.length === 0) {
-    const defaultTypes = [
-      { name: `${serverName} - اینباند 1 (Reality)`, port: 443, sec: "reality", net: "tcp", sni: "google.com", pbk: "m9L3_example_key" },
-      { name: `${serverName} - اینباند 2 (WebSocket TLS)`, port: 2053, sec: "tls", net: "ws", path: "/vless-ws", sni: host },
-      { name: `${serverName} - اینباند 3 (gRPC TLS)`, port: 8443, sec: "tls", net: "grpc", serviceName: "vless-grpc", sni: host }
-    ];
+    let targetIds: number[] = [1];
+    if (server && Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
+      targetIds = server.activeInboundIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id) && id > 0);
+      if (targetIds.length === 0) targetIds = [1];
+    }
 
-    for (const dt of defaultTypes) {
+    for (let idx = 0; idx < targetIds.length; idx++) {
+      const ibId = targetIds[idx];
+      const port = 443 + (idx * 2010);
+      const remark = `${serverName} - اینباند ${ibId} (VLESS)`;
       const params = new URLSearchParams();
-      params.set("type", dt.net);
-      params.set("security", dt.sec);
-      params.set("sni", dt.sni);
+      params.set("type", "tcp");
+      params.set("security", "reality");
+      params.set("sni", "google.com");
       params.set("fp", "chrome");
-      if (dt.sec === "reality" && dt.pbk) params.set("pbk", dt.pbk);
-      if (dt.net === "ws" && dt.path) params.set("path", dt.path);
-      if (dt.net === "grpc" && dt.serviceName) params.set("serviceName", dt.serviceName);
 
-      const link = `vless://${safeUuid}@${host}:${dt.port}?${params.toString()}#${encodeURIComponent(dt.name)}`;
+      const link = `vless://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
       result.vlessConfigs.push(link);
       result.vlessLinks.push({
-        name: dt.name,
+        name: remark,
         url: link,
-        port: dt.port,
+        port: port,
         protocol: "VLESS"
       });
     }

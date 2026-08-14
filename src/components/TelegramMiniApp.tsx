@@ -181,6 +181,27 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Free Test State
   const [claimingTest, setClaimingTest] = useState<boolean>(false);
   const [testSuccessSub, setTestSuccessSub] = useState<any>(null);
+  const [testCountdown, setTestCountdown] = useState<number>(20);
+
+  // 20-Second Countdown for Free Test Account Delivery Box
+  useEffect(() => {
+    if (!testSuccessSub) return;
+    if (testCountdown <= 0) {
+      setTestSuccessSub(null);
+      showThemedModal(
+        "🎉 کانفیگ در سرویس‌های من ذخیره شد!",
+        "فرصت ۲۰ ثانیه‌ای به پایان رسید. جهت مشاهده و کپی مجدد کانفیگ‌ها به بخش «سرویس‌های من» مراجعه کنید.",
+        "info",
+        "مشاهده سرویس‌های من",
+        () => setActiveTab("subs")
+      );
+      return;
+    }
+    const timer = setInterval(() => {
+      setTestCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [testSuccessSub, testCountdown]);
 
   // Wallet Deposit State
   const [depositAmount, setDepositAmount] = useState<number>(100000);
@@ -834,6 +855,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       });
 
       if (ok && data?.success && data?.subKey) {
+        setTestCountdown(20);
         setTestSuccessSub(data.subKey);
         setTestAccountSettings((prev: any) => ({ ...prev, hasUsed: true }));
         setSubscriptions((prev: any[]) => [data.subKey, ...prev.filter((k: any) => k.id !== data.subKey.id)]);
@@ -1243,7 +1265,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     <div
       id="daltoon-miniapp-root"
       dir="rtl"
-      className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-24 select-none relative overflow-x-hidden selection:bg-purple-500 selection:text-white"
+      className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-28 select-none relative selection:bg-purple-500 selection:text-white"
     >
       <style>{getThemeStyles(activeDashboardTheme)}</style>
       {/* Background Neon Gradients */}
@@ -1433,6 +1455,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   <div className="grid grid-cols-1 gap-2.5">
                     {servers.map((srv) => {
                       const isSelected = selectedServer?.id === srv.id;
+                      const isServerActive = srv.status !== "inactive" && !srv.disabled;
                       return (
                         <div
                           key={srv.id}
@@ -1458,13 +1481,16 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                 <span className="font-bold text-sm text-white">
                                   {srv.name}
                                 </span>
-                                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded-full">
-                                  آنلاین
-                                </span>
+                                {isServerActive ? (
+                                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                                    فعال
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] bg-red-500/20 text-red-300 border border-red-500/30 px-2 py-0.5 rounded-full font-bold">
+                                    غیرفعال
+                                  </span>
+                                )}
                               </div>
-                              <p className="text-[11px] text-slate-400 mt-0.5">
-                                پروتکل اختصاصی {srv.protocol || "VLESS"} • پینگ پایدار
-                              </p>
                             </div>
                           </div>
 
@@ -1624,13 +1650,38 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   {/* Inlined Instant Delivery Card if just claimed */}
                   {testSuccessSub && (
                     <div className="mt-3 rounded-2xl bg-slate-950 border border-emerald-500/50 p-4 space-y-3 shadow-2xl animate-fade-in">
+                      {/* Live 20-Second Countdown Timer Header */}
+                      <div className="bg-gradient-to-r from-emerald-950/80 via-slate-900 to-emerald-950/80 p-2.5 rounded-xl border border-emerald-500/40 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-bold text-emerald-300">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-4 h-4 text-emerald-400 animate-spin" />
+                            <span>فرصت کپی کانفیگ:</span>
+                          </div>
+                          <span className="font-mono text-xs px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded-lg border border-emerald-500/30">
+                            {testCountdown} ثانیه
+                          </span>
+                        </div>
+                        <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-slate-700/60">
+                          <div
+                            className="bg-emerald-400 h-full transition-all duration-1000 ease-linear rounded-full shadow-sm shadow-emerald-400/50"
+                            style={{ width: `${Math.max(0, (testCountdown / 20) * 100)}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-slate-400 text-center">
+                          پس از ۲۰ ثانیه، این کادر به صورت خودکار بسته‌شده و کانفیگ در «سرویس‌های من» حفظ می‌شود.
+                        </p>
+                      </div>
+
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 text-emerald-400">
                           <CheckCircle2 className="w-5 h-5" />
                           <span className="font-extrabold text-xs">اکانت تست شما با موفقیت صادر شد!</span>
                         </div>
                         <button
-                          onClick={() => setTestSuccessSub(null)}
+                          onClick={() => {
+                            setTestSuccessSub(null);
+                            setActiveTab("subs");
+                          }}
                           className="text-[11px] text-slate-400 hover:text-white"
                         >
                           بستن
@@ -1730,12 +1781,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       <button
                         onClick={() => {
                           setTestSuccessSub(null);
-                          setActiveTab("subscriptions");
+                          setActiveTab("subs");
                         }}
-                        className="w-full bg-purple-600/30 hover:bg-purple-600/40 text-purple-200 py-2 rounded-xl text-[11px] font-bold border border-purple-500/40 flex items-center justify-center gap-1.5 transition-all"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-2.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all active:scale-95"
                       >
-                        <ShieldCheck className="w-3.5 h-3.5 text-purple-400" />
-                        <span>مشاهده در اشتراک‌های من</span>
+                        <ShieldCheck className="w-4 h-4" />
+                        <span>متوجه شدم (مشاهده در سرویس‌های من)</span>
                       </button>
                     </div>
                   )}
@@ -4198,7 +4249,15 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       <nav
         id="miniapp-bottom-nav"
-        className="fixed bottom-0 left-0 right-0 z-40 bg-slate-900/90 backdrop-blur-xl border-t border-slate-800/80 py-2 px-2 shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 z-[9999] bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800/90 py-2.5 px-2 shadow-[0_-10px_25px_rgba(0,0,0,0.6)]"
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          zIndex: 9999,
+          paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))"
+        }}
       >
         <div className="max-w-md mx-auto flex items-center justify-around">
           {[
