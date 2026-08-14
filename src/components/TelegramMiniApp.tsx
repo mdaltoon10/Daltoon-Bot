@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { getThemeStyles } from "../utils/theme";
 import {
   ShoppingBag,
@@ -66,6 +66,15 @@ interface TelegramMiniAppProps {
 export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Main Navigation Tabs
   const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "colleagues" | "profile" | "support">("plans");
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll position to top immediately when activeTab changes
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+  }, [activeTab]);
 
   // Custom Modal / Alert System (Replaces Native Alert)
   const [customModal, setCustomModal] = useState<{
@@ -1345,7 +1354,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-8 overflow-y-auto overscroll-contain relative z-10">
+      <main ref={mainScrollRef} className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-8 overflow-y-auto overscroll-contain relative z-10">
         {/* Loading State */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 space-y-4">
