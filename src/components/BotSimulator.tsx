@@ -159,6 +159,26 @@ export default function BotSimulator({
     setInvoiceDesc(translateText("Card-to-Card Transfer", "واریز کارت به کارت", lang));
   }, [lang]);
 
+  const checkIsAdminOrOwner = (user: any) => {
+    if (!user) return false;
+    const uid = Number(user.userId || user.id);
+    const uname = (user.username || "").toLowerCase().replace(/^@/, "").trim();
+    const ownerId = Number(settings?.ownerId || (settings as any)?.owner_id);
+    const adminId = Number(settings?.adminId || (settings as any)?.admin_id);
+    if (ownerId && uid === ownerId) return true;
+    if (adminId && uid === adminId) return true;
+    if (uid === 6536288293 || uname === "daltoon_owner") return true;
+    if (user.role === "owner" || user.role === "super_admin" || user.role === "admin" || user.isAdmin || user.isOwner) return true;
+    if (Array.isArray(settings?.admins)) {
+      return settings.admins.some((a: any) => {
+        const aId = typeof a === "object" ? Number(a.userId || a.id || a.telegramId) : Number(a);
+        const aUname = typeof a === "object" ? String(a.username || "").toLowerCase().replace(/^@/, "").trim() : "";
+        return (aId && aId === uid) || (aUname && aUname === uname);
+      });
+    }
+    return false;
+  };
+
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const currentUser = simulatedUsers.find(u => u.userId === activeUserId) || users.find(u => u.userId === activeUserId) || users[0] || { userId: 6536288293, username: "GuestUser", walletBalance: 0 };
@@ -917,7 +937,7 @@ export default function BotSimulator({
       );
 
       setTimeout(() => {
-        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const isUserAdminOrOwner = checkIsAdminOrOwner(currentUser);
         const price = isUserAdminOrOwner ? 0 : selectedPlanToBuy.price;
         const newBal = currentUser.walletBalance - price;
 
@@ -1598,7 +1618,7 @@ export default function BotSimulator({
       addBotReply(translateText("⏳ Provisioning your custom client on 3x-ui panel...", "⏳ در حال ساخت اکانت دلخواه شما و ارتباط با پنل...", lang), 500);
 
       setTimeout(() => {
-        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const isUserAdminOrOwner = checkIsAdminOrOwner(currentUser);
         const finalPrice = isUserAdminOrOwner ? 0 : price;
         const newBal = currentUser.walletBalance - finalPrice;
 
@@ -1769,7 +1789,7 @@ export default function BotSimulator({
       addBotReply(translateText("⏳ Applying renewal and updating your service...", "⏳ در حال اعمال تمدید و به‌روزرسانی سرویس شما...", lang), 500);
 
       setTimeout(() => {
-        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const isUserAdminOrOwner = checkIsAdminOrOwner(currentUser);
         const finalPrice = isUserAdminOrOwner ? 0 : price;
         const newBal = currentUser.walletBalance - finalPrice;
 
@@ -2066,7 +2086,7 @@ export default function BotSimulator({
         // For simulation, we'll append it to the plan object temporarily for reference
         (matchedPlan as any)._serverId = serverId;
         
-        const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+        const isUserAdminOrOwner = checkIsAdminOrOwner(currentUser);
         const hasEnough = isUserAdminOrOwner || (currentUser.walletBalance >= matchedPlan.price);
         
         if (hasEnough) {
@@ -2100,7 +2120,7 @@ export default function BotSimulator({
     // If we are confirming checkout
     if ((text === t.btnConfirmBuy) && selectedPlanToBuy && purchaseStep === "confirm_plan") {
       setPurchaseStep("ask_client_name");
-      const isUserAdminOrOwner = currentUser.userId === 6536288293 || currentUser.username === "daltoon_owner";
+      const isUserAdminOrOwner = checkIsAdminOrOwner(currentUser);
       const paymentMsg = lang === "fa"
         ? `✍️ <b>لطفاً یک نام دلخواه (بدون فاصله، انگلیسی) برای کانفیگ خود بفرستید:</b>\n\n` +
           `• طرح انتخابی: <code>${selectedPlanToBuy.name}</code>\n` +

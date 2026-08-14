@@ -48,7 +48,11 @@ import {
   Image as ImageIcon,
   Trash2,
   FileText,
-  Camera
+  Camera,
+  RotateCcw,
+  Ban,
+  ArrowUpDown,
+  Filter
 } from "lucide-react";
 
 declare global {
@@ -123,6 +127,10 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [tgUser, setTgUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isOwner, setIsOwner] = useState<boolean>(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [userRole, setUserRole] = useState<string>("user");
+  const [userRoleTitle, setUserRoleTitle] = useState<string>("کاربر فعال");
   const [servers, setServers] = useState<any[]>([]);
   const [colleagueServers, setColleagueServers] = useState<any[]>([]);
   const [planCategories, setPlanCategories] = useState<any[]>([]);
@@ -153,6 +161,73 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
   }, [isLightMode]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [subSearchQuery, setSubSearchQuery] = useState<string>("");
+  const [subSortOrder, setSubSortOrder] = useState<"newest" | "oldest" | "highest_traffic" | "expiring_soon">("newest");
+  const [subStatusFilter, setSubStatusFilter] = useState<"all" | "active" | "inactive">("all");
+
+  // Computed filtered and sorted subscriptions (Newest first by default)
+  const filteredSubscriptions = useMemo(() => {
+    let list = [...subscriptions];
+
+    // 1. Search Query filter (Client name, plan name, server name, id, UUID)
+    if (subSearchQuery.trim()) {
+      const q = subSearchQuery.trim().toLowerCase();
+      list = list.filter((s: any) => {
+        const clientName = String(s.clientName || s.remark || "").toLowerCase();
+        const planName = String(s.planName || "").toLowerCase();
+        const serverName = String(s.serverName || "").toLowerCase();
+        const id = String(s.id || "").toLowerCase();
+        const uuid = String(s.clientUuid || s.uuid || "").toLowerCase();
+        const subLink = String(s.subLink || "").toLowerCase();
+        return (
+          clientName.includes(q) ||
+          planName.includes(q) ||
+          serverName.includes(q) ||
+          id.includes(q) ||
+          uuid.includes(q) ||
+          subLink.includes(q)
+        );
+      });
+    }
+
+    // 2. Status filter
+    if (subStatusFilter === "active") {
+      list = list.filter((s: any) => (s.status || "").toLowerCase() === "active" && !s.disabled);
+    } else if (subStatusFilter === "inactive") {
+      list = list.filter((s: any) => (s.status || "").toLowerCase() !== "active" || s.disabled);
+    }
+
+    // 3. Sorting
+    list.sort((a: any, b: any) => {
+      if (subSortOrder === "newest") {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+        const idA = typeof a.id === "number" ? a.id : parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+        const idB = typeof b.id === "number" ? b.id : parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+        return idB - idA;
+      } else if (subSortOrder === "oldest") {
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (timeA && timeB && timeA !== timeB) return timeA - timeB;
+        const idA = typeof a.id === "number" ? a.id : parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+        const idB = typeof b.id === "number" ? b.id : parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+        return idA - idB;
+      } else if (subSortOrder === "highest_traffic") {
+        const limitA = Number(a.trafficLimitGb || a.totalGb || 0);
+        const limitB = Number(b.trafficLimitGb || b.totalGb || 0);
+        return limitB - limitA;
+      } else if (subSortOrder === "expiring_soon") {
+        const usedPercentA = Number(a.trafficUsedGb || 0) / (Number(a.trafficLimitGb || 1));
+        const usedPercentB = Number(b.trafficUsedGb || 0) / (Number(b.trafficLimitGb || 1));
+        return usedPercentB - usedPercentA;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [subscriptions, subSearchQuery, subStatusFilter, subSortOrder]);
+
   const [tickets, setTickets] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
 
@@ -256,8 +331,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [isColleagueCreateOpen, setIsColleagueCreateOpen] = useState<boolean>(false);
   const [colleagueSelectedServer, setColleagueSelectedServer] = useState<any>(null);
   const [colleagueNewClientName, setColleagueNewClientName] = useState<string>("");
-  const [colleagueNewGb, setColleagueNewGb] = useState<number>(30);
-  const [colleagueNewDays, setColleagueNewDays] = useState<number>(30);
+  const [colleagueNewGb, setColleagueNewGb] = useState<string>("30");
+  const [colleagueNewDays, setColleagueNewDays] = useState<string>("30");
   const [colleagueCreatingClient, setColleagueCreatingClient] = useState<boolean>(false);
 
   // Colleague Search/Sort & Profile Refresh States
@@ -273,12 +348,214 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
   }, [selectedServer?.id]);
 
+  // Instant scroll to top whenever tab or view step changes
+  useEffect(() => {
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTop = 0;
+      try {
+        mainScrollRef.current.scrollTo({ top: 0, left: 0, behavior: "instant" as any });
+      } catch (e) {}
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" as any });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [activeTab, purchaseStep, colleagueSubTab]);
+
   // UI Utilities
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [activeQrModal, setActiveQrModal] = useState<string | null>(null);
 
+  // My Services Actions State (Change Link, Renew, Suspend/Active, Delete)
+  const [renewModalKey, setRenewModalKey] = useState<any | null>(null);
+  const [renewModalGb, setRenewModalGb] = useState<string>("30");
+  const [renewModalDays, setRenewModalDays] = useState<string>("30");
+  const [renewSubmitting, setRenewSubmitting] = useState<boolean>(false);
+  const [regeneratingKeyId, setRegeneratingKeyId] = useState<string | null>(null);
+  const [togglingKeyId, setTogglingKeyId] = useState<string | null>(null);
+  const [deletingKeyId, setDeletingKeyId] = useState<string | null>(null);
+  const [confirmDeleteKey, setConfirmDeleteKey] = useState<any | null>(null);
+
+  // Action Handlers for My Services
+  const handleMiniAppRegenerateUuid = async (sub: any) => {
+    const subId = sub.id || sub.clientUuid;
+    if (!subId || regeneratingKeyId) return;
+
+    setRegeneratingKeyId(subId);
+    try {
+      const res = await fetch("/api/subscription-keys/regenerate-uuid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subId }),
+      });
+      const data = await res.json();
+      if (data.success && (data.key || data.newUuid)) {
+        const updatedKey = data.key || {};
+        const newUuid = data.newUuid || updatedKey.clientUuid;
+        const newSubLink = data.newSubLink || updatedKey.subLink;
+        const newVless = data.vlessConfigs || updatedKey.vlessConfigs || [];
+
+        setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === sub.id || item.clientUuid === sub.clientUuid
+              ? {
+                  ...item,
+                  clientUuid: newUuid || item.clientUuid,
+                  subLink: newSubLink || item.subLink,
+                  vlessConfigs: newVless.length > 0 ? newVless : item.vlessConfigs,
+                }
+              : item
+          )
+        );
+
+        showThemedModal(
+          "🔄 تغییر لینک و آیدی موفقیت‌آمیز بود",
+          "شناسه (UUID) و لینک ساب اشتراک شما با موفقیت در پنل سرور، ربات و سیستم بازنشانی شد. لینک جدید را کپی و در نرم‌افزار خود اعمال نمایید.",
+          "success"
+        );
+      } else {
+        showThemedModal(
+          "خطا در تغییر لینک",
+          data.error || "تغییر لینک با خطا مواجه شد. لطفاً مجدداً تلاش نمایید.",
+          "error"
+        );
+      }
+    } catch (err: any) {
+      showThemedModal("خطای ارتباط", err?.message || "امکان برقراری ارتباط با سرور وجود ندارد.", "error");
+    } finally {
+      setRegeneratingKeyId(null);
+    }
+  };
+
+  const handleMiniAppRenewSubmit = async () => {
+    if (!renewModalKey || renewSubmitting) return;
+    const subId = renewModalKey.id || renewModalKey.clientUuid;
+    const addGb = Math.max(1, Number(renewModalGb) || 10);
+    const addDays = Math.max(1, Number(renewModalDays) || 30);
+
+    setRenewSubmitting(true);
+    try {
+      const res = await fetch("/api/subscription-keys/renew", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: subId,
+          addGb,
+          addDays,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.key) {
+        setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === renewModalKey.id || item.clientUuid === renewModalKey.clientUuid
+              ? {
+                  ...item,
+                  expireDate: data.key.expireDate || item.expireDate,
+                  trafficLimitGb: data.key.trafficLimitGb || item.trafficLimitGb,
+                  status: "active",
+                  disabled: false,
+                }
+              : item
+          )
+        );
+
+        setRenewModalKey(null);
+        showThemedModal(
+          "🎉 تمدید موفقیت‌آمیز اشتراک",
+          `اشتراک شما با موفقیت به میزان +${addGb} گیگابایت حجم و +${addDays} روز تمدید شد و وضعیت آن در پنل سرور و ربات فعال گردید.`,
+          "success"
+        );
+      } else {
+        showThemedModal("خطا در تمدید", data.error || "عملیات تمدید اشتراک با خطا مواجه شد.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای ارتباط", err?.message || "خطا در برقراری ارتباط با سرور جهت تمدید.", "error");
+    } finally {
+      setRenewSubmitting(false);
+    }
+  };
+
+  const handleMiniAppToggleStatus = async (sub: any) => {
+    const subId = sub.id || sub.clientUuid;
+    if (!subId || togglingKeyId) return;
+
+    const isCurrentlyActive = (sub.status || "active").toLowerCase() === "active" && !sub.disabled;
+    const targetStatus = isCurrentlyActive ? "suspended" : "active";
+
+    setTogglingKeyId(subId);
+    try {
+      const res = await fetch("/api/subscription-keys/toggle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: subId, status: targetStatus }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === sub.id || item.clientUuid === sub.clientUuid
+              ? { ...item, status: targetStatus, disabled: targetStatus === "suspended" }
+              : item
+          )
+        );
+
+        showThemedModal(
+          targetStatus === "active" ? "🟢 اشتراک فعال شد" : "⏸ اشتراک معلق شد",
+          targetStatus === "active"
+            ? "دسترسی اشتراک شما در سرور، پنل و ربات با موفقیت فعال و برقرار شد."
+            : "دسترسی اشتراک شما در سرور، پنل و ربات موقتاً به حالت تعلیق درآمد.",
+          "success"
+        );
+      } else {
+        showThemedModal("خطا در تغییر وضعیت", data.error || "تغییر وضعیت اشتراک انجام نشد.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای ارتباط", err?.message || "خطا در اتصال به سرور.", "error");
+    } finally {
+      setTogglingKeyId(null);
+    }
+  };
+
+  const handleMiniAppDeleteSubmit = async () => {
+    if (!confirmDeleteKey || deletingKeyId) return;
+    const subId = confirmDeleteKey.id || confirmDeleteKey.clientUuid;
+
+    setDeletingKeyId(subId);
+    try {
+      const res = await fetch("/api/subscription-keys/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: subId,
+          userId: telegramUser?.id,
+          clientName: confirmDeleteKey.clientName || confirmDeleteKey.email,
+          clientUuid: confirmDeleteKey.clientUuid || confirmDeleteKey.uuid,
+          serverId: confirmDeleteKey.serverId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSubscriptions((prev) =>
+          prev.filter((item) => item.id !== confirmDeleteKey.id && item.clientUuid !== confirmDeleteKey.clientUuid)
+        );
+        setConfirmDeleteKey(null);
+        showThemedModal(
+          "🗑️ کانفیگ حذف شد",
+          "کانفیگ مورد نظر با موفقیت از پنل سرور، دیتابیس و لیست اشتراک‌های شما حذف گردید.",
+          "success"
+        );
+      } else {
+        showThemedModal("خطا در حذف کانفیگ", data.error || "حذف کانفیگ با خطا مواجه شد.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای ارتباط", err?.message || "خطا در برقراری ارتباط با سرور جهت حذف.", "error");
+    } finally {
+      setDeletingKeyId(null);
+    }
+  };
+
   useEffect(() => {
-    if (customModal.isOpen || isColleagueCreateOpen || activeQrModal) {
+    if (customModal.isOpen || isColleagueCreateOpen || activeQrModal || renewModalKey || confirmDeleteKey) {
       window.scrollTo({ top: 0, behavior: "instant" });
       document.body.style.overflow = "hidden";
     } else {
@@ -287,7 +564,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [customModal.isOpen, isColleagueCreateOpen, activeQrModal]);
+  }, [customModal.isOpen, isColleagueCreateOpen, activeQrModal, renewModalKey, confirmDeleteKey]);
 
   // Initialize Telegram User & Fetch Data
   useEffect(() => {
@@ -388,7 +665,16 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       const { ok, data, error } = await safeFetchJson(`/api/miniapp/data?${params.toString()}`);
       if (ok && data?.success) {
         setUserData(data.user);
-        setIsAdmin(!!data.isAdmin || !!data.user?.isAdmin);
+        const adminFlag = !!data.isAdmin || !!data.user?.isAdmin || !!data.isOwner || !!data.user?.isOwner;
+        const ownerFlag = !!data.isOwner || !!data.user?.isOwner || !!data.isSuperAdmin || !!data.user?.isSuperAdmin || data.user?.role === "super_admin" || data.user?.role === "owner";
+        const superAdminFlag = ownerFlag || !!data.isSuperAdmin || !!data.user?.isSuperAdmin;
+
+        setIsAdmin(adminFlag);
+        setIsOwner(ownerFlag);
+        setIsSuperAdmin(superAdminFlag);
+        setUserRole(data.role || data.user?.role || (ownerFlag ? "super_admin" : (adminFlag ? "admin" : "user")));
+        setUserRoleTitle(data.roleTitle || data.user?.roleTitle || (ownerFlag ? "مالک و سوپر ادمین" : (adminFlag ? "مدیر کل" : "کاربر فعال")));
+
         setServers(data.servers || []);
         setColleagueServers(data.colleagueServers || []);
         setPlanCategories(data.planCategories || []);
@@ -580,22 +866,50 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     return list;
   }, [colleagueClients, colleagueSearch, colleagueSort]);
 
+  // Custom Pricing Box for selected server
+  const customBox = useMemo(() => {
+    if (!selectedServer) return null;
+    const boxes = customPricing?.boxes || systemSettings?.panel_config?.customPricingBoxes || systemSettings?.customPricingBoxes || [];
+    return boxes.find((b: any) => Array.isArray(b.serverIds) && b.serverIds.includes(String(selectedServer.id))) || null;
+  }, [selectedServer, customPricing, systemSettings]);
+
+  const minCustomGb = useMemo(() => {
+    if (customBox?.minGb && Number(customBox.minGb) > 0) return Number(customBox.minGb);
+    if (systemSettings?.minCreateGb && Number(systemSettings.minCreateGb) > 0) return Number(systemSettings.minCreateGb);
+    if (systemSettings?.panel_config?.minCreateGb && Number(systemSettings.panel_config.minCreateGb) > 0) return Number(systemSettings.panel_config.minCreateGb);
+    return 5;
+  }, [customBox, systemSettings]);
+
+  const minCustomDays = useMemo(() => {
+    if (customBox?.minDays && Number(customBox.minDays) > 0) return Number(customBox.minDays);
+    if (systemSettings?.minDays && Number(systemSettings.minDays) > 0) return Number(systemSettings.minDays);
+    return 7;
+  }, [customBox, systemSettings]);
+
+  // Adjust custom sliders if current values are below min bounds
+  useEffect(() => {
+    if (customGb < minCustomGb) {
+      setCustomGb(minCustomGb);
+    }
+  }, [minCustomGb]);
+
+  useEffect(() => {
+    if (customDays < minCustomDays) {
+      setCustomDays(minCustomDays);
+    }
+  }, [minCustomDays]);
+
   // Price Calculation for Custom Volume (Matching formula)
   const customCalculatedPrice = useMemo(() => {
     let priceGb = customPricing.defaultPricePerGb || 3000;
     let priceDay = customPricing.defaultPricePerDay || 2000;
 
-    if (selectedServer && Array.isArray(customPricing.boxes)) {
-      for (const box of customPricing.boxes) {
-        if (box && Array.isArray(box.serverIds) && box.serverIds.includes(String(selectedServer.id))) {
-          priceGb = Number(box.pricePerGb) || priceGb;
-          priceDay = Number(box.pricePerDay) || priceDay;
-          break;
-        }
-      }
+    if (customBox) {
+      priceGb = Number(customBox.pricePerGb) || priceGb;
+      priceDay = Number(customBox.pricePerDay) || priceDay;
     }
     return customGb * priceGb + customDays * priceDay;
-  }, [customGb, customDays, selectedServer, customPricing]);
+  }, [customGb, customDays, customBox, customPricing]);
 
   // Final Price for Checkout (After Promo & Admin check)
   const checkoutPrice = useMemo(() => {
@@ -1212,10 +1526,23 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const handleColleagueCreateClient = async () => {
     if (!colleagueAccount) return;
 
-    if (colleagueAccount.remainingTrafficGb < colleagueNewGb) {
+    const reqGb = Number(colleagueNewGb) || 10;
+    const reqDays = Number(colleagueNewDays) || 30;
+
+    const minAllowedGb = Number(colleagueAccount?.minCreateGb || systemSettings?.colleagueMinCreateGb || systemSettings?.minCreateGb || 0);
+    if (minAllowedGb > 0 && reqGb < minAllowedGb) {
+      showThemedModal(
+        "حداقل حجم مجاز",
+        `حداقل حجم مجاز برای ساخت هر کانفیگ همکار ${minAllowedGb} گیگابایت می‌باشد.`,
+        "warning"
+      );
+      return;
+    }
+
+    if (Number(colleagueAccount.remainingTrafficGb || 0) < reqGb) {
       showThemedModal(
         "اتمام سهمیه حجم",
-        `حجم درخواستی (${colleagueNewGb} GB) بیشتر از حجم مجاز باقیمانده شما (${colleagueAccount.remainingTrafficGb.toFixed(1)} GB) است.`,
+        `حجم درخواستی (${reqGb} GB) بیشتر از حجم مجاز باقیمانده شما (${Number(colleagueAccount.remainingTrafficGb || 0).toFixed(1)} GB) است.`,
         "error"
       );
       return;
@@ -1236,8 +1563,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           accountId: colleagueAccount.id,
           serverId: String(srv.id),
           clientUsername: colleagueNewClientName.trim() || `usr_${Math.random().toString(36).substring(2, 6)}`,
-          trafficGb: colleagueNewGb,
-          durationDays: colleagueNewDays,
+          trafficGb: reqGb,
+          durationDays: reqDays,
         }),
       });
 
@@ -1250,8 +1577,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         // Update remaining traffic locally
         setColleagueAccount((prev: any) => ({
           ...prev,
-          remainingTrafficGb: Math.max(0, (prev.remainingTrafficGb || 0) - colleagueNewGb),
-          allocatedTrafficGb: (prev.allocatedTrafficGb || 0) + colleagueNewGb
+          remainingTrafficGb: Math.max(0, (prev.remainingTrafficGb || 0) - reqGb),
+          allocatedTrafficGb: (prev.allocatedTrafficGb || 0) + reqGb
         }));
 
         showThemedModal("✅ کانفیگ همکار ساخته شد", "کانفیگ با موفقیت در پنل سرور تعریف شد و در لیست کلاینت‌های شما قرار گرفت.", "success");
@@ -1312,13 +1639,21 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 <span className="font-extrabold text-sm tracking-tight text-white">
                   {systemSettings.botNickname || "دالتون وی‌پی‌ان"}
                 </span>
-                {isAdmin ? (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded-full font-bold shadow-sm">
-                    <Crown className="w-3 h-3" /> مدیر کل
+                {isOwner || isSuperAdmin ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-gradient-to-r from-amber-500/25 to-yellow-500/25 text-amber-300 border border-amber-500/50 px-2 py-0.5 rounded-full font-extrabold shadow-sm">
+                    <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" /> سوپر ادمین (مالک)
+                  </span>
+                ) : isAdmin ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-bold shadow-sm">
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> مدیر سیستم
+                  </span>
+                ) : userData?.isColleague ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-full font-bold">
+                    <Sparkles className="w-3 h-3 text-cyan-400" /> نماینده همکار
                   </span>
                 ) : (
-                  <span className="text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 px-1.5 py-0.2 rounded-full font-medium">
-                    کاربر مهمان
+                  <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-medium">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> کاربر فعال
                   </span>
                 )}
               </div>
@@ -1974,15 +2309,15 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </div>
                       <input
                         type="range"
-                        min="5"
-                        max="300"
+                        min={minCustomGb}
+                        max={Math.max(300, minCustomGb + 50)}
                         step="5"
                         value={customGb}
-                        onChange={(e) => setCustomGb(Number(e.target.value))}
+                        onChange={(e) => setCustomGb(Math.max(minCustomGb, Number(e.target.value)))}
                         className="w-full accent-purple-500 bg-slate-800 rounded-lg h-2"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                        <span>5 GB</span>
+                        <span>{minCustomGb} GB (حداقل)</span>
                         <span>100 GB</span>
                         <span>200 GB</span>
                         <span>300 GB</span>
@@ -2002,15 +2337,15 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </div>
                       <input
                         type="range"
-                        min="7"
-                        max="180"
-                        step="7"
+                        min={minCustomDays}
+                        max={Math.max(180, minCustomDays + 30)}
+                        step="1"
                         value={customDays}
-                        onChange={(e) => setCustomDays(Number(e.target.value))}
+                        onChange={(e) => setCustomDays(Math.max(minCustomDays, Number(e.target.value)))}
                         className="w-full accent-indigo-500 bg-slate-800 rounded-lg h-2"
                       />
                       <div className="flex justify-between text-[10px] text-slate-500 font-mono">
-                        <span>7 روز</span>
+                        <span>{minCustomDays} روز (حداقل)</span>
                         <span>30 روز</span>
                         <span>90 روز</span>
                         <span>180 روز</span>
@@ -2623,7 +2958,107 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               </div>
             ) : (
               <div className="space-y-3">
-                {subscriptions.map((sub) => {
+                {/* Search & Sort Controls Bar */}
+                <div className="bg-slate-900/90 rounded-2xl p-3 border border-slate-800/80 space-y-2.5 shadow-lg">
+                  {/* Search Input */}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+                      <Search className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="text"
+                      value={subSearchQuery}
+                      onChange={(e) => setSubSearchQuery(e.target.value)}
+                      placeholder="جستجوی کانفیگ (نام، سرور، آی‌دی، پلن)..."
+                      className="w-full bg-slate-950/90 border border-slate-800 focus:border-purple-500/60 rounded-xl pr-9 pl-9 py-2 text-xs text-white placeholder-slate-500 outline-none transition-all"
+                    />
+                    {subSearchQuery && (
+                      <button
+                        onClick={() => setSubSearchQuery("")}
+                        className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-white transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filter Status Chips & Sort Dropdown */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap pt-0.5">
+                    {/* Status Tabs */}
+                    <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800/80 text-[11px] font-bold">
+                      <button
+                        onClick={() => setSubStatusFilter("all")}
+                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                          subStatusFilter === "all"
+                            ? "bg-purple-600 text-white shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        همه ({subscriptions.length})
+                      </button>
+                      <button
+                        onClick={() => setSubStatusFilter("active")}
+                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                          subStatusFilter === "active"
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        فعال ({subscriptions.filter((s: any) => (s.status || "").toLowerCase() === "active" && !s.disabled).length})
+                      </button>
+                      <button
+                        onClick={() => setSubStatusFilter("inactive")}
+                        className={`px-2.5 py-1 rounded-lg transition-all ${
+                          subStatusFilter === "inactive"
+                            ? "bg-rose-600 text-white shadow-sm"
+                            : "text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        معلق/پایان ({subscriptions.filter((s: any) => (s.status || "").toLowerCase() !== "active" || s.disabled).length})
+                      </button>
+                    </div>
+
+                    {/* Sort Selector Dropdown */}
+                    <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800/80 text-xs text-slate-300">
+                      <ArrowUpDown className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      <select
+                        value={subSortOrder}
+                        onChange={(e: any) => setSubSortOrder(e.target.value)}
+                        className="bg-transparent text-xs text-slate-200 font-bold outline-none cursor-pointer"
+                      >
+                        <option value="newest" className="bg-slate-900 text-white">⚡ جدیدترین (پیش‌فرض)</option>
+                        <option value="oldest" className="bg-slate-900 text-white">⏳ قدیمی‌ترین</option>
+                        <option value="highest_traffic" className="bg-slate-900 text-white">📊 بیشترین حجم</option>
+                        <option value="expiring_soon" className="bg-slate-900 text-white">⚠️ بیشترین مصرف</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {filteredSubscriptions.length === 0 ? (
+                  <div className="p-6 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
+                      <Search className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-xs font-bold text-white">اشتراکی با این مشخصات یافت نشد</h4>
+                      <p className="text-[11px] text-slate-400">
+                        عبارت جستجو یا فیلترهای اعمال شده را تغییر دهید.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSubSearchQuery("");
+                        setSubStatusFilter("all");
+                        setSubSortOrder("newest");
+                      }}
+                      className="text-xs bg-slate-800 hover:bg-slate-700 text-purple-300 px-3.5 py-1.5 rounded-xl font-bold transition-all border border-slate-700"
+                    >
+                      پاک کردن فیلترها
+                    </button>
+                  </div>
+                ) : (
+                  filteredSubscriptions.map((sub) => {
                   const used = Number(sub.trafficUsedGb || 0);
                   const limit = Number(sub.trafficLimitGb || 30);
                   const percent = Math.min(100, Math.round((used / (limit || 1)) * 100));
@@ -2707,6 +3142,76 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                         </button>
                       </div>
 
+                      {/* Action Buttons: Change Link, Renew, Suspend/Active, Delete & QR */}
+                      <div className="pt-1 flex items-center gap-1.5 flex-wrap border-t border-slate-800/80 mt-1 pt-2">
+                        {/* Barcode QR Button */}
+                        <button
+                          onClick={() => setActiveQrModal(sub.subLink)}
+                          className="px-2.5 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all"
+                          title="نمایش بارکد QR"
+                        >
+                          <QrCode className="w-3.5 h-3.5 text-purple-400" />
+                          <span>بارکد</span>
+                        </button>
+
+                        {/* Change Link Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleMiniAppRegenerateUuid(sub)}
+                          disabled={regeneratingKeyId === (sub.id || sub.clientUuid)}
+                          className="px-2.5 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all disabled:opacity-50"
+                          title="تغییر لینک و شناسه اتصال"
+                        >
+                          <RotateCcw className={`w-3.5 h-3.5 text-rose-400 ${regeneratingKeyId === (sub.id || sub.clientUuid) ? 'animate-spin' : ''}`} />
+                          <span>{regeneratingKeyId === (sub.id || sub.clientUuid) ? "در حال تغییر..." : "تغییر لینک"}</span>
+                        </button>
+
+                        {/* Renew Button */}
+                        <button
+                          onClick={() => {
+                            setRenewModalKey(sub);
+                            setRenewModalGb("30");
+                            setRenewModalDays("30");
+                          }}
+                          className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all"
+                          title="تمدید اشتراک"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>تمدید</span>
+                        </button>
+
+                        {/* Suspend / Active Button */}
+                        <button
+                          onClick={() => handleMiniAppToggleStatus(sub)}
+                          disabled={togglingKeyId === (sub.id || sub.clientUuid)}
+                          className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all disabled:opacity-50 ${
+                            (sub.status || "").toLowerCase() === "active" && !sub.disabled
+                              ? "bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20"
+                              : "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20"
+                          }`}
+                          title={(sub.status || "").toLowerCase() === "active" && !sub.disabled ? "تعلیق موقت اشتراک" : "فعال‌سازی مجدد اشتراک"}
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>
+                            {togglingKeyId === (sub.id || sub.clientUuid)
+                              ? "در حال پردازش..."
+                              : (sub.status || "").toLowerCase() === "active" && !sub.disabled
+                              ? "تعلیق"
+                              : "فعال"}
+                          </span>
+                        </button>
+
+                        {/* Delete Button */}
+                        <button
+                          onClick={() => setConfirmDeleteKey(sub)}
+                          className="p-1.5 bg-slate-800/70 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700/80 hover:border-rose-500/30 rounded-xl transition-colors mr-auto flex items-center gap-1"
+                          title="حذف اشتراک"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-bold">حذف</span>
+                        </button>
+                      </div>
+
                       {/* Direct VLESS Links */}
                       {((sub.vlessConfigs && sub.vlessConfigs.length > 0) || (sub.vlessLinks && sub.vlessLinks.length > 0)) && (
                         <div className="bg-slate-950/80 rounded-2xl p-2.5 border border-slate-800/80 space-y-1.5">
@@ -2750,7 +3255,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       )}
                     </div>
                   );
-                })}
+                }))}
               </div>
             )}
           </div>
@@ -3368,7 +3873,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </div>
                       <div>
                         <div className="font-extrabold text-sm text-white">
-                          همکار گرامی ({colleagueAccount?.prefix || colleagueAccount?.username})
+                          همکار گرامی ({colleagueAccount?.prefix || colleagueAccount?.username}) خوش آمدید
                         </div>
                         <div className="text-[10px] text-purple-300">
                           {colleagueAccount?.packageTitle || "بسته همکار"} • پیشوند: {colleagueAccount?.prefix}
@@ -3559,25 +4064,37 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       {/* Volume & Days */}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
-                          <label className="text-xs font-bold text-slate-300">حجم (GB):</label>
+                          <label className="text-xs font-bold text-slate-300">
+                            حجم (GB){Number(colleagueAccount?.minCreateGb || systemSettings?.colleagueMinCreateGb || systemSettings?.minCreateGb || 0) > 0 && (
+                              <span className="text-[10px] text-amber-400 font-normal mr-1">
+                                (حداقل {colleagueAccount?.minCreateGb || systemSettings?.colleagueMinCreateGb || systemSettings?.minCreateGb}G)
+                              </span>
+                            )}:
+                          </label>
                           <input
-                            type="number"
-                            min="1"
-                            max="500"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="30"
                             value={colleagueNewGb}
-                            onChange={(e) => setColleagueNewGb(Number(e.target.value))}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, "");
+                              setColleagueNewGb(val);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                         <div className="space-y-1">
                           <label className="text-xs font-bold text-slate-300">مدت (روز):</label>
                           <input
-                            type="number"
-                            min="1"
-                            max="365"
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="30"
                             value={colleagueNewDays}
-                            onChange={(e) => setColleagueNewDays(Number(e.target.value))}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                            onChange={(e) => {
+                              const val = e.target.value.replace(/[^0-9]/g, "");
+                              setColleagueNewDays(val);
+                            }}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
                           />
                         </div>
                       </div>
@@ -3878,13 +4395,21 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       <span className="font-extrabold text-base text-white">
                         {tgUser?.first_name || "کاربر"} {tgUser?.last_name || ""}
                       </span>
-                      {isAdmin ? (
-                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
-                          <Crown className="w-3 h-3 text-amber-400" /> مدیر کل
+                      {isOwner || isSuperAdmin ? (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-0.5 rounded-full font-extrabold flex items-center gap-1 shadow-sm">
+                          <Crown className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" /> مالک و سوپر ادمین
+                        </span>
+                      ) : isAdmin ? (
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
+                          <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> مدیر سیستم
+                        </span>
+                      ) : userData?.isColleague ? (
+                        <span className="text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> نماینده همکار
                         </span>
                       ) : (
-                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> کاربر فعال
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> کاربر فعال
                         </span>
                       )}
                     </div>
@@ -4056,7 +4581,15 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               <div className="space-y-2 text-xs">
                 <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
                   <span className="text-slate-400">سطح دسترسی حساب:</span>
-                  <span className="font-bold text-purple-300">{isAdmin ? "مدیر ارشد (Admin)" : "کاربر عمومی"}</span>
+                  <span className="font-bold text-purple-300">
+                    {isOwner || isSuperAdmin
+                      ? "👑 مالک و مدیر ارشد (Super Admin)"
+                      : isAdmin
+                      ? "🛡️ مدیر سیستم (Admin)"
+                      : userData?.isColleague
+                      ? "🤝 نماینده همکار (Colleague)"
+                      : "👤 کاربر فعال"}
+                  </span>
                 </div>
 
                 <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
@@ -4258,6 +4791,192 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               <Copy className="w-3.5 h-3.5" />
               <span>{copiedId === "modal-qr-copy" ? "لینک کپی شد" : "کپی لینک ساب‌اسکریپشن"}</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* RENEW SUBSCRIPTION MODAL                                                  */}
+      {/* ========================================================================= */}
+      {renewModalKey && (
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl text-right animate-fade-in my-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">تمدید اشتراک</h4>
+                  <span className="text-[10px] text-slate-400 font-mono">{renewModalKey.planName || renewModalKey.clientName || renewModalKey.id}</span>
+                </div>
+              </div>
+              <button onClick={() => setRenewModalKey(null)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Volume Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>حجم اضافه (گیگابایت):</span>
+                <span className="text-emerald-400 font-mono">+{renewModalGb} GB</span>
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {["10", "20", "30", "50"].map((gb) => (
+                  <button
+                    key={gb}
+                    type="button"
+                    onClick={() => setRenewModalGb(gb)}
+                    className={`py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      renewModalGb === gb
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-950"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800"
+                    }`}
+                  >
+                    +{gb} GB
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="1000"
+                value={renewModalGb}
+                onChange={(e) => setRenewModalGb(e.target.value)}
+                placeholder="مقدار دلخواه گیگابایت..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 text-center font-mono focus:border-emerald-500 outline-none"
+              />
+            </div>
+
+            {/* Days Selection */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>مدت زمان اضافه (روز):</span>
+                <span className="text-indigo-400 font-mono">+{renewModalDays} روز</span>
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {["30", "60", "90"].map((days) => (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => setRenewModalDays(days)}
+                    className={`py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      renewModalDays === days
+                        ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-md shadow-indigo-950"
+                        : "bg-slate-950 text-slate-400 border-slate-800 hover:bg-slate-800"
+                    }`}
+                  >
+                    {days} روز
+                  </button>
+                ))}
+              </div>
+              <input
+                type="number"
+                min="1"
+                max="365"
+                value={renewModalDays}
+                onChange={(e) => setRenewModalDays(e.target.value)}
+                placeholder="مقدار دلخواه روز..."
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 text-center font-mono focus:border-indigo-500 outline-none"
+              />
+            </div>
+
+            {/* Summary Preview */}
+            <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 space-y-1 text-xs">
+              <div className="flex justify-between text-slate-400">
+                <span>حجم جدید پس از تمدید:</span>
+                <span className="font-bold text-emerald-300 font-mono">
+                  {(Number(renewModalKey.trafficLimitGb || 0) + (Number(renewModalGb) || 0))} GB
+                </span>
+              </div>
+              <div className="flex justify-between text-slate-400">
+                <span>وضعیت پس از تمدید:</span>
+                <span className="font-bold text-emerald-400">فعال در پنل و ربات</span>
+              </div>
+            </div>
+
+            {/* Submit & Cancel Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setRenewModalKey(null)}
+                disabled={renewSubmitting}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-bold text-xs transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleMiniAppRenewSubmit}
+                disabled={renewSubmitting}
+                className="flex-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-600/30 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {renewSubmitting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>در حال تمدید...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>ثبت و تمدید اشتراک</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* DELETE SUBSCRIPTION CONFIRMATION MODAL                                    */}
+      {/* ========================================================================= */}
+      {confirmDeleteKey && (
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-rose-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl text-center animate-fade-in my-auto">
+            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto shadow-lg">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="font-extrabold text-sm text-white">تایید حذف اشتراک</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                آیا از حذف دائم اشتراک <span className="text-rose-300 font-bold font-mono">{confirmDeleteKey.planName || confirmDeleteKey.clientName || confirmDeleteKey.id}</span> اطمینان دارید؟
+              </p>
+              <p className="text-[11px] text-rose-400/90 font-medium">
+                ⚠️ این کانفیگ از سرور، پنل و لیست ربات پاک خواهد شد و اتصال آن قطع می‌شود.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteKey(null)}
+                disabled={deletingKeyId === (confirmDeleteKey.id || confirmDeleteKey.clientUuid)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-bold text-xs transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleMiniAppDeleteSubmit}
+                disabled={deletingKeyId === (confirmDeleteKey.id || confirmDeleteKey.clientUuid)}
+                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/30 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {deletingKeyId === (confirmDeleteKey.id || confirmDeleteKey.clientUuid) ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>در حال حذف...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>بله، حذف شود</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

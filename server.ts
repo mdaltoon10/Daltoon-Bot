@@ -1930,64 +1930,127 @@ app.post("/api/tickets/close", (req, res) => {
 });
 
 // --- REGEN UUID & TRANSFER KEY CONNECTIONS ---
+async function handleRegenerateKeyLogic(id: string) {
+  const db = readSqliteDb();
+  const subIdx = (db.subscription_keys || []).findIndex((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
+  if (subIdx < 0) {
+    return { success: false, status: 404, error: "اشتراک مورد نظر یافت نشد." };
+  }
+
+  const key = db.subscription_keys[subIdx];
+  const clientName = key.clientName || key.clientEmail || key.planName || "";
+  const settings = getSystemSettings(db);
+
+  let resetResult: any;
+  if (!clientName) {
+    // Fallback: This is a custom/manual key, regenerate locally in DB immediately
+    const crypto = await import("crypto");
+    const newUuid = crypto.randomUUID();
+    const newSubId = crypto.randomBytes(8).toString("hex");
+    const activeServers = getActiveServers(settings);
+    let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
+    if (key.serverId) {
+      const found = activeServers.find((s: any) => String(s.id) === String(key.serverId));
+      if (found) {
+        chosenServer = found;
+      }
+    }
+    const subBase =
+      chosenServer && chosenServer.subUrl && chosenServer.subUrl.trim() !== ""
+        ? normalizeXuiUrl(chosenServer.subUrl)
+        : chosenServer
+          ? normalizeXuiUrl(chosenServer.panelUrl)
+          : "https://vpn.daltoon.online";
+    const subLink = `${subBase}/sub/${newSubId}`;
+    resetResult = { success: true, clientUuid: newUuid, subLink };
+  } else {
+    resetResult = await resetVpnClientUuidApi(clientName, key.serverId);
+  }
+
+  if (resetResult.success) {
+    key.clientUuid = resetResult.clientUuid || key.clientUuid;
+    key.subLink = resetResult.subLink || key.subLink;
+
+    // Regenerate direct VLESS config strings with the new UUID
+    try {
+      const vlessRes = generateVlessConfigsForClient(
+        key.clientUuid,
+        clientName || "user",
+        key.serverId,
+        settings,
+        key.activeInboundIds
+      );
+      if (vlessRes && vlessRes.vlessConfigs && vlessRes.vlessConfigs.length > 0) {
+        key.vlessConfigs = vlessRes.vlessConfigs;
+      }
+    } catch (e) {}
+
+    db.subscription_keys[subIdx] = key;
+
+    // Sync in user configs array
+    if (key.userId) {
+      const u = (db.users || []).find((usr: any) => Number(usr.userId) === Number(key.userId));
+      if (u && Array.isArray(u.configs)) {
+        const cIdx = u.configs.findIndex((c: any) => String(c.id) === String(id) || String(c.uuid) === String(id));
+        if (cIdx >= 0) {
+          u.configs[cIdx].uuid = key.clientUuid;
+          u.configs[cIdx].subLink = key.subLink;
+          u.configs[cIdx].vlessConfigs = key.vlessConfigs;
+        }
+      }
+    }
+
+    writeSqliteDb(db);
+
+    // Send Telegram Notification to user if botToken configured
+    if (key.userId && settings.botToken) {
+      const userMsg =
+        `🔄 <b>لینک اتصال اشتراک شما تغییر یافت</b>\n\n` +
+        `📦 <b>پلن:</b> ${key.planName || "اشتراک اختصاصی"}\n` +
+        `🔑 <b>شناسه جدید (UUID):</b>\n<code>${key.clientUuid}</code>\n\n` +
+        `🔗 <b>لینک ساب جدید شما:</b>\n<code>${key.subLink}</code>\n\n` +
+        `⚠️ <i>اتصال لینک قبلی شما قطع شد. لطفاً لینک جدید را در برنامه خود وارد و بروزرسانی نمایید.</i>`;
+      sendTelegramMessage(settings.botToken, key.userId, userMsg).catch(() => {});
+    }
+
+    return {
+      success: true,
+      key,
+      newUuid: key.clientUuid,
+      newSubLink: key.subLink,
+      vlessConfigs: key.vlessConfigs || [],
+    };
+  } else {
+    return {
+      success: false,
+      status: 500,
+      error: resetResult.error || "خطا در بازنشانی و تغییر لینک در پنل سرور",
+    };
+  }
+}
+
 app.post("/api/subscription-keys/regenerate-uuid", async (req, res) => {
   try {
     const { id } = req.body;
-    const db = readSqliteDb();
-    const subIdx = db.subscription_keys.findIndex((k: any) => k.id === id);
-    if (subIdx >= 0) {
-      const key = db.subscription_keys[subIdx];
-      const clientName = key.clientName || key.clientEmail;
-
-      let resetResult;
-      if (!clientName) {
-        // Fallback: This is a custom/manual key, regenerate locally in DB immediately
-        const crypto = await import("crypto");
-        const newUuid = crypto.randomUUID();
-        const newSubId = crypto.randomBytes(8).toString("hex");
-        const settings = getSystemSettings(db);
-        const activeServers = getActiveServers(settings);
-        let chosenServer = activeServers.length > 0 ? activeServers[0] : null;
-        if (key.serverId) {
-          const found = activeServers.find((s: any) => s.id === key.serverId);
-          if (found) {
-            chosenServer = found;
-          }
-        }
-        const subBase =
-          chosenServer &&
-          chosenServer.subUrl &&
-          chosenServer.subUrl.trim() !== ""
-            ? normalizeXuiUrl(chosenServer.subUrl)
-            : chosenServer
-              ? normalizeXuiUrl(chosenServer.panelUrl)
-              : "https://tr.sub-daltoon.ir:2096";
-        const subLink = `${subBase}/sub/${newSubId}`;
-        resetResult = { success: true, clientUuid: newUuid, subLink };
-        console.log(
-          `[regenerate-uuid API] Regenerated manual client locally: ${key.id}`,
-        );
-      } else {
-        resetResult = await resetVpnClientUuidApi(clientName, key.serverId);
-      }
-
-      if (resetResult.success) {
-        key.clientUuid = resetResult.clientUuid;
-        key.subLink = resetResult.subLink;
-
-        db.subscription_keys[subIdx] = key;
-        writeSqliteDb(db);
-        res.json({ success: true, key });
-      } else {
-        res.status(500).json({
-          success: false,
-          error: resetResult.error || "Failed to reset UUID",
-        });
-      }
+    const result = await handleRegenerateKeyLogic(id);
+    if (result.success) {
+      res.json(result);
     } else {
-      res
-        .status(404)
-        .json({ success: false, error: "Subscription entry not found." });
+      res.status(result.status || 500).json(result);
+    }
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post("/api/subscription-keys/:id/regenerate", async (req, res) => {
+  try {
+    const id = req.params.id || req.body.id;
+    const result = await handleRegenerateKeyLogic(id);
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(result.status || 500).json(result);
     }
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -3829,17 +3892,37 @@ function generateVlessConfigsForClient(
 
   const safeUuid = clientUuid || crypto.randomUUID();
   const safeName = (clientEmail || "user").trim();
+  
+  let db: any = null;
+  try {
+    db = readSqliteDb();
+  } catch (e) {}
+
+  if (!settings && db) {
+    settings = getSystemSettings(db);
+  }
+
   const activeServers = getActiveServers(settings || {});
   let server = serverId ? activeServers.find((s: any) => String(s.id) === String(serverId)) : null;
   if (!server && activeServers.length > 0) {
     server = activeServers.find((s: any) => s.status === "active") || activeServers[0];
   }
 
-  // Determine domain/host
+  // Determine domain/host from subUrl, panelUrl, or settings
   let host = "vpn.daltoon.online";
-  if (server?.panelUrl) {
+  if (server?.subUrl && server.subUrl.trim() !== "") {
+    try {
+      const clean = server.subUrl.replace(/^https?:\/\//i, "").split("/")[0];
+      host = clean.split(":")[0];
+    } catch (e) {}
+  } else if (server?.panelUrl) {
     try {
       const clean = server.panelUrl.replace(/^https?:\/\//i, "").split("/")[0];
+      host = clean.split(":")[0];
+    } catch (e) {}
+  } else if (settings?.subUrl) {
+    try {
+      const clean = settings.subUrl.replace(/^https?:\/\//i, "").split("/")[0];
       host = clean.split(":")[0];
     } catch (e) {}
   } else if (settings?.baseUrl) {
@@ -3851,14 +3934,24 @@ function generateVlessConfigsForClient(
 
   const serverName = server?.name || server?.remark || "Daltoon";
 
-  // Check inbounds defined on the server or in settings or in global db
+  // Gather inbounds defined on the server or in database
   const inboundsList: any[] = [];
   if (server && Array.isArray(server.inbounds) && server.inbounds.length > 0) {
     inboundsList.push(...server.inbounds);
-  } else if (settings && Array.isArray(settings.inbounds) && settings.inbounds.length > 0) {
-    inboundsList.push(...settings.inbounds);
-  } else if (typeof db !== "undefined" && db && Array.isArray(db.inbounds) && db.inbounds.length > 0) {
-    inboundsList.push(...db.inbounds);
+  }
+  if (db && Array.isArray(db.inbounds) && db.inbounds.length > 0) {
+    for (const inb of db.inbounds) {
+      if (!inboundsList.some((existing: any) => String(existing.id) === String(inb.id))) {
+        inboundsList.push(inb);
+      }
+    }
+  }
+  if (settings && Array.isArray(settings.inbounds) && settings.inbounds.length > 0) {
+    for (const inb of settings.inbounds) {
+      if (!inboundsList.some((existing: any) => String(existing.id) === String(inb.id))) {
+        inboundsList.push(inb);
+      }
+    }
   }
 
   // Filter active inbounds if activeInboundIds is present
@@ -3873,9 +3966,10 @@ function generateVlessConfigsForClient(
 
   if (activeInbounds.length > 0) {
     for (const ib of activeInbounds) {
-      const port = ib.port || 443;
+      const port = Number(ib.port) || 443;
       const protocol = (ib.protocol || "vless").toLowerCase();
-      const remark = ib.remark || `${serverName} - اینباند ${ib.id || port}`;
+      const rawRemark = ib.remark || ib.name || ib.tag || `Inbound #${ib.id || port}`;
+      const remark = `[${serverName}] ${rawRemark} - ${safeName}`;
       
       let streamSettings: any = {};
       if (typeof ib.streamSettings === "string") {
@@ -3893,14 +3987,16 @@ function generateVlessConfigsForClient(
 
       if (security === "reality") {
         const realitySettings = streamSettings.realitySettings || {};
-        if (realitySettings.serverNames && realitySettings.serverNames[0]) params.set("sni", realitySettings.serverNames[0]);
+        const sni = (realitySettings.serverNames && realitySettings.serverNames[0]) || realitySettings.dest?.split(":")[0] || host;
+        if (sni) params.set("sni", sni);
         if (realitySettings.publicKey || realitySettings.password) params.set("pbk", realitySettings.publicKey || realitySettings.password);
         if (realitySettings.shortIds && realitySettings.shortIds[0]) params.set("sid", realitySettings.shortIds[0]);
         if (realitySettings.spiderX) params.set("spx", realitySettings.spiderX);
-        params.set("fp", realitySettings.fingerprint || "chrome");
+        params.set("fp", realitySettings.fingerprint || realitySettings.settings?.fingerprint || "chrome");
       } else if (security === "tls") {
         const tlsSettings = streamSettings.tlsSettings || {};
-        if (tlsSettings.serverName) params.set("sni", tlsSettings.serverName);
+        const sni = tlsSettings.serverName || host;
+        if (sni) params.set("sni", sni);
         if (tlsSettings.alpn && tlsSettings.alpn.length > 0) params.set("alpn", Array.isArray(tlsSettings.alpn) ? tlsSettings.alpn.join(",") : tlsSettings.alpn);
         params.set("fp", tlsSettings.fingerprint || "chrome");
       }
@@ -3929,7 +4025,7 @@ function generateVlessConfigsForClient(
     }
   }
 
-  // If no detailed inbounds were matched, generate EXACTLY corresponding to server.activeInboundIds!
+  // If no detailed inbounds were matched, build fallback based on activeInboundIds
   if (result.vlessConfigs.length === 0) {
     let targetIds: number[] = [1];
     if (server && Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
@@ -3939,12 +4035,12 @@ function generateVlessConfigsForClient(
 
     for (let idx = 0; idx < targetIds.length; idx++) {
       const ibId = targetIds[idx];
-      const port = 443 + (idx * 2010);
-      const remark = `${serverName} - اینباند ${ibId} (VLESS)`;
+      const port = 443;
+      const remark = `[${serverName}] Inbound ${ibId} - ${safeName}`;
       const params = new URLSearchParams();
       params.set("type", "tcp");
-      params.set("security", "reality");
-      params.set("sni", "google.com");
+      params.set("security", "tls");
+      params.set("sni", host);
       params.set("fp", "chrome");
 
       const link = `vless://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
@@ -7003,13 +7099,13 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     const { id, addGb, addDays } = req.body;
     const db = readSqliteDb();
 
-    const key = db.subscription_keys?.find((k: any) => k.id === id);
+    const key = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
     if (!key) {
-      return res.status(404).json({ success: false, error: "Subscription key not found" });
+      return res.status(404).json({ success: false, error: "اشتراک مورد نظر یافت نشد." });
     }
 
     const settings = getSystemSettings(db);
-    const clientName = key.clientName || key.planName || "";
+    const clientName = key.clientName || key.clientEmail || key.planName || "";
 
     // Calculate new expiration date
     let expDt: Date;
@@ -7022,16 +7118,17 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       expDt = new Date();
     }
 
-    expDt.setDate(expDt.getDate() + Number(addDays));
-    const new_expire_date_str = expDt.toISOString().split("T")[0];
-    const new_limit_gb = Number(key.trafficLimitGb || 0) + Number(addGb);
+    const numGb = Math.max(0, Number(addGb) || 0);
+    const numDays = Math.max(0, Number(addDays) || 0);
 
-    const new_exp_days = Math.max(1, Math.ceil((expDt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    expDt.setDate(expDt.getDate() + numDays);
+    const new_expire_date_str = expDt.toISOString().split("T")[0];
+    const new_limit_gb = Number(key.trafficLimitGb || 0) + numGb;
 
     const addResult = await extendVpnClientApi(
       clientName,
-      Number(addGb),
-      Number(addDays),
+      numGb,
+      numDays,
       key.clientUuid,
       key.serverId
     );
@@ -7040,20 +7137,40 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       console.warn("Could not renew on panel, renewing locally anyway. Error:", addResult.error);
     }
 
-    // 3. Update locally
+    // Update locally
     key.expireDate = new_expire_date_str;
     key.trafficLimitGb = new_limit_gb;
     key.status = "active";
 
     // Re-enable in users if count updated
-    const user = db.users?.find((u: any) => u.userId === Number(key.userId));
+    const user = (db.users || []).find((u: any) => Number(u.userId) === Number(key.userId));
     if (user) {
-      user.activePlansCount = db.subscription_keys.filter(
-        (k: any) => k.userId === Number(key.userId) && k.status === "active",
+      user.activePlansCount = (db.subscription_keys || []).filter(
+        (k: any) => Number(k.userId) === Number(key.userId) && k.status === "active",
       ).length;
+      if (Array.isArray(user.configs)) {
+        const c = user.configs.find((cfg: any) => String(cfg.id) === String(key.id) || String(cfg.uuid) === String(key.clientUuid));
+        if (c) {
+          c.expireDate = key.expireDate;
+          c.trafficLimitGb = key.trafficLimitGb;
+          c.status = "active";
+        }
+      }
     }
 
     writeSqliteDb(db);
+
+    // Notify user on Telegram
+    if (key.userId && settings.botToken) {
+      const renewUserMsg =
+        `🎉 <b>اشتراک شما با موفقیت تمدید شد</b>\n\n` +
+        `📦 <b>پلن:</b> ${key.planName || "اشتراک اختصاصی"}\n` +
+        `➕ <b>افزایش حجم:</b> +${numGb} گیگابایت (مجموع: ${new_limit_gb} GB)\n` +
+        `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
+        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n\n` +
+        `🔗 <b>لینک اتصال:</b>\n<code>${key.subLink || ""}</code>`;
+      sendTelegramMessage(settings.botToken, key.userId, renewUserMsg).catch(() => {});
+    }
 
     res.json({ success: true, key });
   } catch (error: any) {
@@ -7066,17 +7183,19 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
     const { id, status } = req.body;
     const db = readSqliteDb();
 
-    const keyToToggle = db.subscription_keys.find((k: any) => k.id === id);
+    const keyToToggle = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
     if (!keyToToggle)
-      return res.status(404).json({ success: false, error: "Key not found" });
+      return res.status(404).json({ success: false, error: "کانفیگ مورد نظر یافت نشد." });
 
     const newStatus = status === "active" ? "active" : "suspended";
+    const clientIdentifier = keyToToggle.clientName || keyToToggle.clientEmail || keyToToggle.planName || "";
 
-    if (keyToToggle.clientName) {
+    if (clientIdentifier) {
       const vpnResult = await toggleVpnClientApi(
-        keyToToggle.clientName,
+        clientIdentifier,
         newStatus === "active",
-        keyToToggle.clientUuid
+        keyToToggle.clientUuid,
+        keyToToggle.serverId
       );
       if (!vpnResult.success) {
         console.warn(
@@ -7088,16 +7207,31 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
 
     keyToToggle.status = newStatus;
 
-    // Update user active plans count
-    const user = db.users.find((u) => u.userId === keyToToggle.userId);
+    // Update user active plans count and configs list
+    const user = (db.users || []).find((u: any) => Number(u.userId) === Number(keyToToggle.userId));
     if (user) {
-      user.activePlansCount = db.subscription_keys.filter(
-        (k) => k.userId === user.userId && k.status === "active",
+      user.activePlansCount = (db.subscription_keys || []).filter(
+        (k: any) => Number(k.userId) === Number(user.userId) && k.status === "active",
       ).length;
+      if (Array.isArray(user.configs)) {
+        const c = user.configs.find((cfg: any) => String(cfg.id) === String(keyToToggle.id) || String(cfg.uuid) === String(keyToToggle.clientUuid));
+        if (c) {
+          c.status = newStatus;
+        }
+      }
     }
 
     writeSqliteDb(db);
-    res.json({ success: true, status: newStatus });
+
+    const settings = getSystemSettings(db);
+    if (keyToToggle.userId && settings.botToken) {
+      const toggleMsg = newStatus === "active"
+        ? `🟢 <b>اشتراک شما مجدداً فعال شد</b>\n\n📦 <b>پلن:</b> ${keyToToggle.planName || "اشتراک اختصاصی"}\nاتصال شما روی سرور برقرار است.`
+        : `⏸ <b>اشتراک شما موقتاً به حالت تعلیق درآمد</b>\n\n📦 <b>پلن:</b> ${keyToToggle.planName || "اشتراک اختصاصی"}\nدسترسی این کانفیگ موقتاً قطع شد.`;
+      sendTelegramMessage(settings.botToken, keyToToggle.userId, toggleMsg).catch(() => {});
+    }
+
+    res.json({ success: true, status: newStatus, key: keyToToggle });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -7270,6 +7404,150 @@ async function sendTelegramPhoto(
   return await sendTelegramMessage(botToken, chatId, caption, replyMarkup);
 }
 
+// Universal helper to resolve all Admin and Owner Telegram IDs
+function getAdminTargetIds(settings: any): number[] {
+  const adminTargets: number[] = [];
+  const add = (uid: any) => {
+    if (uid === undefined || uid === null) return;
+    const num = Number(uid);
+    if (num && !isNaN(num) && num > 0 && !adminTargets.includes(num)) {
+      adminTargets.push(num);
+    }
+  };
+  if (settings) {
+    if (settings.ownerId) add(settings.ownerId);
+    if (settings.owner_id) add(settings.owner_id);
+    if (settings.ownerTelegramId) add(settings.ownerTelegramId);
+    if (settings.ownerUserId) add(settings.ownerUserId);
+    if (settings.superAdminId) add(settings.superAdminId);
+    if (settings.adminId) add(settings.adminId);
+    if (settings.admin_id) add(settings.admin_id);
+    if (settings.telegramAdminId) add(settings.telegramAdminId);
+    if (Array.isArray(settings.admins)) {
+      for (const adm of settings.admins) {
+        const uid = typeof adm === "object" && adm ? (adm.userId || adm.user_id || adm.id || adm.telegramId || adm.tgId) : adm;
+        add(uid);
+      }
+    }
+    if (Array.isArray(settings.adminIds)) {
+      for (const a of settings.adminIds) add(a);
+    } else if (typeof settings.adminIds === "string") {
+      for (const a of settings.adminIds.split(",")) add(a.trim());
+    }
+  }
+  if (process.env.OWNER_ID) add(process.env.OWNER_ID);
+  if (process.env.ADMIN_USER_ID) add(process.env.ADMIN_USER_ID);
+  if (process.env.TELEGRAM_ADMIN_ID) add(process.env.TELEGRAM_ADMIN_ID);
+  return adminTargets;
+}
+
+// Universal role resolution for Telegram MiniApp and APIs
+function checkUserRoleAndAdmin(
+  tgId: number,
+  tgUsername?: string,
+  settings?: any,
+  db?: any
+): {
+  isAdmin: boolean;
+  isOwner: boolean;
+  isSuperAdmin: boolean;
+  role: "super_admin" | "admin" | "user";
+  roleTitle: string;
+} {
+  const adminTargets = getAdminTargetIds(settings);
+  const cleanUsername = (tgUsername || "").toLowerCase().replace(/^@/, "").trim();
+
+  // Check if owner
+  const ownerIds: number[] = [];
+  const addOwner = (uid: any) => {
+    if (uid === undefined || uid === null) return;
+    const num = Number(uid);
+    if (num && !isNaN(num) && num > 0 && !ownerIds.includes(num)) ownerIds.push(num);
+  };
+  if (settings) {
+    if (settings.ownerId) addOwner(settings.ownerId);
+    if (settings.owner_id) addOwner(settings.owner_id);
+    if (settings.ownerTelegramId) addOwner(settings.ownerTelegramId);
+    if (settings.ownerUserId) addOwner(settings.ownerUserId);
+    if (settings.superAdminId) addOwner(settings.superAdminId);
+  }
+  if (process.env.OWNER_ID) addOwner(process.env.OWNER_ID);
+
+  let isOwner = tgId > 0 && ownerIds.includes(tgId);
+  let isSuperAdmin = isOwner;
+
+  // Check owner by username
+  const ownerUsernames: string[] = [];
+  if (settings?.ownerUsername) ownerUsernames.push(String(settings.ownerUsername).toLowerCase().replace(/^@/, "").trim());
+  if (settings?.adminUsername) ownerUsernames.push(String(settings.adminUsername).toLowerCase().replace(/^@/, "").trim());
+  if (cleanUsername && ownerUsernames.includes(cleanUsername)) {
+    isOwner = true;
+    isSuperAdmin = true;
+  }
+
+  // Check admins list
+  let isAdmin = isOwner || (tgId > 0 && adminTargets.includes(tgId));
+
+  if (Array.isArray(settings?.admins)) {
+    for (const adm of settings.admins) {
+      if (typeof adm === "object" && adm !== null) {
+        const admUid = Number(adm.userId || adm.user_id || adm.id || adm.telegramId || adm.tgId);
+        const admUname = String(adm.username || "").toLowerCase().replace(/^@/, "").trim();
+        const matchesId = tgId > 0 && admUid === tgId;
+        const matchesUname = cleanUsername && admUname && (cleanUsername === admUname);
+        
+        if (matchesId || matchesUname) {
+          isAdmin = true;
+          if (adm.role === "super_admin" || adm.role === "owner" || adm.isOwner || adm.isSuperAdmin) {
+            isSuperAdmin = true;
+            isOwner = true;
+          }
+        }
+      }
+    }
+  }
+
+  // Check in db.users
+  if (db && Array.isArray(db.users)) {
+    const dbUser = db.users.find((u: any) => 
+      (tgId > 0 && (Number(u.userId) === tgId || Number(u.id) === tgId || Number(u.user_id) === tgId)) || 
+      (cleanUsername && String(u.username || "").toLowerCase().replace(/^@/, "").trim() === cleanUsername)
+    );
+    if (dbUser) {
+      if (dbUser.role === "owner" || dbUser.role === "super_admin" || dbUser.isOwner || dbUser.isSuperAdmin) {
+        isOwner = true;
+        isSuperAdmin = true;
+        isAdmin = true;
+      } else if (dbUser.role === "admin" || dbUser.isAdmin) {
+        isAdmin = true;
+      }
+    }
+  }
+
+  const role: "super_admin" | "admin" | "user" = isSuperAdmin || isOwner ? "super_admin" : isAdmin ? "admin" : "user";
+  const roleTitle = isSuperAdmin || isOwner ? "مدیر ارشد (سوپر ادمین)" : isAdmin ? "مدیر سیستم" : "کاربر عمومی";
+
+  return { isAdmin, isOwner, isSuperAdmin, role, roleTitle };
+}
+
+// Universal helper to send notification to all Admins and Owner
+async function sendAdminNotification(messageText: string, settings: any, replyMarkup?: any) {
+  try {
+    const botToken = settings?.botToken || settings?.telegramBotToken || process.env.BOT_TOKEN;
+    if (!botToken || botToken === "DUMMY_TOKEN") return;
+    const targets = getAdminTargetIds(settings);
+    for (const targetId of targets) {
+      try {
+        await sendTelegramMessage(botToken, targetId, messageText, replyMarkup);
+      } catch (err: any) {
+        console.warn(`[Admin Notify Warning] for ${targetId}:`, err?.message);
+      }
+    }
+  } catch (e: any) {
+    console.error("[sendAdminNotification Error]", e);
+  }
+}
+
 // 1. Initial Aggregated Data for MiniApp (User, Plans, Servers, Categories, Configs, Settings)
 // Helper to send instant notification to all bot admins on new receipt submission
 async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
@@ -7277,28 +7555,7 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
     const botToken = settings.botToken || settings.telegramBotToken || process.env.BOT_TOKEN;
     if (!botToken || botToken === "DUMMY_TOKEN") return;
 
-    const adminTargets: number[] = [];
-    if (Array.isArray(settings.admins)) {
-      for (const adm of settings.admins) {
-        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
-        if (uid && !isNaN(uid) && !adminTargets.includes(uid)) {
-          adminTargets.push(uid);
-        }
-      }
-    }
-    if (settings.ownerId && !isNaN(Number(settings.ownerId)) && !adminTargets.includes(Number(settings.ownerId))) {
-      adminTargets.push(Number(settings.ownerId));
-    }
-    if (settings.adminId && !isNaN(Number(settings.adminId)) && !adminTargets.includes(Number(settings.adminId))) {
-      adminTargets.push(Number(settings.adminId));
-    }
-    if (settings.admin_id && !isNaN(Number(settings.admin_id)) && !adminTargets.includes(Number(settings.admin_id))) {
-      adminTargets.push(Number(settings.admin_id));
-    }
-    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID)) && !adminTargets.includes(Number(process.env.ADMIN_USER_ID))) {
-      adminTargets.push(Number(process.env.ADMIN_USER_ID));
-    }
-
+    const adminTargets = getAdminTargetIds(settings);
     if (adminTargets.length === 0) return;
 
     const usernameDisplay = tx.username ? `@${tx.username.replace(/^@/, '')}` : `کاربر (${tx.userId})`;
@@ -7382,6 +7639,14 @@ app.get("/api/miniapp/data", async (req, res) => {
     let tgId = tgIdRaw ? Number(tgIdRaw) : 0;
     let currentUser: any = null;
 
+    // Resolve comprehensive user role & permissions
+    const userRoleCheck = checkUserRoleAndAdmin(tgId, tgUsername, settings, db);
+    const isAdmin = userRoleCheck.isAdmin;
+    const isOwner = userRoleCheck.isOwner;
+    const isSuperAdmin = userRoleCheck.isSuperAdmin;
+    const userRole = userRoleCheck.role;
+    const userRoleTitle = userRoleCheck.roleTitle;
+
     if (tgId && !isNaN(tgId) && tgId > 0) {
       if (!Array.isArray(db.users)) db.users = [];
       currentUser = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
@@ -7400,6 +7665,10 @@ app.get("/api/miniapp/data", async (req, res) => {
           wallet_balance: 0,
           balance: 0,
           status: "active",
+          role: userRole,
+          isAdmin: isAdmin,
+          isOwner: isOwner,
+          isSuperAdmin: isSuperAdmin,
           activePlansCount: 0,
           registeredAt: new Date().toISOString(),
           createdAt: new Date().toISOString()
@@ -7418,25 +7687,18 @@ app.get("/api/miniapp/data", async (req, res) => {
           currentUser.fullName = `${tgFirstName} ${tgLastName || currentUser.lastName || ""}`.trim();
           updated = true;
         }
+        if (currentUser.role !== userRole || currentUser.isAdmin !== isAdmin || currentUser.isOwner !== isOwner) {
+          currentUser.role = userRole;
+          currentUser.isAdmin = isAdmin;
+          currentUser.isOwner = isOwner;
+          currentUser.isSuperAdmin = isSuperAdmin;
+          updated = true;
+        }
         if (updated) {
           writeSqliteDb(db);
         }
       }
     }
-
-    // Check if user is an Admin
-    const adminTargets: number[] = [];
-    if (Array.isArray(settings.admins)) {
-      for (const adm of settings.admins) {
-        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
-        if (uid && !isNaN(uid)) adminTargets.push(uid);
-      }
-    }
-    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
-    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
-    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
-    
-    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
 
     // Active Servers - Filter standard vs colleague
     const rawServers = getActiveServers(settings);
@@ -7581,19 +7843,29 @@ app.get("/api/miniapp/data", async (req, res) => {
     const isCustomPricingActive = settings.isCustomPricingActive !== false && panelConfig.isCustomPricingActive !== false;
     const customPricingBoxes = panelConfig.customPricingBoxes || settings.customPricingBoxes || [];
 
-    // User Subscriptions (Configs)
+    // User Subscriptions (Configs) - Sorted newest first by default
     const userSubs = tgId > 0
-      ? (db.subscription_keys || []).filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId).map((k: any) => {
-          const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
-          const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, k.subLink);
-          return {
-            ...k,
-            serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
-            serverFlag: srv ? mapServerFormat(srv).flag : "🌐",
-            vlessConfigs: k.vlessConfigs && k.vlessConfigs.length > 0 ? k.vlessConfigs : vlessData.vlessConfigs,
-            vlessLinks: k.vlessLinks && k.vlessLinks.length > 0 ? k.vlessLinks : vlessData.vlessLinks
-          };
-        })
+      ? (db.subscription_keys || [])
+          .filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId)
+          .map((k: any) => {
+            const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
+            const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, k.subLink);
+            return {
+              ...k,
+              serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
+              serverFlag: srv ? mapServerFormat(srv).flag : "🌐",
+              vlessConfigs: k.vlessConfigs && k.vlessConfigs.length > 0 ? k.vlessConfigs : vlessData.vlessConfigs,
+              vlessLinks: k.vlessLinks && k.vlessLinks.length > 0 ? k.vlessLinks : vlessData.vlessLinks
+            };
+          })
+          .sort((a: any, b: any) => {
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+            const idA = typeof a.id === "number" ? a.id : parseInt(String(a.id).replace(/\D/g, ""), 10) || 0;
+            const idB = typeof b.id === "number" ? b.id : parseInt(String(b.id).replace(/\D/g, ""), 10) || 0;
+            return idB - idA;
+          })
       : [];
 
     // Check if free test used
@@ -7663,7 +7935,10 @@ app.get("/api/miniapp/data", async (req, res) => {
           status: currentUser.status || "active",
           isBanned: currentUser.status === "banned",
           isAdmin: isAdmin,
-          role: isAdmin ? "admin" : "user",
+          isOwner: isOwner,
+          isSuperAdmin: isSuperAdmin,
+          role: userRole,
+          roleTitle: userRoleTitle,
           activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
           invitedCount: invitedCount,
           totalTrafficGb: totalTrafficGb,
@@ -7673,6 +7948,10 @@ app.get("/api/miniapp/data", async (req, res) => {
           createdAt: currentUser.createdAt || currentUser.registeredAt || currentUser.created_at || currentUser.joinedAt || new Date().toISOString()
         } : null,
         isAdmin,
+        isOwner,
+        isSuperAdmin,
+        role: userRole,
+        roleTitle: userRoleTitle,
         servers: activeServers,
         colleagueServers: colleagueServers.length > 0 ? colleagueServers : activeServers,
         colleaguePackages,
@@ -7936,19 +8215,9 @@ app.post("/api/miniapp/colleague/buy-package", async (req, res) => {
       db.users.push(user);
     }
 
-    // Check Admin status
-    const adminTargets: number[] = [];
-    if (Array.isArray(settings.admins)) {
-      for (const adm of settings.admins) {
-        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
-        if (uid && !isNaN(uid)) adminTargets.push(uid);
-      }
-    }
-    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
-    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
-    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
-    
-    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
+    // Check Admin and Owner status
+    const roleCheck = checkUserRoleAndAdmin(tgId, username, settings, db);
+    const isAdmin = roleCheck.isAdmin;
     const isFreeAdmin = isAdmin && (paymentMethod === "admin_free" || paymentMethod === "wallet");
     const finalPrice = isFreeAdmin ? 0 : Number(pkg.price || 0);
 
@@ -8087,6 +8356,15 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
     const reqGb = Math.max(1, Number(trafficGb) || 10);
     const reqDays = Math.max(1, Number(durationDays) || 30);
 
+    // Enforce colleague minimum create GB
+    const minAllowedGb = Number(acc.minCreateGb || settings.colleagueMinCreateGb || settings.minCreateGb || 0);
+    if (minAllowedGb > 0 && reqGb < minAllowedGb) {
+      return res.status(400).json({
+        success: false,
+        error: `حداقل حجم مجاز برای ساخت هر کانفیگ ${minAllowedGb} گیگابایت می‌باشد.`
+      });
+    }
+
     // Calculate allowance
     const keys = db.subscription_keys || [];
     const colKeys = keys.filter((k: any) => isKeyForColleague(k, acc));
@@ -8154,6 +8432,21 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
     if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
     db.subscription_keys.push(newSub);
     writeSqliteDb(db);
+
+    // Notify Admins on colleague client creation
+    try {
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(serverId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور همکاران";
+      const colMsg =
+        `🤝 <b>ساخت کانفیگ جدید توسط همکار</b>\n\n` +
+        `👤 <b>همکار:</b> ${acc.prefix ? `[${acc.prefix}] ` : ''}${acc.username || acc.name || acc.id}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `📦 <b>مشخصات:</b> ${reqGb} گیگابایت (${reqDays} روز)\n` +
+        `🔑 <b>نام کلاینت:</b> <code>${baseName}</code>\n` +
+        `🔗 <b>لینک ساب:</b>\n<code>${vpnResult.subLink}</code>\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(colMsg, settings).catch(() => {});
+    } catch (e) {}
 
     return res.json({
       success: true,
@@ -8298,6 +8591,34 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       ? Number(selectedPlan.durationDays || selectedPlan.duration_days || selectedPlan.duration)
       : Math.max(1, Number(customDays) || 30);
 
+    // Enforce custom pricing min limits if custom plan selected
+    if (planId === "custom" || planId === "custom_vol" || (!selectedPlan && customGb)) {
+      let minCustomGb = 1;
+      let minCustomDays = 1;
+      try {
+        const pc = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
+        const boxes = pc.customPricingBoxes || settings.customPricingBoxes || [];
+        const matchingBox = boxes.find((b: any) => Array.isArray(b.serverIds) && b.serverIds.includes(String(serverId)));
+        if (matchingBox) {
+          if (matchingBox.minGb) minCustomGb = Number(matchingBox.minGb);
+          if (matchingBox.minDays) minCustomDays = Number(matchingBox.minDays);
+        }
+      } catch (e) {}
+
+      if (trafficGb < minCustomGb) {
+        return res.status(400).json({
+          success: false,
+          error: `حداقل حجم مجاز برای این سرور ${minCustomGb} گیگابایت می‌باشد.`
+        });
+      }
+      if (durationDays < minCustomDays) {
+        return res.status(400).json({
+          success: false,
+          error: `حداقل مدت زمان مجاز برای این سرور ${minCustomDays} روز می‌باشد.`
+        });
+      }
+    }
+
     const effectivePlanName = selectedPlan?.name || planName || `${trafficGb} گیگابایت (${durationDays} روز)`;
 
     const randomSuffix = Math.random().toString(36).substring(2, 8);
@@ -8346,19 +8667,9 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       }
     }
 
-    // Check if user is an Admin
-    const adminTargets: number[] = [];
-    if (Array.isArray(settings.admins)) {
-      for (const adm of settings.admins) {
-        const uid = typeof adm === "object" ? Number(adm.userId || adm.user_id || adm.id) : Number(adm);
-        if (uid && !isNaN(uid)) adminTargets.push(uid);
-      }
-    }
-    if (settings.adminId && !isNaN(Number(settings.adminId))) adminTargets.push(Number(settings.adminId));
-    if (settings.admin_id && !isNaN(Number(settings.admin_id))) adminTargets.push(Number(settings.admin_id));
-    if (process.env.ADMIN_USER_ID && !isNaN(Number(process.env.ADMIN_USER_ID))) adminTargets.push(Number(process.env.ADMIN_USER_ID));
-    
-    const isAdmin = tgId > 0 && adminTargets.includes(tgId);
+    // Check if user is an Admin or Owner
+    const roleCheck = checkUserRoleAndAdmin(tgId, username, settings, db);
+    const isAdmin = roleCheck.isAdmin;
 
     // If user is Admin or selects admin_free mode, price is 0 and instant create
     const isFreeAdminPurchase = isAdmin && (paymentMethod === "admin_free" || paymentMethod === "wallet" || paymentMethod === "card_to_card");
@@ -8430,6 +8741,21 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       // Update user active count
       user.activePlansCount = db.subscription_keys.filter((k: any) => Number(k.userId) === tgId && k.status === "active").length;
       writeSqliteDb(db);
+
+      // Notify Owner and Admins
+      try {
+        const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(serverId));
+        const srvName = serverObj?.name || serverObj?.remark || "سرور اختصاصی";
+        const purchaseAdminMsg = 
+          `👑 <b>سفارش ویژه مدیریت (از مینی‌اپ)</b>\n\n` +
+          `👤 <b>کاربر:</b> @${String(user.username || username || tgId).replace(/^@/, '')} (<code>${tgId}</code>)\n` +
+          `📦 <b>پلن:</b> ${planName}\n` +
+          `🌐 <b>سرور:</b> ${srvName}\n` +
+          `🔑 <b>نام کانفیگ:</b> <code>${cleanClientName}</code>\n` +
+          `🔗 <b>لینک ساب:</b>\n<code>${vpnResult.subLink}</code>\n` +
+          `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        sendAdminNotification(purchaseAdminMsg, settings).catch(() => {});
+      } catch (e) {}
 
       return res.json({
         success: true,
@@ -8535,6 +8861,22 @@ app.post("/api/miniapp/purchase", async (req, res) => {
 
       writeSqliteDb(db);
 
+      // Notify Owner and Admins
+      try {
+        const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(serverId));
+        const srvName = serverObj?.name || serverObj?.remark || "سرور عمومی";
+        const purchaseAdminMsg = 
+          `🛍️ <b>خرید موفق اشتراک جدید (از مینی‌اپ)</b>\n\n` +
+          `👤 <b>کاربر:</b> @${String(user.username || username || tgId).replace(/^@/, '')} (<code>${tgId}</code>)\n` +
+          `📦 <b>پلن:</b> ${planName}\n` +
+          `🌐 <b>سرور:</b> ${srvName}\n` +
+          `💰 <b>مبلغ فاکتور:</b> ${finalPrice.toLocaleString("fa-IR")} تومان\n` +
+          `🔑 <b>نام کانفیگ:</b> <code>${cleanClientName}</code>\n` +
+          `🔗 <b>لینک ساب:</b>\n<code>${vpnResult.subLink}</code>\n` +
+          `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        sendAdminNotification(purchaseAdminMsg, settings).catch(() => {});
+      } catch (e) {}
+
       return res.json({
         success: true,
         subKey: newSub,
@@ -8619,8 +8961,9 @@ app.post("/api/miniapp/free-test", async (req, res) => {
       return res.status(400).json({ success: false, error: freeTestDisabledMsg });
     }
 
-    const isOwner = Number(settings.ownerId) === tgId || (process.env.OWNER_ID && Number(process.env.OWNER_ID) === tgId);
-    const isAdmin = isOwner || (Array.isArray(settings.admins) && settings.admins.map(Number).includes(tgId));
+    const roleCheck = checkUserRoleAndAdmin(tgId, username, settings, db);
+    const isOwner = roleCheck.isOwner;
+    const isAdmin = roleCheck.isAdmin;
 
     // Check if user already used test
     const subs = db.subscription_keys || [];
@@ -8730,6 +9073,20 @@ app.post("/api/miniapp/free-test", async (req, res) => {
     }
 
     writeSqliteDb(db);
+
+    // Notify Owner and Admins
+    try {
+      const freeTestAdminMsg = 
+        `🎁 <b>دریافت اکانت تست رایگان (از مینی‌اپ)</b>\n\n` +
+        `👤 <b>کاربر:</b> @${String(username || tgId).replace(/^@/, '')} (<code>${tgId}</code>)\n` +
+        `🌐 <b>سرور:</b> ${targetServerObj ? (targetServerObj.name || targetServerObj.remark) : "سرور تست"}\n` +
+        `📦 <b>مشخصات پلن:</b> ${freeGbStr} (${freeDaysStr})\n` +
+        `🔑 <b>نام کلاینت:</b> <code>${cleanClientName}</code>\n` +
+        `🔗 <b>لینک ساب:</b>\n<code>${vpnResult.subLink}</code>\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(freeTestAdminMsg, settings).catch(() => {});
+    } catch (e) {}
+
     res.json({ success: true, subKey: newSub, message: "اکانت تست رایگان با موفقیت فعال شد." });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -8813,25 +9170,17 @@ const handleCreateTicketMiniApp = async (req: any, res: any) => {
     db.tickets.push(newTicket);
     writeSqliteDb(db);
 
-    // Notify Admin on Telegram if configured
-    const settings = db.settings || {};
-    if (settings.botToken && settings.adminIds) {
-      const adminList = Array.isArray(settings.adminIds)
-        ? settings.adminIds
-        : String(settings.adminIds).split(",").map((s) => s.trim());
-      const notifyMsg =
-        `🎫 <b>تیکت جدید از مینی‌اپ:</b>\n\n` +
-        `👤 <b>کاربر:</b> ${username ? "@" + username : tgId}\n` +
-        `🆔 <b>شناسه تیکت:</b> <code>${newTicket.id}</code>\n` +
-        `📌 <b>موضوع:</b> ${newTicket.subject}\n\n` +
-        `💬 <b>متن پیام:</b>\n${message.trim()}`;
+    // Notify Admin on Telegram
+    const settings = getSystemSettings(db);
+    const notifyMsg =
+      `🎫 <b>تیکت جدید از مینی‌اپ:</b>\n\n` +
+      `👤 <b>کاربر:</b> ${username ? "@" + username.replace(/^@/, '') : `کاربر (${tgId})`} (<code>${tgId}</code>)\n` +
+      `🆔 <b>شناسه تیکت:</b> <code>${newTicket.id}</code>\n` +
+      `📌 <b>موضوع:</b> ${newTicket.subject}\n\n` +
+      `💬 <b>متن پیام:</b>\n${message.trim()}\n\n` +
+      `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
 
-      for (const adminId of adminList) {
-        if (adminId) {
-          sendTelegramMessage(settings.botToken, adminId, notifyMsg).catch(() => {});
-        }
-      }
-    }
+    sendAdminNotification(notifyMsg, settings).catch(() => {});
 
     res.json({ success: true, ticket: newTicket });
   } catch (error: any) {
@@ -8872,6 +9221,18 @@ const handleReplyTicketMiniApp = async (req: any, res: any) => {
     ticket.status = "open";
 
     writeSqliteDb(db);
+
+    // Notify Admins on User Reply
+    const settings = getSystemSettings(db);
+    const replyNotifyMsg =
+      `💬 <b>پاسخ جدید کاربر به تیکت (مینی‌اپ)</b>\n\n` +
+      `👤 <b>کاربر:</b> ${ticket.username ? "@" + ticket.username.replace(/^@/, '') : `کاربر (${userId})`} (<code>${userId}</code>)\n` +
+      `🆔 <b>شناسه تیکت:</b> <code>${ticket.id}</code>\n` +
+      `📌 <b>موضوع:</b> ${ticket.subject}\n\n` +
+      `📝 <b>متن پاسخ:</b>\n${message.trim()}`;
+
+    sendAdminNotification(replyNotifyMsg, settings).catch(() => {});
+
     res.json({ success: true, ticket: sanitizeTicketsList([ticket])[0] });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
