@@ -6985,6 +6985,19 @@ app.get("/api/miniapp/data", async (req, res) => {
       ? (db.transactions || []).filter((tx: any) => Number(tx.userId) === tgId).slice(-20)
       : [];
 
+    // User Statistics Computation for Profile
+    const invitedCount = (db.users || []).filter((u: any) =>
+      (u.invitedBy && (Number(u.invitedBy) === tgId || String(u.invitedBy) === String(tgId))) ||
+      (u.inviterId && (Number(u.inviterId) === tgId || String(u.inviterId) === String(tgId))) ||
+      (u.referrerId && (Number(u.referrerId) === tgId || String(u.referrerId) === String(tgId)))
+    ).length || Number(currentUser?.invitedCount || currentUser?.referralsCount || currentUser?.invited_count || 0);
+
+    const totalTrafficGb = userSubs.reduce((acc: number, s: any) => acc + Number(s.trafficLimitGb || s.traffic_limit_gb || s.totalGb || 0), 0);
+    const totalUsedTrafficGb = userSubs.reduce((acc: number, s: any) => acc + Number(s.trafficUsedGb || s.traffic_used_gb || 0), 0);
+    const totalDeposits = (db.transactions || [])
+      .filter((tx: any) => (Number(tx.userId) === tgId || Number(tx.user_id) === tgId) && tx.status === "approved")
+      .reduce((acc: number, tx: any) => acc + Number(tx.amount || 0), 0);
+
     res.json({
       success: true,
       user: currentUser ? {
@@ -7000,7 +7013,12 @@ app.get("/api/miniapp/data", async (req, res) => {
         isAdmin: isAdmin,
         role: isAdmin ? "admin" : "user",
         activePlansCount: userSubs.filter((s: any) => s.status === "active").length,
-        createdAt: currentUser.createdAt || currentUser.registeredAt || new Date().toISOString()
+        invitedCount: invitedCount,
+        totalTrafficGb: totalTrafficGb,
+        totalUsedTrafficGb: totalUsedTrafficGb,
+        totalDeposits: totalDeposits,
+        totalTicketsCount: userTickets.length,
+        createdAt: currentUser.createdAt || currentUser.registeredAt || currentUser.created_at || currentUser.joinedAt || new Date().toISOString()
       } : null,
       isAdmin,
       servers: activeServers,
@@ -7023,6 +7041,7 @@ app.get("/api/miniapp/data", async (req, res) => {
       },
       settings: {
         botNickname: settings.botNickname || "دالتون",
+        botUsername: settings.botUsername || settings.botNickname || "DaltoonBot",
         cardNumber: settings.cardNumber || "",
         cardHolder: settings.cardHolder || "",
         channelUsername: settings.channelUsername || "",

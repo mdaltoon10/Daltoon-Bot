@@ -38,7 +38,11 @@ import {
   LogOut,
   X,
   Crown,
-  Wallet
+  Wallet,
+  Calendar,
+  Share2,
+  Activity,
+  Award
 } from "lucide-react";
 
 declare global {
@@ -2854,49 +2858,215 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 5: PROFILE & SUPPORT                                                  */}
+        {/* TAB 5: PROFILE & DETAILED USER STATS                                      */}
         {/* ========================================================================= */}
         {activeTab === "profile" && !loading && (
           <div id="view-profile" className="space-y-4">
-            {/* User Profile Card */}
-            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-5 space-y-4 shadow-xl">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-purple-500/30">
-                  {tgUser?.first_name ? tgUser.first_name[0] : "U"}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-base text-white">
-                      {tgUser?.first_name || "کاربر"} {tgUser?.last_name || ""}
-                    </span>
-                    {isAdmin ? (
-                      <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
-                        👑 مدیر کل
-                      </span>
-                    ) : (
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-                        کاربر فعال
-                      </span>
-                    )}
+            {/* User Profile Header Card */}
+            <div className="rounded-3xl bg-slate-900/90 border border-slate-800 p-5 space-y-4 shadow-xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-pink-500 flex items-center justify-center text-white font-black text-xl shadow-lg shadow-purple-500/30 border-2 border-purple-400/30">
+                      {tgUser?.first_name ? tgUser.first_name[0] : "U"}
+                    </div>
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-900 shadow-sm" />
                   </div>
-                  <p className="text-xs text-slate-400 font-mono mt-0.5">
-                    شناسه کاربری: {tgUser?.id} {tgUser?.username ? `(@${tgUser.username})` : ""}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-base text-white">
+                        {tgUser?.first_name || "کاربر"} {tgUser?.last_name || ""}
+                      </span>
+                      {isAdmin ? (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shadow-sm">
+                          <Crown className="w-3 h-3 text-amber-400" /> مدیر کل
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" /> کاربر فعال
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono mt-1">
+                      <span>شناسه: {tgUser?.id || userData?.id || "نامشخص"}</span>
+                      {tgUser?.username && <span className="text-purple-400">(@{tgUser.username})</span>}
+                      <button
+                        onClick={() => copyToClipboard(String(tgUser?.id || userData?.id || ""), "user-id")}
+                        className="p-1 hover:text-white transition-colors text-slate-500"
+                        title="کپی شناسه"
+                      >
+                        {copiedId === "user-id" ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={fetchMiniAppData}
+                  className="p-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
+                  title="بروزرسانی داده‌ها"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Account Quick Status Line */}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-300">
+                <span className="flex items-center gap-1 text-slate-400">
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" /> تاریخ ورود / عضویت:
+                </span>
+                <span className="font-bold text-slate-200">
+                  {userData?.createdAt ? new Intl.DateTimeFormat("fa-IR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(userData.createdAt)) : "امروز"}
+                </span>
+              </div>
+            </div>
+
+            {/* Comprehensive Metrics Grid */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* 1. Date Joined */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Calendar className="w-3.5 h-3.5 text-purple-400" />
+                  <span>تاریخ عضویت</span>
+                </div>
+                <div className="text-xs font-extrabold text-white">
+                  {userData?.createdAt ? new Intl.DateTimeFormat("fa-IR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(userData.createdAt)) : "امروز"}
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-800 text-xs">
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <div className="text-slate-400">موجودی کیف پول:</div>
-                  <div className="font-bold text-white mt-0.5">
-                    {isAdmin ? "نامحدود" : `${Number(userData?.walletBalance || 0).toLocaleString("fa-IR")} ت`}
-                  </div>
+              {/* 2. Invited Friends */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Users className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>تعداد دعوت شدگان</span>
                 </div>
-                <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                  <div className="text-slate-400">سرویس‌های خریداری شده:</div>
-                  <div className="font-bold text-purple-300 mt-0.5">
-                    {subscriptions.length} سرویس
+                <div className="text-xs font-extrabold text-indigo-300">
+                  {userData?.invitedCount || 0} نفر
+                </div>
+              </div>
+
+              {/* 3. Wallet Balance */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>موجودی کیف پول</span>
+                </div>
+                <div className="text-xs font-extrabold text-emerald-300">
+                  {isAdmin ? "نامحدود" : `${Number(userData?.walletBalance || 0).toLocaleString("fa-IR")} تومان`}
+                </div>
+              </div>
+
+              {/* 4. Active Plans */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>سرویس‌های فعال</span>
+                </div>
+                <div className="text-xs font-extrabold text-amber-300">
+                  {subscriptions.filter((s: any) => s.status === "active").length} سرویس
+                </div>
+              </div>
+
+              {/* 5. Total Volume */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                  <span>کل ترافیک خریداری شده</span>
+                </div>
+                <div className="text-xs font-extrabold text-sky-300">
+                  {userData?.totalTrafficGb || subscriptions.reduce((acc: number, s: any) => acc + Number(s.trafficLimitGb || s.traffic_limit_gb || s.totalGb || 0), 0)} GB
+                </div>
+              </div>
+
+              {/* 6. Total Payments */}
+              <div className="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800 space-y-1 shadow-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                  <CreditCard className="w-3.5 h-3.5 text-pink-400" />
+                  <span>مجموع پرداختی‌ها</span>
+                </div>
+                <div className="text-xs font-extrabold text-pink-300">
+                  {Number(userData?.totalDeposits || 0).toLocaleString("fa-IR")} تومان
+                </div>
+              </div>
+            </div>
+
+            {/* Dedicated Referral System & Invitation Link Card */}
+            <div className="rounded-3xl bg-gradient-to-br from-indigo-950/70 via-slate-900 to-slate-900 border border-indigo-500/30 p-4 space-y-3.5 shadow-xl">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center shadow-inner">
+                  <Gift className="w-5 h-5 text-indigo-400" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-white">سیستم دعوت از دوستان (زیرمجموعه‌گیری)</h4>
+                  <p className="text-[11px] text-slate-400">با ارسال لینک اختصاصی زیر دوستان خود را دعوت کنید.</p>
+                </div>
+              </div>
+
+              {/* Referral Link Box */}
+              {(() => {
+                const botName = systemSettings.botUsername || systemSettings.channelUsername?.replace(/^@/, '') || "DaltoonBot";
+                const refLink = `https://t.me/${botName}?start=ref_${tgUser?.id || userData?.id || ''}`;
+                return (
+                  <div className="space-y-2">
+                    <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono text-purple-300 truncate select-all dir-ltr text-left w-full">
+                        {refLink}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => copyToClipboard(refLink, "ref-link")}
+                        className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+                      >
+                        {copiedId === "ref-link" ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-300" />}
+                        <span>{copiedId === "ref-link" ? "کپی شد!" : "کپی لینک دعوت"}</span>
+                      </button>
+
+                      <a
+                        href={`https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${encodeURIComponent('🚀 به ربات پرسرعت دالتون وی‌پی‌ان بپیوندید و از اینترنت آزاد لذت ببرید!')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="py-2.5 px-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md shadow-purple-600/20"
+                      >
+                        <Share2 className="w-4 h-4" />
+                        <span>اشتراک‌گذاری در تلگرام</span>
+                      </a>
+                    </div>
                   </div>
+                );
+              })()}
+            </div>
+
+            {/* Account Technical Details */}
+            <div className="rounded-3xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+              <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-purple-400" />
+                <span>مشخصات فنی و وضعیت حساب کاربری</span>
+              </h4>
+
+              <div className="space-y-2 text-xs">
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
+                  <span className="text-slate-400">سطح دسترسی حساب:</span>
+                  <span className="font-bold text-purple-300">{isAdmin ? "مدیر ارشد (Admin)" : "کاربر عمومی"}</span>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
+                  <span className="text-slate-400">کد معرف شما:</span>
+                  <span className="font-mono font-bold text-indigo-300">ref_{tgUser?.id || userData?.id || "N/A"}</span>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
+                  <span className="text-slate-400">تعداد تیکت‌های پشتیبانی:</span>
+                  <span className="font-bold text-white">{userData?.totalTicketsCount || tickets.length} تیکت</span>
+                </div>
+
+                <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 flex justify-between items-center">
+                  <span className="text-slate-400">وضعیت امنیت مینی‌اپ:</span>
+                  <span className="font-bold text-emerald-400 flex items-center gap-1">
+                    <ShieldCheck className="w-3.5 h-3.5" /> احراز هویت شده
+                  </span>
                 </div>
               </div>
             </div>
