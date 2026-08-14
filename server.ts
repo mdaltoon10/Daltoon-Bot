@@ -9167,6 +9167,8 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
     const randomSubId = "COL-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000);
     const expireDate = new Date(Date.now() + reqDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
+    const finalSubLink = buildCorrectSubLinkForClient(vpnResult.subLink || baseName, serverId, settings, db);
+
     const newSub = {
       id: randomSubId,
       userId: 0,
@@ -9178,7 +9180,7 @@ app.post("/api/miniapp/colleague/create-client", async (req, res) => {
       planName: `کانفیگ همکار (${reqGb}GB - ${reqDays} روزه)`,
       clientName: baseName,
       clientUuid: vpnResult.clientUuid || "",
-      subLink: vpnResult.subLink,
+      subLink: finalSubLink,
       vlessConfigs: vpnResult.vlessConfigs || [],
       vlessLinks: vpnResult.vlessLinks || [],
       expireDate,
