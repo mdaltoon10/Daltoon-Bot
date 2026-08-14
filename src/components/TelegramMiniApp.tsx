@@ -1528,8 +1528,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   </div>
                 )}
 
+                {/* Next Step Button (Placed immediately under server selection) */}
+                <button
+                  id="btn-step1-next"
+                  onClick={() => setPurchaseStep(2)}
+                  disabled={!selectedServer}
+                  className="w-full mt-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl font-bold text-sm shadow-xl shadow-purple-600/30 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  <span>مرحله بعد: انتخاب پلن</span>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
                 {/* ------------------------------------------------------------- */}
-                {/* FREE TEST SECTION UNDER SERVERS LIST (1-Click Delivery)        */}
+                {/* FREE TEST SECTION UNDER NEXT STEP BUTTON                      */}
                 {/* ------------------------------------------------------------- */}
                 <div
                   id="section-free-test-under-servers"
@@ -1808,16 +1819,6 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                     </div>
                   )}
                 </div>
-
-                <button
-                  id="btn-step1-next"
-                  onClick={() => setPurchaseStep(2)}
-                  disabled={!selectedServer}
-                  className="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3.5 rounded-2xl font-bold text-sm shadow-xl shadow-purple-600/30 active:scale-98 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span>مرحله بعد: انتخاب پلن</span>
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
               </div>
             )}
 
