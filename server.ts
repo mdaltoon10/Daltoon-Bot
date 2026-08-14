@@ -3908,24 +3908,31 @@ function generateVlessConfigsForClient(
     server = activeServers.find((s: any) => s.status === "active") || activeServers[0];
   }
 
-  // Determine domain/host from subUrl, panelUrl, or settings
-  let host = "vpn.daltoon.online";
-  if (server?.subUrl && server.subUrl.trim() !== "") {
+  // Determine domain/host from subLink, subUrl, panelUrl, or settings
+  let host = "";
+  if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
+    try {
+      const clean = subLink.replace(/^https?:\/\//i, "").split("/")[0];
+      host = clean.split(":")[0];
+    } catch (e) {}
+  }
+
+  if (!host && server?.subUrl && server.subUrl.trim() !== "") {
     try {
       const clean = server.subUrl.replace(/^https?:\/\//i, "").split("/")[0];
       host = clean.split(":")[0];
     } catch (e) {}
-  } else if (server?.panelUrl) {
+  } else if (!host && server?.panelUrl) {
     try {
       const clean = server.panelUrl.replace(/^https?:\/\//i, "").split("/")[0];
       host = clean.split(":")[0];
     } catch (e) {}
-  } else if (settings?.subUrl) {
+  } else if (!host && settings?.subUrl) {
     try {
       const clean = settings.subUrl.replace(/^https?:\/\//i, "").split("/")[0];
       host = clean.split(":")[0];
     } catch (e) {}
-  } else if (settings?.baseUrl) {
+  } else if (!host && settings?.baseUrl) {
     try {
       const clean = settings.baseUrl.replace(/^https?:\/\//i, "").split("/")[0];
       host = clean.split(":")[0];
@@ -3964,7 +3971,7 @@ function generateVlessConfigsForClient(
     }
   }
 
-  if (activeInbounds.length > 0) {
+  if (activeInbounds.length > 0 && host) {
     for (const ib of activeInbounds) {
       const port = Number(ib.port) || 443;
       const protocol = (ib.protocol || "vless").toLowerCase();
@@ -4025,33 +4032,152 @@ function generateVlessConfigsForClient(
     }
   }
 
-  // If no detailed inbounds were matched, build fallback based on activeInboundIds
-  if (result.vlessConfigs.length === 0) {
-    let targetIds: number[] = [1];
-    if (server && Array.isArray(server.activeInboundIds) && server.activeInboundIds.length > 0) {
-      targetIds = server.activeInboundIds.map((id: any) => Number(id)).filter((id: number) => !isNaN(id) && id > 0);
-      if (targetIds.length === 0) targetIds = [1];
-    }
+  return result;
+}
 
-    for (let idx = 0; idx < targetIds.length; idx++) {
-      const ibId = targetIds[idx];
-      const port = 443;
-      const remark = `[${serverName}] Inbound ${ibId} - ${safeName}`;
-      const params = new URLSearchParams();
-      params.set("type", "tcp");
-      params.set("security", "tls");
-      params.set("sni", host);
-      params.set("fp", "chrome");
+// Live real link fetcher from panel or subscription link
+async function fetchRealClientLinks(
+  clientEmail: string,
+  clientUuid?: string,
+  serverId?: string,
+  subLink?: string
+): Promise<{ vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> }> {
+  const result: { vlessConfigs: string[]; vlessLinks: Array<{ name: string; url: string; port?: number; protocol?: string }> } = {
+    vlessConfigs: [],
+    vlessLinks: []
+  };
 
-      const link = `vless://${safeUuid}@${host}:${port}?${params.toString()}#${encodeURIComponent(remark)}`;
-      result.vlessConfigs.push(link);
-      result.vlessLinks.push({
-        name: remark,
-        url: link,
-        port: port,
-        protocol: "VLESS"
-      });
-    }
+  const rawLinks: string[] = [];
+
+  // 1. If subLink exists, fetch it directly (bypassing SSL issues) and decode base64
+  if (subLink && typeof subLink === "string" && subLink.startsWith("http")) {
+    try {
+      const res = await xuiFetch(subLink, { method: "GET" }, 8000).catch(() => null);
+      if (res && res.ok) {
+        const text = await res.text().catch(() => "");
+        if (text && text.trim()) {
+          let decoded = text.trim();
+          try {
+            const buff = Buffer.from(decoded, "base64");
+            const candidate = buff.toString("utf8");
+            if (candidate.includes("://")) {
+              decoded = candidate;
+            }
+          } catch (e) {}
+
+          const lines = decoded.split(/\r?\n/).map((l: string) => l.trim()).filter((l: string) => l.includes("://"));
+          if (lines.length > 0) {
+            rawLinks.push(...lines);
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Query panel APIs if serverId is known or active servers exist
+  if (rawLinks.length === 0) {
+    try {
+      const db = readSqliteDb();
+      const settings = getSystemSettings(db);
+      const activeServers = getActiveServers(settings);
+      let targetServer = serverId ? activeServers.find((s: any) => String(s.id).trim() === String(serverId).trim()) : null;
+      if (!targetServer && activeServers.length > 0) {
+        targetServer = activeServers.find((s: any) => s.status === "active") || activeServers[0];
+      }
+
+      if (targetServer) {
+        const cleanedUrl = normalizeXuiUrl(targetServer.panelUrl);
+        const panelType = (targetServer.panelType || "sanaei").toLowerCase();
+
+        if (["rebecca", "pasarguard", "marzban", "d-ui", "dui"].includes(panelType)) {
+          const token = await loginReebekaPasarguard(cleanedUrl, targetServer.panelUsername, targetServer.panelPassword);
+          if (token) {
+            const headers = { "Authorization": `Bearer ${token}`, "Accept": "application/json" };
+            const cleanName = (clientEmail || "").trim();
+            if (cleanName) {
+              const uRes = await xuiFetch(`${cleanedUrl}/api/user/${encodeURIComponent(cleanName)}`, { method: "GET", headers }, 8000).catch(() => null);
+              if (uRes && uRes.ok) {
+                const uData = await uRes.json().catch(() => ({}));
+                const userObj = uData.data || uData;
+                if (Array.isArray(userObj.links)) {
+                  rawLinks.push(...userObj.links);
+                }
+              }
+            }
+          }
+        } else {
+          // Sanaei / 3x-ui / X-UI
+          const loginResult = await loginXuiPanel(cleanedUrl, targetServer.panelUsername, targetServer.panelPassword);
+          if (loginResult.success && loginResult.cookie) {
+            const headers: Record<string, string> = {
+              Cookie: loginResult.cookie,
+              Accept: "application/json",
+            };
+            if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+            const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
+
+            // SubLinks by SubId
+            let subId: string | null = null;
+            if (subLink && subLink.includes("/sub/")) {
+              subId = subLink.split("/sub/")[1].split("?")[0].trim();
+            }
+            if (subId) {
+              try {
+                const subLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/subLinks/${encodeURIComponent(subId)}`, { method: "GET", headers }, 6000).catch(() => null);
+                if (subLinksRes && subLinksRes.ok) {
+                  const sData = await subLinksRes.json().catch(() => ({}));
+                  if (sData && sData.success && Array.isArray(sData.obj)) {
+                    for (const item of sData.obj) {
+                      if (typeof item === "string") {
+                        rawLinks.push(...item.split(/\r?\n/).filter((l: string) => l.includes("://")));
+                      }
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+
+            // Links by Email
+            const cleanEmail = (clientEmail || "").trim();
+            if (rawLinks.length === 0 && cleanEmail) {
+              try {
+                const emailLinksRes = await xuiFetch(`${baseUrl}/panel/api/clients/links/${encodeURIComponent(cleanEmail)}`, { method: "GET", headers }, 6000).catch(() => null);
+                if (emailLinksRes && emailLinksRes.ok) {
+                  const eData = await emailLinksRes.json().catch(() => ({}));
+                  if (eData && eData.success && Array.isArray(eData.obj)) {
+                    for (const item of eData.obj) {
+                      if (typeof item === "string") {
+                        rawLinks.push(...item.split(/\r?\n/).filter((l: string) => l.includes("://")));
+                      }
+                    }
+                  }
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+    } catch (e) {}
+  }
+
+  // Format rawLinks into structured result
+  const uniqueLinks = Array.from(new Set(rawLinks.map(l => l.trim()))).filter(l => l.includes("://"));
+  if (uniqueLinks.length > 0) {
+    result.vlessConfigs = uniqueLinks;
+    result.vlessLinks = uniqueLinks.map((url, idx) => {
+      let name = `کانفیگ ${idx + 1}`;
+      let protocol = "VLESS";
+      try {
+        if (url.includes("#")) {
+          name = decodeURIComponent(url.split("#")[1]);
+        }
+        if (url.includes("://")) {
+          protocol = url.split("://")[0].toUpperCase();
+        }
+      } catch (e) {}
+      return { name, url, protocol };
+    });
   }
 
   return result;
@@ -4904,7 +5030,7 @@ async function deleteVpnClientApi(clientEmail: string, clientUuid?: string, serv
 }
 
 // 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
-async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string) {
+async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string, serverId?: string) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
@@ -7232,6 +7358,150 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
     }
 
     res.json({ success: true, status: newStatus, key: keyToToggle });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete subscription key permanently from panel and database
+app.post("/api/subscription-keys/delete", async (req, res) => {
+  try {
+    const { id, userId, clientName, clientUuid, serverId } = req.body;
+    const db = readSqliteDb();
+
+    if (!Array.isArray(db.subscription_keys)) {
+      db.subscription_keys = [];
+    }
+
+    const keyIndex = db.subscription_keys.findIndex(
+      (k: any) =>
+        String(k.id) === String(id) ||
+        (clientUuid && String(k.clientUuid) === String(clientUuid)) ||
+        (id && String(k.clientUuid) === String(id))
+    );
+
+    const targetKey = keyIndex >= 0 ? db.subscription_keys[keyIndex] : null;
+
+    const emailToDelete = clientName || targetKey?.clientName || targetKey?.clientEmail || targetKey?.planName || "";
+    const uuidToDelete = clientUuid || targetKey?.clientUuid || (typeof id === "string" && id.includes("-") ? id : undefined);
+    const targetServerId = serverId || targetKey?.serverId;
+
+    // Delete from VPN Panel
+    if (emailToDelete || uuidToDelete) {
+      try {
+        await deleteVpnClientApi(emailToDelete, uuidToDelete, targetServerId);
+      } catch (err: any) {
+        console.warn("[Delete VPN Client API Error]:", err?.message);
+      }
+    }
+
+    // Colleague account quota adjustment if applicable
+    if (targetKey) {
+      const colAccounts = db.colleague_accounts || [];
+      for (const colAcc of colAccounts) {
+        if (isKeyForColleague(targetKey, colAcc)) {
+          colAcc.deletedTrafficGb = Number(colAcc.deletedTrafficGb || 0) + Number(targetKey.trafficLimitGb || 0);
+          colAcc.deletedRealTrafficGb = Number(colAcc.deletedRealTrafficGb || 0) + Number(targetKey.trafficUsedGb || 0);
+        }
+      }
+    }
+
+    // Remove from subscription_keys
+    if (keyIndex >= 0) {
+      db.subscription_keys.splice(keyIndex, 1);
+    } else if (id || clientUuid) {
+      db.subscription_keys = db.subscription_keys.filter(
+        (k: any) => String(k.id) !== String(id) && String(k.clientUuid) !== String(clientUuid) && String(k.clientUuid) !== String(id)
+      );
+    }
+
+    // Update user active plans count and configs list
+    const effectiveUserId = userId || targetKey?.userId;
+    if (effectiveUserId) {
+      const user = (db.users || []).find((u: any) => Number(u.userId) === Number(effectiveUserId) || Number(u.id) === Number(effectiveUserId));
+      if (user) {
+        user.activePlansCount = db.subscription_keys.filter(
+          (k: any) => (Number(k.userId) === Number(effectiveUserId) || Number(k.user_id) === Number(effectiveUserId)) && k.status === "active"
+        ).length;
+        if (Array.isArray(user.configs)) {
+          user.configs = user.configs.filter(
+            (c: any) => String(c.id) !== String(id) && String(c.uuid) !== String(uuidToDelete)
+          );
+        }
+      }
+    }
+
+    writeSqliteDb(db);
+
+    res.json({ success: true, message: "اشتراک با موفقیت حذف گردید." });
+  } catch (error: any) {
+    console.error("[/api/subscription-keys/delete error]:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Real-time link fetcher & synchronizer for individual subscriptions
+app.post("/api/miniapp/subscription-links", async (req, res) => {
+  try {
+    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
+    const db = readSqliteDb();
+
+    let targetKey = (db.subscription_keys || []).find(
+      (k: any) => String(k.id) === String(keyId) || (clientUuid && String(k.clientUuid) === String(clientUuid))
+    );
+
+    const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || "";
+    const cUuid = clientUuid || targetKey?.clientUuid || "";
+    const sId = serverId || targetKey?.serverId || "";
+    const sLink = subLink || targetKey?.subLink || "";
+
+    const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink);
+
+    if (liveData.vlessConfigs.length > 0 && targetKey) {
+      targetKey.vlessConfigs = liveData.vlessConfigs;
+      targetKey.vlessLinks = liveData.vlessLinks;
+      writeSqliteDb(db);
+    }
+
+    res.json({
+      success: true,
+      vlessConfigs: liveData.vlessConfigs.length > 0 ? liveData.vlessConfigs : (targetKey?.vlessConfigs || []),
+      vlessLinks: liveData.vlessLinks.length > 0 ? liveData.vlessLinks : (targetKey?.vlessLinks || []),
+      subLink: sLink
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post("/api/subscription-keys/get-links", async (req, res) => {
+  try {
+    const { keyId, clientName, clientUuid, serverId, subLink } = req.body;
+    const db = readSqliteDb();
+
+    const targetKey = (db.subscription_keys || []).find(
+      (k: any) => String(k.id) === String(keyId) || (clientUuid && String(k.clientUuid) === String(clientUuid))
+    );
+
+    const cEmail = clientName || targetKey?.clientName || targetKey?.clientEmail || "";
+    const cUuid = clientUuid || targetKey?.clientUuid || "";
+    const sId = serverId || targetKey?.serverId || "";
+    const sLink = subLink || targetKey?.subLink || "";
+
+    const liveData = await fetchRealClientLinks(cEmail, cUuid, sId, sLink);
+
+    if (liveData.vlessConfigs.length > 0 && targetKey) {
+      targetKey.vlessConfigs = liveData.vlessConfigs;
+      targetKey.vlessLinks = liveData.vlessLinks;
+      writeSqliteDb(db);
+    }
+
+    res.json({
+      success: true,
+      vlessConfigs: liveData.vlessConfigs.length > 0 ? liveData.vlessConfigs : (targetKey?.vlessConfigs || []),
+      vlessLinks: liveData.vlessLinks.length > 0 ? liveData.vlessLinks : (targetKey?.vlessLinks || []),
+      subLink: sLink
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

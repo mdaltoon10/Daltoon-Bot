@@ -164,7 +164,7 @@ export default function BotSimulator({
     const uid = Number(user.userId || user.id);
     const uname = (user.username || "").toLowerCase().replace(/^@/, "").trim();
     const ownerId = Number(settings?.ownerId || (settings as any)?.owner_id);
-    const adminId = Number(settings?.adminId || (settings as any)?.admin_id);
+    const adminId = Number((settings as any)?.adminId || (settings as any)?.admin_id);
     if (ownerId && uid === ownerId) return true;
     if (adminId && uid === adminId) return true;
     if (uid === 6536288293 || uname === "daltoon_owner") return true;
