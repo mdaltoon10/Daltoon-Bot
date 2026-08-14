@@ -1014,7 +1014,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         } else if (servers.length > 0) {
           setColleagueSelectedServer(servers[0]);
         }
-        showThemedModal("ورود موفق", `ورود به حساب (${data.account.username}) انجام شد.`, "success");
+        showThemedModal("ورود موفق", `همکار گرامی (${data.account.prefix || data.account.username}) خوش آمدید.`, "success");
       } else {
         showThemedModal("خطا در ورود", error || data?.error || "خطا در ورود به حساب همکار", "error");
       }
@@ -1197,7 +1197,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         } else if (servers.length > 0) {
           setColleagueSelectedServer(servers[0]);
         }
-        showThemedModal("ورود موفق", `همکار گرامی (${data.account.username}) خوش آمدید.`, "success");
+        showThemedModal("ورود موفق", `همکار گرامی (${data.account.prefix || data.account.username}) خوش آمدید.`, "success");
       } else {
         showThemedModal("خطا در ورود", error || data?.error || "نام کاربری یا رمز عبور همکار اشتباه است.", "error");
       }
@@ -3172,7 +3172,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                                 className="w-full text-right p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-purple-500/30 flex items-center justify-between text-xs transition-all"
                               >
                                 <div>
-                                  <span className="font-bold text-white font-mono">{acc.username}</span>
+                                  <span className="font-bold text-white font-mono">{acc.prefix || acc.username}</span>
                                   <span className="text-[10px] text-purple-400 mr-2">
                                     ({acc.packageTitle} - {acc.remainingTrafficGb?.toFixed(1)} GB باقیمانده)
                                   </span>
@@ -3368,7 +3368,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       </div>
                       <div>
                         <div className="font-extrabold text-sm text-white">
-                          {colleagueAccount?.username}
+                          همکار گرامی ({colleagueAccount?.prefix || colleagueAccount?.username})
                         </div>
                         <div className="text-[10px] text-purple-300">
                           {colleagueAccount?.packageTitle || "بسته همکار"} • پیشوند: {colleagueAccount?.prefix}
