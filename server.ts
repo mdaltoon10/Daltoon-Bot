@@ -1397,6 +1397,44 @@ app.get("/copy", (req, res) => {
   `);
 });
 
+const sanitizeTicketsList = (tickets: any[]): any[] => {
+  if (!Array.isArray(tickets)) return [];
+  return tickets.map((t: any) => {
+    const createdAt = t.createdAt || t.updatedAt || new Date().toISOString();
+    const updatedAt = t.updatedAt || t.createdAt || new Date().toISOString();
+    const subject = t.subject || "درخواست پشتیبانی";
+    const status = t.status || "open";
+    
+    const messages = Array.isArray(t.messages) ? t.messages.map((m: any) => {
+      const msgText = m.message || m.text || "";
+      const msgDate = m.date || m.timestamp || new Date().toISOString();
+      return {
+        ...m,
+        message: msgText,
+        text: msgText,
+        date: msgDate,
+        timestamp: msgDate
+      };
+    }) : [];
+
+    const firstMsgText = messages.length > 0 ? messages[0].text : "";
+    const lastMsg = messages.length > 0 ? messages[messages.length - 1].text : "";
+    const lastAdminReply = [...messages].reverse().find((m: any) => m.sender === "admin")?.text || "";
+
+    return {
+      ...t,
+      subject,
+      status,
+      createdAt,
+      updatedAt,
+      messages,
+      message: t.message || firstMsgText,
+      lastMessage: t.lastMessage || lastMsg,
+      reply: t.reply || lastAdminReply
+    };
+  });
+};
+
 // 1. Get complete aggregated database snapshot
 app.get("/api/data", async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -1425,7 +1463,7 @@ app.get("/api/data", async (req, res) => {
       vpnPlans: db.vpn_plans || [],
       giftCodes: db.gift_codes || [],
       promoCodes: db.promo_codes || [],
-      tickets: db.tickets || [],
+      tickets: sanitizeTicketsList(db.tickets || []),
       colleaguePackages: db.colleague_packages || [],
       colleagueAccounts: db.colleague_accounts || [],
       colleagueCategories: db.colleague_categories || [],
@@ -1771,8 +1809,8 @@ app.post("/api/tickets/create", (req, res) => {
     res.json({
       success: true,
       ticketId,
-      tickets: db.tickets,
-      ticket: newTicket,
+      tickets: sanitizeTicketsList(db.tickets || []),
+      ticket: sanitizeTicketsList([newTicket])[0],
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -1788,7 +1826,7 @@ app.post("/api/tickets/delete", (req, res) => {
     db.tickets = db.tickets.filter((t: any) => t.id !== ticketId);
     writeSqliteDb(db);
 
-    res.json({ success: true, tickets: db.tickets });
+    res.json({ success: true, tickets: sanitizeTicketsList(db.tickets || []) });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1844,7 +1882,7 @@ app.post("/api/tickets/reply", (req, res) => {
         });
       }
 
-      res.json({ success: true, ticket });
+      res.json({ success: true, ticket: sanitizeTicketsList([ticket])[0] });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
     }
@@ -1882,7 +1920,7 @@ app.post("/api/tickets/close", (req, res) => {
         );
       }
 
-      res.json({ success: true, ticket });
+      res.json({ success: true, ticket: sanitizeTicketsList([ticket])[0] });
     } else {
       res.status(404).json({ success: false, error: "Ticket not found" });
     }
@@ -7179,7 +7217,7 @@ app.get("/api/miniapp/data", async (req, res) => {
 
     // User Tickets
     const userTickets = tgId > 0
-      ? (db.tickets || []).filter((t: any) => Number(t.userId) === tgId)
+      ? sanitizeTicketsList((db.tickets || []).filter((t: any) => Number(t.userId) === tgId))
       : [];
 
     // User Transactions
@@ -8237,6 +8275,7 @@ const handleCreateTicketMiniApp = async (req: any, res: any) => {
       subject: subject || "پشتیبانی سرویس",
       status: "open",
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
       messages: [
         {
           id: "MSG-1",
@@ -8311,7 +8350,7 @@ const handleReplyTicketMiniApp = async (req: any, res: any) => {
     ticket.status = "open";
 
     writeSqliteDb(db);
-    res.json({ success: true, ticket });
+    res.json({ success: true, ticket: sanitizeTicketsList([ticket])[0] });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

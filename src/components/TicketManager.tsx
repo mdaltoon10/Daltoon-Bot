@@ -185,7 +185,7 @@ export default function TicketManager({
                       {translateText("User:", "کاربر:", lang)} <strong className="text-gray-300 font-medium">@{t.username}</strong>
                     </span>
                     <span className="font-mono text-[9px] text-gray-500">
-                      {t.updatedAt.split("T")[0]}
+                      {(t.updatedAt || t.createdAt || "").split("T")[0] || ""}
                     </span>
                   </div>
                 </button>
@@ -293,7 +293,7 @@ export default function TicketManager({
                         {m.message}
                       </div>
                       <span className="text-[9px] text-gray-500 mt-1 font-mono px-1">
-                        {formatDateTime(m.date, { timeZone: settings?.timeZone, calendarSystem: settings?.calendarSystem, includeTime: true })}
+                        {formatDateTime(m.date || new Date().toISOString(), { timeZone: settings?.timeZone, calendarSystem: settings?.calendarSystem, includeTime: true })}
                       </span>
                     </div>
                   );
