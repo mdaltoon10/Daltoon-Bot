@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useEffect, useRef } from "react"; // React hooks
+import { CustomSelect } from "./CustomSelect";
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
 import ConfirmationModal from "./ConfirmationModal";
 import { formatDateTime, COMMON_TIMEZONES, CalendarSystem } from "../utils/dateTimeUtils";
@@ -1792,22 +1793,16 @@ export default function SettingsPanel({
                   <label className="block text-[10px] uppercase tracking-wider text-gray-400 mb-1">
                     {translateText("Admin Privilege Role", "سطح دسترسی", lang)}
                   </label>
-                  <select
-                    className="w-full bg-[#13192e] border border-slate-800 rounded-lg p-2 text-xs text-white outline-none cursor-pointer"
+                  <CustomSelect
                     value={newAdminRole}
-                    onChange={(e) =>
-                      setNewAdminRole(
-                        e.target.value as "admin" | "super_admin",
-                      )
-                    }
-                  >
-                    <option value="admin">
-                      {translateText("General Admin", "ادمین معمولی", lang)}
-                    </option>
-                    <option value="super_admin">
-                      {translateText("Super Admin", "سوپر ادمین", lang)}
-                    </option>
-                  </select>
+                    onChange={(val) => setNewAdminRole(val as "admin" | "super_admin")}
+                    options={[
+                      { value: "admin", label: translateText("General Admin", "ادمین معمولی", lang) },
+                      { value: "super_admin", label: translateText("Super Admin", "سوپر ادمین", lang) },
+                    ]}
+                    title={translateText("Admin Privilege Role", "سطح دسترسی", lang)}
+                    dir={lang === "fa" ? "rtl" : "ltr"}
+                  />
                 </div>
 
                 <button
@@ -2193,25 +2188,18 @@ export default function SettingsPanel({
               <label className="text-xs font-semibold text-gray-300">
                 {translateText("Backup Interval:", "دوره زمانی پشتیبان‌گیری:", lang)}
               </label>
-              <select
-                className="w-full bg-[#111827] border border-gray-750 hover:border-gray-700 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-blue-500 font-sans"
+              <CustomSelect
                 value={autoBackupInterval}
-                onChange={(e) => setAutoBackupInterval(e.target.value)}
-                dir="ltr"
-              >
-                <option value="hourly">
-                  {translateText("Hourly", "ساعتی (Hourly)", lang)}
-                </option>
-                <option value="daily">
-                  {translateText("Daily", "روزانه (Daily)", lang)}
-                </option>
-                <option value="weekly">
-                  {translateText("Weekly", "هفتگی (Weekly)", lang)}
-                </option>
-                <option value="monthly">
-                  {translateText("Monthly", "ماهانه (Monthly)", lang)}
-                </option>
-              </select>
+                onChange={(val) => setAutoBackupInterval(val)}
+                options={[
+                  { value: "hourly", label: translateText("Hourly", "ساعتی (Hourly)", lang) },
+                  { value: "daily", label: translateText("Daily", "روزانه (Daily)", lang) },
+                  { value: "weekly", label: translateText("Weekly", "هفتگی (Weekly)", lang) },
+                  { value: "monthly", label: translateText("Monthly", "ماهانه (Monthly)", lang) },
+                ]}
+                title={translateText("Backup Interval:", "دوره زمانی پشتیبان‌گیری:", lang)}
+                dir={lang === "fa" ? "rtl" : "ltr"}
+              />
             </div>
           </div>
         )}
@@ -2419,17 +2407,17 @@ export default function SettingsPanel({
                     <Globe className="w-3.5 h-3.5 text-indigo-400" />
                     {translateText("Select Time Zone", "منطقه زمانی (Time Zone)", lang)}
                   </label>
-                  <select
-                    className="w-full bg-[#13192e] border border-gray-750 rounded-lg p-2.5 text-xs text-white outline-none cursor-pointer focus:ring-1 focus:ring-indigo-500"
+                  <CustomSelect
                     value={timeZone}
-                    onChange={(e) => setTimeZone(e.target.value)}
-                  >
-                    {COMMON_TIMEZONES.map((tz) => (
-                      <option key={tz.value} value={tz.value}>
-                        {tz.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => setTimeZone(val)}
+                    options={COMMON_TIMEZONES.map((tz) => ({
+                      value: tz.value,
+                      label: tz.label,
+                    }))}
+                    searchable={true}
+                    title={translateText("Select Time Zone", "منطقه زمانی (Time Zone)", lang)}
+                    dir={lang === "fa" ? "rtl" : "ltr"}
+                  />
                   <p className="text-[11px] text-gray-500 mt-1">
                     {translateText("All dashboard logs, bot messages, and expiry dates adjust to this time zone.", "تمامی زمان‌ها، گزارشات و لایسنس‌ها بر اساس منطقه زمانی انتخابی تنظیم و محاسبه می‌شوند.", lang)}
                   </p>
@@ -2440,18 +2428,16 @@ export default function SettingsPanel({
                     <Calendar className="w-3.5 h-3.5 text-indigo-400" />
                     {translateText("Calendar System", "سیستم تقویم (Calendar System)", lang)}
                   </label>
-                  <select
-                    className="w-full bg-[#13192e] border border-gray-750 rounded-lg p-2.5 text-xs text-white outline-none cursor-pointer focus:ring-1 focus:ring-indigo-500"
+                  <CustomSelect
                     value={calendarSystem}
-                    onChange={(e) => setCalendarSystem(e.target.value as CalendarSystem)}
-                  >
-                    <option value="jalali">
-                      {translateText("Solar (شمسی)", "شمسی", lang)}
-                    </option>
-                    <option value="gregorian">
-                      {translateText("Gregorian (میلادی)", "میلادی", lang)}
-                    </option>
-                  </select>
+                    onChange={(val) => setCalendarSystem(val as CalendarSystem)}
+                    options={[
+                      { value: "jalali", label: translateText("Solar (شمسی)", "شمسی", lang) },
+                      { value: "gregorian", label: translateText("Gregorian (میلادی)", "میلادی", lang) },
+                    ]}
+                    title={translateText("Calendar System", "سیستم تقویم", lang)}
+                    dir={lang === "fa" ? "rtl" : "ltr"}
+                  />
                   <p className="text-[11px] text-gray-500 mt-1">
                     {translateText("Choose how dates are displayed across the bot and admin panel.", "نمایش تاریخ در ربات و پنل مدیریت (شمسی یا میلادی).", lang)}
                   </p>
@@ -2792,8 +2778,6 @@ export default function SettingsPanel({
             ))}
           </div>
         </div>
-
-
 
         {/* Save footer */}
         <div className="flex items-center justify-between pt-4 border-t border-[#1f2937]">

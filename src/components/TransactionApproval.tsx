@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { Transaction, PanelSettings } from "../types";
 import { formatDateTime } from "../utils/dateTimeUtils";
 import { 
@@ -11,7 +12,8 @@ import {
   DollarSign, 
   AlertCircle, 
   CreditCard,
-  Trash2
+  Trash2,
+  Search
 } from "lucide-react";
 
 interface TransactionApprovalProps {
@@ -36,6 +38,8 @@ export default function TransactionApproval({
   const t = { ...translations.en, ...translations[lang] };
   const currency = settings?.currency || (translateText("Toman", "تومان", lang));
   const [filterStatus, setFilterStatus] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest" | "highest_amount" | "lowest_amount">("newest");
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   
@@ -60,14 +64,39 @@ export default function TransactionApproval({
     return s || "pending";
   };
 
-  const filteredTransactions = transactions.filter(tx => {
-    if (filterStatus === "all") return true;
-    const norm = getNormalizedStatus(tx.status);
-    if (filterStatus === "approved") return norm === "approved";
-    if (filterStatus === "pending") return norm === "pending";
-    if (filterStatus === "rejected") return ["rejected", "refunded", "failed"].includes(norm);
-    return true;
-  });
+  const filteredTransactions = transactions
+    .filter(tx => {
+      if (filterStatus !== "all") {
+        const norm = getNormalizedStatus(tx.status);
+        if (filterStatus === "approved" && norm !== "approved") return false;
+        if (filterStatus === "pending" && norm !== "pending") return false;
+        if (filterStatus === "rejected" && !["rejected", "refunded", "failed"].includes(norm)) return false;
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchId = String(tx.id || "").toLowerCase().includes(q);
+        const matchUsername = String(tx.username || "").toLowerCase().includes(q);
+        const matchUserId = String(tx.userId || "").toLowerCase().includes(q);
+        const matchAmount = String(tx.amount || "").includes(q);
+        return matchId || matchUsername || matchUserId || matchAmount;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortOrder === "newest") {
+        return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+      }
+      if (sortOrder === "oldest") {
+        return new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime();
+      }
+      if (sortOrder === "highest_amount") {
+        return (b.amount || 0) - (a.amount || 0);
+      }
+      if (sortOrder === "lowest_amount") {
+        return (a.amount || 0) - (b.amount || 0);
+      }
+      return 0;
+    });
 
   const statusCounts = {
     all: transactions.length,
@@ -192,7 +221,47 @@ export default function TransactionApproval({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Transaction log table */}
-        <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden lg:col-span-2">
+        <div className="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden lg:col-span-2 flex flex-col">
+          {/* Search and Sort controls */}
+          <div className="p-4 border-b border-[#1f2937] bg-slate-900/50 flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative w-full sm:flex-1">
+              <span className={`absolute inset-y-0 ${lang === "fa" ? "right-0 pr-3.5" : "left-0 pl-3.5"} flex items-center pointer-events-none`}>
+                <Search className="w-4 h-4 text-gray-500" />
+              </span>
+              <input
+                type="text"
+                placeholder={translateText("Search by TxID, Username, ID or Amount...", "جستجو بر اساس شناسه، نام کاربری، شناسه کاربری یا مبلغ...", lang)}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`w-full bg-[#13192e] border border-gray-800 focus:border-indigo-500 rounded-xl ${lang === "fa" ? "pr-10 pl-10" : "pl-10 pr-10"} py-2 text-xs text-white placeholder:text-gray-500 focus:outline-none transition-colors font-sans`}
+                dir={lang === "fa" ? "rtl" : "ltr"}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className={`absolute inset-y-0 ${lang === "fa" ? "left-0 pl-3.5" : "right-0 pr-3.5"} flex items-center text-gray-500 hover:text-white`}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            
+            <div className="w-full sm:w-52">
+              <CustomSelect
+                value={sortOrder}
+                onChange={(val) => setSortOrder(val as any)}
+                options={[
+                  { value: "newest", label: translateText("Newest", "📅 جدیدترین", lang) },
+                  { value: "oldest", label: translateText("Oldest", "📅 قدیمی‌ترین", lang) },
+                  { value: "highest_amount", label: translateText("Highest Amount", "📈 بیشترین مبلغ", lang) },
+                  { value: "lowest_amount", label: translateText("Lowest Amount", "📉 کمترین مبلغ", lang) }
+                ]}
+                title={translateText("Sort", "مرتب‌سازی", lang)}
+                dir={lang === "fa" ? "rtl" : "ltr"}
+              />
+            </div>
+          </div>
+
           <div className="overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
             <table className="w-full text-left text-sm text-gray-300">
               <thead className="text-xs text-gray-400 uppercase bg-slate-900 border-b border-[#1f2937] sticky top-0 z-10">

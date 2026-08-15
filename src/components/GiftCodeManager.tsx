@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from 'react';
+import { CustomSelect } from "./CustomSelect";
 import { Gift, Trash2, Plus, Users, Edit2, Check, X, Share2, Save, Tag, Calendar, Percent, Clock, RefreshCw } from 'lucide-react';
 import { GiftCode, PromoCode, PanelSettings } from '../types';
 import { formatDateTime } from "../utils/dateTimeUtils";
@@ -396,15 +397,17 @@ export default function GiftCodeManager({
                   <label className="block text-xs text-gray-400 font-semibold mb-1.5">
                     {translateText("⚙️ Code Type", "⚙️ نوع کد", lang)}
                   </label>
-                  <select
+                  <CustomSelect
                     value={promoType}
-                    onChange={(e) => setPromoType(e.target.value as "percent" | "extend_days" | "fixed_amount")}
-                    className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
-                  >
-                    <option value="percent">{translateText("Percentage (%)", "درصدی (%)", lang)}</option>
-                    <option value="fixed_amount">{translateText(`Amount (${currency})`, `مبلغی (${currency})`, lang)}</option>
-                    <option value="extend_days">{translateText("Extension (Days)", "تمدید (روز)", lang)}</option>
-                  </select>
+                    onChange={(val) => setPromoType(val as "percent" | "extend_days" | "fixed_amount")}
+                    options={[
+                      { value: "percent", label: translateText("Percentage (%)", "درصدی (%)", lang) },
+                      { value: "fixed_amount", label: translateText(`Amount (${currency})`, `مبلغی (${currency})`, lang) },
+                      { value: "extend_days", label: translateText("Extension (Days)", "تمدید (روز)", lang) },
+                    ]}
+                    title={translateText("⚙️ Code Type", "⚙️ نوع کد", lang)}
+                    dir={lang === "fa" ? "rtl" : "ltr"}
+                  />
                 </div>
 
                 <div>

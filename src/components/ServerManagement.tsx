@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useRef, useEffect } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage, CustomPricingBox } from "../types";
 import MultiServerConfig from "./MultiServerConfig";
 import ConfirmationModal from "./ConfirmationModal";
@@ -546,22 +547,19 @@ export default function ServerManagement({
             <label className="block text-[10px] text-gray-400 uppercase mb-1.5 font-bold">
               {translateText("Select Free Test Server", "انتخاب سرور تست رایگان", lang)}
             </label>
-            <select
+            <CustomSelect
               value={localFreeTestServerId}
-              onChange={(e) => {
-                setLocalFreeTestServerId(e.target.value);
-              }}
-              className="w-full bg-[#1f2937] border border-gray-750 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none cursor-pointer"
-            >
-              <option value="">
-                {translateText("First Active Server (Default)", "نخستین سرور فعال سیستم (پیش‌فرض)", lang)}
-              </option>
-              {(Array.isArray(settings.servers) ? settings.servers : []).map((srv) => (
-                <option key={srv.id} value={srv.id}>
-                  {srv.name} ({srv.panelUrl})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setLocalFreeTestServerId(val)}
+              options={[
+                { value: "", label: translateText("First Active Server (Default)", "نخستین سرور فعال سیستم (پیش‌فرض)", lang) },
+                ...(Array.isArray(settings.servers) ? settings.servers : []).map((srv) => ({
+                  value: srv.id,
+                  label: `${srv.name} (${srv.panelUrl})`,
+                })),
+              ]}
+              title={translateText("Select Free Test Server", "انتخاب سرور تست رایگان", lang)}
+              dir={lang === "fa" ? "rtl" : "ltr"}
+            />
           </div>
 
           <div>
@@ -1033,18 +1031,18 @@ export default function ServerManagement({
                   >
                     <ChevronDown className="w-3 h-3" />
                   </button>
-                  <select
-                    value={index}
-                    onChange={(e) => handleSetPlanCategoryPosition(index, Number(e.target.value))}
-                    className="bg-slate-900 border border-slate-800 rounded px-1 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                    title={translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)}
-                  >
-                    {planCategories.map((_, idx) => (
-                      <option key={idx} value={idx}>
-                        {idx + 1}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="w-12">
+                    <CustomSelect
+                      value={index}
+                      onChange={(val) => handleSetPlanCategoryPosition(index, Number(val))}
+                      options={planCategories.map((_, idx) => ({
+                        value: idx,
+                        label: String(idx + 1),
+                      }))}
+                      size="compact"
+                      title={translateText("Position", "جایگاه", lang)}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -1151,17 +1149,19 @@ export default function ServerManagement({
 
                 <div>
                   <label className="block text-xs text-gray-400 font-medium mb-1.5">{translateText("Category / Group Name", "دسته‌بندی پنل (نام گروه)", lang)}</label>
-                  <select
-                    required
-                    className="w-full bg-[#1f2937] border border-gray-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold appearance-none"
+                  <CustomSelect
                     value={planCategory}
-                    onChange={(e) => setPlanCategory(e.target.value)}
-                  >
-                    <option value="">{translateText("Select Category...", "انتخاب دسته‌بندی...", lang)}</option>
-                    {planCategories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.emoji} {cat.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setPlanCategory(val)}
+                    options={[
+                      { value: "", label: translateText("Select Category...", "انتخاب دسته‌بندی...", lang) },
+                      ...planCategories.map((cat) => ({
+                        value: cat.name,
+                        label: `${cat.emoji} ${cat.name}`,
+                      })),
+                    ]}
+                    title={translateText("Category / Group Name", "دسته‌بندی پنل (نام گروه)", lang)}
+                    dir={lang === "fa" ? "rtl" : "ltr"}
+                  />
                   <div className="flex gap-1.5 mt-1.5 overflow-x-auto pb-1 no-scrollbar">
                     {planCategories.map(cat => (
                       <button
@@ -1307,18 +1307,18 @@ export default function ServerManagement({
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
-                        <select
-                          value={index}
-                          onChange={(e) => handleSetPlanPosition(index, Number(e.target.value))}
-                          className="bg-slate-900 border border-slate-800 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                          title={translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)}
-                        >
-                          {vpnPlans.map((_, idx) => (
-                            <option key={idx} value={idx}>
-                              {idx + 1}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-12">
+                          <CustomSelect
+                            value={index}
+                            onChange={(val) => handleSetPlanPosition(index, Number(val))}
+                            options={vpnPlans.map((_, idx) => ({
+                              value: idx,
+                              label: String(idx + 1),
+                            }))}
+                            size="compact"
+                            title={translateText("Position", "جایگاه", lang)}
+                          />
+                        </div>
                       </div>
                     </div>
 

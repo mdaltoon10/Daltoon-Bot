@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState, useEffect } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { User, SubscriptionKey, PanelSettings } from "../types";
 import { formatDateTime } from "../utils/dateTimeUtils";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -493,20 +494,19 @@ export default function UserManagement({
             {t.btnAddUser}
           </button>
           
-          <div className="relative">
-            <select
+          <div className="min-w-[180px]">
+            <CustomSelect
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="appearance-none w-full sm:w-auto bg-[#111827] border border-[#1f2937] text-white text-sm rounded-lg pl-3 pr-8 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              <option value="newest">{translateText("Newest Users", "جدیدترین کاربران", lang)}</option>
-              <option value="oldest">{translateText("Oldest Users", "قدیمی‌ترین کاربران", lang)}</option>
-              <option value="highest_balance">{translateText("Highest Balance", "بیشترین موجودی", lang)}</option>
-              <option value="lowest_balance">{translateText("Lowest Balance", "کمترین موجودی", lang)}</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-            </div>
+              onChange={(val) => setSortOrder(val)}
+              options={[
+                { value: "newest", label: translateText("Newest Users", "جدیدترین کاربران", lang) },
+                { value: "oldest", label: translateText("Oldest Users", "قدیمی‌ترین کاربران", lang) },
+                { value: "highest_balance", label: translateText("Highest Balance", "بیشترین موجودی", lang) },
+                { value: "lowest_balance", label: translateText("Lowest Balance", "کمترین موجودی", lang) },
+              ]}
+              title={translateText("Sort Users", "مرتب‌سازی کاربران", lang)}
+              dir={lang === "fa" ? "rtl" : "ltr"}
+            />
           </div>
         </div>
       </div>

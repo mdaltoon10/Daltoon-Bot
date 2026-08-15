@@ -5279,6 +5279,16 @@ def register_tg_user(tg_id, username, referral_id=None):
             "status": "active"
         }
         
+        try:
+            notify_admins_of_event(
+                "🆕",
+                "ورود و عضویت کاربر جدید",
+                "یک کاربر جدید با موفقیت در ربات عضو و حساب او ایجاد شد.",
+                user_info={"userId": tg_id, "username": username}
+            )
+        except Exception as e:
+            print("[New User Notif Error]", e)
+        
         if referral_id and str(referral_id) != str(tg_id):
             referrer = next((u for u in db["users"] if str(u.get("userId")) == str(referral_id)), None)
             if referrer:
@@ -5546,32 +5556,90 @@ def record_promo_code_usage(code_text, tg_id):
     except Exception as ex:
         print(f"[Promo Code Record Error]: {ex}")
 
-def notify_admins_of_error(err_title, err_detail, user_info=""):
+def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
+    """
+    Sends notification to admin(s) in PV.
+    Replies to the previous notification message to create a single continuous thread/subject
+    so notifications are never lost or scattered.
+    """
     try:
         cfg = get_config()
         owner_id = cfg.get("OWNER_ID")
         admins = cfg.get("ADMINS", [])
         
-        msg = (
-            f"⚠️ <b>گزارش خطای اتصال پنل (سیستمی):</b>\n\n"
-            f"🔹 <b>بخش:</b> {err_title}\n"
-            f"👤 <b>کاربر:</b> {user_info}\n"
-            f"❌ <b>متن کامل خطا:</b>\n"
-            f"<code>{err_detail}</code>"
-        )
-        
-        recipients = []
-        if owner_id:
-            recipients.append(owner_id)
+        targets = set()
+        if owner_id and int(owner_id) > 0:
+            targets.add(int(owner_id))
         for adm in admins:
-            if adm not in recipients:
-                recipients.append(adm)
+            if adm and int(adm) > 0:
+                targets.add(int(adm))
                 
-        for r_id in recipients:
-            try:
-                bot.send_message(r_id, msg, parse_mode="HTML")
-            except Exception as e:
-                print(f"[Admin Notif Error] Failed to notify {r_id}: {e}")
+        if not targets:
+            return
+
+        db = read_sqlite_db()
+        last_msg_ids = db.get("admin_last_notification_ids", {})
+        if not isinstance(last_msg_ids, dict):
+            last_msg_ids = {}
+
+        import datetime
+        now_str = (datetime.datetime.utcnow() + datetime.timedelta(hours=3, minutes=30)).strftime("%H:%M:%S - %Y/%m/%d")
+
+        user_str = ""
+        if user_info:
+            if isinstance(user_info, dict):
+                u_id = user_info.get("userId") or user_info.get("id") or user_info.get("tg_id")
+                u_uname = user_info.get("username")
+                u_uname_str = f"@{u_uname}" if u_uname and u_uname != "N/A" and not str(u_uname).startswith("user_") else "بدون یوزرنیم"
+                user_str = f"\n👤 <b>کاربر:</b> {u_uname_str} (<code>{u_id}</code>)"
+            else:
+                user_str = f"\n👤 <b>کاربر:</b> {user_info}"
+
+        msg_text = (
+            f"{event_type_emoji} <b>[اعلان سیستم - {title}]</b>\n"
+            f"{user_str}\n"
+            f"📋 <b>توضیحات:</b> {details}\n"
+            f"⏱ <b>زمان:</b> <code>{now_str}</code>"
+        )
+
+        db_updated = False
+        for target_id in targets:
+            str_target = str(target_id)
+            last_msg_id = last_msg_ids.get(str_target)
+            
+            sent_msg = None
+            if last_msg_id:
+                try:
+                    sent_msg = bot.send_message(target_id, msg_text, parse_mode="HTML", reply_to_message_id=int(last_msg_id))
+                except Exception as ex:
+                    print(f"[Admin Thread Notif Reply Fallback for {target_id}] {ex}")
+                    sent_msg = None
+
+            if not sent_msg:
+                try:
+                    sent_msg = bot.send_message(target_id, msg_text, parse_mode="HTML")
+                except Exception as ex2:
+                    print(f"[Admin Thread Notif Error] Could not send to {target_id}: {ex2}")
+
+            if sent_msg and hasattr(sent_msg, 'message_id'):
+                last_msg_ids[str_target] = sent_msg.message_id
+                db_updated = True
+
+        if db_updated:
+            db["admin_last_notification_ids"] = last_msg_ids
+            write_sqlite_db(db)
+
+    except Exception as e:
+        print(f"[notify_admins_of_event Error] {e}")
+
+def notify_admins_of_error(err_title, err_detail, user_info=""):
+    try:
+        notify_admins_of_event(
+            "⚠️",
+            f"خطای سیستم ({err_title})",
+            f"<code>{err_detail}</code>",
+            user_info=user_info
+        )
     except Exception as e:
         print(f"[notify_admins_of_error failed] {e}")
 
@@ -6264,28 +6332,18 @@ def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, pric
 
         price_display = f"{int(price):,} تومان" if price > 0 else "رایگان / تست"
         
-        admin_msg = (
-            f"🔔 <b>{purchase_type_title}:</b>\n\n"
-            f"👤 کاربر: @{username_val} (<code>{tg_id}</code>)\n"
+        details_text = (
             f"📊 طرح: {plan_details_str}\n"
             f"💰 مبلغ: {price_display}\n"
             f"🆔 اشتراک: {sub_id}{server_info}"
         )
         
-        cfg = get_config()
-        targets = set()
-        owner_id = cfg.get("OWNER_ID")
-        if owner_id and owner_id > 0:
-            targets.add(owner_id)
-        for adm_id in cfg.get("ADMINS", []):
-            if adm_id and adm_id > 0:
-                targets.add(adm_id)
-                
-        for target_id in targets:
-            try:
-                bot.send_message(target_id, admin_msg, parse_mode="HTML")
-            except Exception as ex:
-                print(f"[Admin Notify Warning] {ex}")
+        notify_admins_of_event(
+            "🛍️",
+            purchase_type_title,
+            details_text,
+            user_info={"userId": tg_id, "username": username_val}
+        )
     except Exception as e:
         print(f"[notify_admins_of_purchase Error] {e}")
 
@@ -6441,11 +6499,45 @@ def process_successful_payment(message):
         else:
             bot.send_message(tg_id, "✅ پرداخت شما موفقیت آمیز بود، اما اطلاعات درخواست همکار در حافظه یافت نشد. لطفاً با پشتیبانی تماس بگیرید.")
 
+@bot.my_chat_member_handler()
+def my_chat_member_event(update):
+    try:
+        user = update.from_user
+        old_status = update.old_chat_member.status
+        new_status = update.new_chat_member.status
+        
+        if new_status in ['kicked', 'left']:
+            notify_admins_of_event(
+                "🔴",
+                "خروج / بلاک کردن ربات",
+                f"کاربر ربات را متوقف یا بلاک کرد.",
+                user_info={"userId": user.id, "username": user.username}
+            )
+        elif new_status in ['member', 'administrator']:
+            notify_admins_of_event(
+                "🟢",
+                "آن‌بلاک / بازگشت به ربات",
+                f"کاربر ربات را مجدداً آن‌بلاک یا فعال کرد.",
+                user_info={"userId": user.id, "username": user.username}
+            )
+    except Exception as e:
+        print(f"[my_chat_member_event Error] {e}")
+
 @bot.message_handler(commands=['start', 'help'])
 def start_cmd(message):
     print(f"[DEBUG] Received /start from {message.from_user.id} (@{message.from_user.username})")
     tg_id = message.from_user.id
     username = message.from_user.username
+    
+    try:
+        notify_admins_of_event(
+            "🟢",
+            "ورود به ربات (/start)",
+            "کاربر دستور /start ارسال کرد و وارد ربات شد.",
+            user_info={"userId": tg_id, "username": username or f"user_{tg_id}"}
+        )
+    except Exception as ex_notif:
+        print(f"[Start Notif Error] {ex_notif}")
     
     try:
         bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)
@@ -6512,6 +6604,7 @@ def start_cmd(message):
 
     elif start_mode == "miniapp":
         btn_pro_title = cfg.get("BTN_DASH_PRO", cfg.get("BTN_MINI_APP", "🚀 ورود به برنامه هوشمند"))
+        clean_title = btn_pro_title.lstrip("🚀").strip()
         mini_app_url = get_miniapp_url(cfg)
         markup = types.InlineKeyboardMarkup(row_width=1)
         if mini_app_url:
@@ -6524,7 +6617,7 @@ def start_cmd(message):
             markup.add(types.InlineKeyboardButton(btn_pro_title, callback_data="dash_mode_pro_missing"))
 
         pro_text = (
-            f"<b>🚀 {btn_pro_title} {bot_nickname}</b>\n\n"
+            f"<b>🚀 {clean_title} {bot_nickname}</b>\n\n"
             f"✨ جهت ورود به محیط مدرن، مشاهده وضعیت سرویس‌ها، تست سرعت، خرید آنلاین و اتصال سریع، بر روی دکمه زیر کلیک نمایید:\n\n"
             f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
             f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان"
@@ -6570,11 +6663,12 @@ def start_cmd(message):
             for b in buttons_to_add:
                 choice_markup.add(b)
 
+        clean_text = btn_pro_text.lstrip("🚀").strip()
         choice_text = (
             f"👋 <b>سلام و درود کاربر گرامی، به سامانه هوشمند {bot_nickname} خوش آمدید!</b>\n\n"
             f"💫 لطفاً جهت دسترسی به خدمات و تجربه بهتر، نوع داشبورد مورد نظر خود را انتخاب نمایید:\n\n"
             f"🔹 <b>{btn_simple_text}:</b> دسترسی به کلیه امکانات از طریق دکمه‌های شیشه‌ای ربات\n"
-            f"🚀 <b>{btn_pro_text}:</b> محیط مدرن، گرافیکی، مدیریت اشتراک‌ها و اتصال سریع (مینی‌اپ)\n\n"
+            f"🚀 <b>{clean_text}:</b> محیط مدرن، گرافیکی، مدیریت اشتراک‌ها و اتصال سریع (مینی‌اپ)\n\n"
             f"🆔 شناسه تلگرام شما: <code>{tg_id}</code>\n"
             f"💰 موجودی کیف پول: <code>{formatted_balance}</code> تومان"
         )
@@ -8180,6 +8274,15 @@ def callback_handler(call):
         if is_user_member_of_channel(tg_id):
             bot.answer_callback_query(call.id, "✅ عضویت شما با موفقیت تایید شد! خوش آمدید.", show_alert=True)
             try:
+                notify_admins_of_event(
+                    "📢",
+                    "عضویت در کانال اسپانسر",
+                    "عضویت کاربر در کانال اجباری ربات با موفقیت تایید شد.",
+                    user_info={"userId": tg_id, "username": call.from_user.username}
+                )
+            except Exception as ex_m:
+                print(f"[Mandatory Join Notif Error] {ex_m}")
+            try:
                 bot.delete_message(call.message.chat.id, call.message.message_id)
             except Exception:
                 pass
@@ -8617,6 +8720,16 @@ def callback_handler(call):
             success_note = cfg.get("PURCHASE_SUCCESS_NOTE", "")
             note_append = f"\n\n{success_note}" if success_note else ""
             
+            try:
+                notify_admins_of_event(
+                    "📥",
+                    "دریافت کانفیگ / لینک ساب",
+                    f"کاربر لینک سابسکریپشن سرویس «{client_name}» (شناسه: {target_sub_id}) را دریافت کرد.",
+                    user_info={"userId": tg_id, "username": call.from_user.username}
+                )
+            except Exception as ex_sub:
+                print(f"[Sub Link Notif Error] {ex_sub}")
+
             text = (
                 f"🔗 <b>لینک اتصال و اشتراک اختصاصی سرویس شما:</b>\n\n"
                 f"👤 نام سرویس: <code>{client_name}</code>\n\n"
@@ -11726,38 +11839,22 @@ def process_ticket_message(message):
     except Exception as dberr:
         print("Error saving ticket to db:", dberr)
 
-    # Notify admins and owner
-    cfg = get_config()
-    targets = set()
-    owner_id = cfg.get("OWNER_ID")
-    if owner_id and owner_id > 0:
-        targets.add(owner_id)
-    for adm_id in cfg.get("ADMINS", []):
-        if adm_id and adm_id > 0:
-            targets.add(adm_id)
-
     # Log action
     try:
         log_action(tg_id, username, "ثبت تیکت پشتیبانی", f"متن پیام: {text} - شناسه تیکت: {ticket_id}")
     except Exception as e:
         print("Error logging ticket:", e)
 
-    # Deliver to each administrator
-    admin_notified_count = 0
-    for target_id in targets:
-        try:
-            admin_msg = (
-                f"🎫 <b>تیکت جدید از کاربر!</b>\n\n"
-                f"🆔 <b>شناسه تیکت:</b> <code>{ticket_id}</code>\n"
-                f"👤 <b>کاربر:</b> @{username} (<code>{tg_id}</code>)\n"
-                f"📝 <b>متن پیام/مشکل:</b>\n"
-                f"<blockquote>{text}</blockquote>\n"
-                f"👉 <i>می‌توانید به این تیکت در داشبورد پاسخ دهید.</i>"
-            )
-            bot.send_message(target_id, admin_msg, parse_mode="HTML")
-            admin_notified_count += 1
-        except Exception as ex:
-            print(f"[Admin Notify Ticket Warning for user ID {target_id}] {ex}")
+    # Deliver to each administrator via threaded notify
+    try:
+        notify_admins_of_event(
+            "🎫",
+            f"ثبت تیکت پشتیبانی جدید ({ticket_id})",
+            f"متن پیام تیکت:\n<code>{text}</code>",
+            user_info={"userId": tg_id, "username": username}
+        )
+    except Exception as ex_t:
+        print(f"[Admin Notify Ticket Error] {ex_t}")
 
     # Success feedback
     success_text = (
@@ -11942,35 +12039,22 @@ def process_user_reply_message(message, ticket_id):
     db["tickets"] = tickets
     write_sqlite_db(db)
 
-    # Notify admins about user reply
-    cfg = get_config()
-    targets = set()
-    owner_id = cfg.get("OWNER_ID")
-    if owner_id and owner_id > 0:
-        targets.add(owner_id)
-    for adm_id in cfg.get("ADMINS", []):
-        if adm_id and adm_id > 0:
-            targets.add(adm_id)
-
     # Log action
     try:
         log_action(tg_id, username, "ارسال پاسخ تیکت", f"پاسخ به {ticket_id}: {text}")
     except Exception as e:
         print("Error logging reply action:", e)
 
-    for target_id in targets:
-        try:
-            admin_msg = (
-                f"💬 <b>پاسخ جدید کاربر به تیکت!</b>\n\n"
-                f"🆔 <b>شناسه تیکت:</b> <code>{ticket_id}</code>\n"
-                f"👤 <b>کاربر:</b> @{username} (<code>{tg_id}</code>)\n"
-                f"📝 <b>متن پیام پاسخ:</b>\n"
-                f"<blockquote>{text}</blockquote>\n"
-                f"👉 <i>می‌توانید به این تیکت در داشبورد پاسخ دهید.</i>"
-            )
-            bot.send_message(target_id, admin_msg, parse_mode="HTML")
-        except Exception as ex:
-            print(f"[Admin Notify Ticket Reply Warning for user ID {target_id}] {ex}")
+    # Deliver to admins via threaded notify
+    try:
+        notify_admins_of_event(
+            "💬",
+            f"پاسخ به تیکت پشتیبانی ({ticket_id})",
+            f"متن پاسخ کاربر:\n<code>{text}</code>",
+            user_info={"userId": tg_id, "username": username}
+        )
+    except Exception as ex_tr:
+        print(f"[Admin Notify Ticket Reply Error] {ex_tr}")
 
     bot.send_message(message.chat.id, "✅ <b>پاسخ شما با موفقیت به تیکت پیوست شد!</b>", parse_mode="HTML", reply_markup=get_custom_keyboard())
     show_ticket_detail(message.chat.id, ticket_id)

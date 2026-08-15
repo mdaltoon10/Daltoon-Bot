@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { getThemeStyles } from "../utils/theme";
 import {
   ShoppingBag,
@@ -4257,14 +4258,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-8 pl-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500 transition-colors"
                         />
                       </div>
-                      <select
-                        value={colleagueSort}
-                        onChange={(e) => setColleagueSort(e.target.value as "newest" | "oldest")}
-                        className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-purple-500 cursor-pointer"
-                      >
-                        <option value="newest">جدیدترین</option>
-                        <option value="oldest">قدیمی‌ترین</option>
-                      </select>
+                      <div className="w-28">
+                        <CustomSelect
+                          value={colleagueSort}
+                          onChange={(val) => setColleagueSort(val as "newest" | "oldest")}
+                          options={[
+                            { value: "newest", label: "جدیدترین" },
+                            { value: "oldest", label: "قدیمی‌ترین" },
+                          ]}
+                          title="مرتب‌سازی"
+                          dir="rtl"
+                          size="compact"
+                        />
+                      </div>
                     </div>
                   )}
 
@@ -4573,20 +4579,19 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       {/* Server Selection for Colleague */}
                       <div className="space-y-1">
                         <label className="text-xs font-bold text-slate-300">سرور:</label>
-                        <select
+                        <CustomSelect
                           value={colleagueSelectedServer?.id || ""}
-                          onChange={(e) => {
-                            const found = [...colleagueServers, ...servers].find((s) => s.id === e.target.value);
+                          onChange={(val) => {
+                            const found = [...colleagueServers, ...servers].find((s) => s.id === val);
                             if (found) setColleagueSelectedServer(found);
                           }}
-                          className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
-                        >
-                          {(colleagueServers.length > 0 ? colleagueServers : servers).map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.flag} {s.name} {s.isColleague ? "(ویژه همکاران)" : ""}
-                            </option>
-                          ))}
-                        </select>
+                          options={(colleagueServers.length > 0 ? colleagueServers : servers).map((s) => ({
+                            value: s.id,
+                            label: `${s.flag} ${s.name} ${s.isColleague ? "(ویژه همکاران)" : ""}`,
+                          }))}
+                          title="انتخاب سرور"
+                          dir="rtl"
+                        />
                       </div>
 
                       {/* Client Name Input */}

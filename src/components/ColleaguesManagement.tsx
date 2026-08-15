@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
+import { CustomSelect } from "./CustomSelect";
 import {
   ColleaguePackage,
   ColleagueAccount,
@@ -654,25 +655,18 @@ export default function ColleaguesManagement({
                       >
                         <ChevronDown className="w-3.5 h-3.5" />
                       </button>
-                      <select
-                        value={index}
-                        onChange={(e) =>
-                          handleSetColleagueCategoryPosition(
-                            index,
-                            Number(e.target.value),
-                          )
-                        }
-                        className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[9px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                        title={
-                          translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)
-                        }
-                      >
-                        {colleagueCategories.map((_, idx) => (
-                          <option key={idx} value={idx}>
-                            {idx + 1}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="w-12">
+                        <CustomSelect
+                          value={index}
+                          onChange={(val) => handleSetColleagueCategoryPosition(index, Number(val))}
+                          options={colleagueCategories.map((_, idx) => ({
+                            value: idx,
+                            label: String(idx + 1),
+                          }))}
+                          size="compact"
+                          title={translateText("Position", "جایگاه", lang)}
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="flex w-full items-center justify-between">
@@ -775,20 +769,21 @@ export default function ColleaguesManagement({
                     {translateText("Category", "دسته‌بندی", lang)}
                   </label>
                   <div className="flex gap-2">
-                    <select
-                      value={pCategory}
-                      onChange={(e) => setPCategory(e.target.value)}
-                      className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
-                    >
-                      <option value="">
-                        {translateText("No Category", "بدون دسته‌بندی", lang)}
-                      </option>
-                      {colleagueCategories.map((cat) => (
-                        <option key={cat.id} value={cat.name}>
-                          {cat.emoji} {cat.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex-1">
+                      <CustomSelect
+                        value={pCategory}
+                        onChange={(val) => setPCategory(val)}
+                        options={[
+                          { value: "", label: translateText("No Category", "بدون دسته‌بندی", lang) },
+                          ...colleagueCategories.map((cat) => ({
+                            value: cat.name,
+                            label: `${cat.emoji} ${cat.name}`,
+                          })),
+                        ]}
+                        title={translateText("Category", "دسته‌بندی", lang)}
+                        dir={lang === "fa" ? "rtl" : "ltr"}
+                      />
+                    </div>
                     <input
                       type="text"
                       placeholder={translateText("Manual...", "دستی...", lang)}
@@ -865,25 +860,18 @@ export default function ColleaguesManagement({
                         >
                           <ChevronDown className="w-3.5 h-3.5" />
                         </button>
-                        <select
-                          value={index}
-                          onChange={(e) =>
-                            handleSetPackagePosition(
-                              index,
-                              Number(e.target.value),
-                            )
-                          }
-                          className="bg-slate-900 border border-white/5 rounded px-1.5 py-0.5 text-[10px] text-indigo-400 font-mono font-bold focus:outline-none focus:border-indigo-500 cursor-pointer"
-                          title={
-                            translateText("Direct Position Selection", "انتخاب مستقیم جایگاه", lang)
-                          }
-                        >
-                          {packages.map((_, idx) => (
-                            <option key={idx} value={idx}>
-                              {idx + 1}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="w-12">
+                          <CustomSelect
+                            value={index}
+                            onChange={(val) => handleSetPackagePosition(index, Number(val))}
+                            options={packages.map((_, idx) => ({
+                              value: idx,
+                              label: String(idx + 1),
+                            }))}
+                            size="compact"
+                            title={translateText("Position", "جایگاه", lang)}
+                          />
+                        </div>
                       </div>
                     </div>
 

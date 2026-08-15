@@ -1,5 +1,6 @@
 import { translateText, Language } from "../lang/locales";
 import React, { useState } from 'react';
+import { CustomSelect } from "./CustomSelect";
 import { formatDateTime } from "../utils/dateTimeUtils";
 import {
   Search,
@@ -442,20 +443,17 @@ export function VpnKeysManager({
 
         {/* Sort Controls & Bulk Actions */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <div className="relative flex-1 sm:flex-initial flex items-center">
-            <ArrowUpDown className="w-3.5 h-3.5 text-indigo-400 absolute left-3 pointer-events-none z-10" />
-            <select
+          <div className="min-w-[170px] flex-1 sm:flex-initial">
+            <CustomSelect
               value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              className="w-full sm:w-auto appearance-none bg-[#1f2937] hover:bg-slate-800 border border-[#374151] pl-8 pr-8 py-2 rounded-xl text-xs font-medium text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer transition shadow-sm"
-            >
-              {sortOptions.map((opt) => (
-                <option key={opt.id} value={opt.id} className="bg-[#1f2937] text-gray-200 py-1.5">
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-gray-400 absolute right-2.5 pointer-events-none z-10" />
+              onChange={(val) => setSortOption(val)}
+              options={sortOptions.map((opt) => ({
+                value: opt.id,
+                label: opt.label,
+              }))}
+              title={translateText("Sort Configs", "مرتب‌سازی کانفیگ‌ها", lang)}
+              dir={lang === "fa" ? "rtl" : "ltr"}
+            />
           </div>
 
           <button

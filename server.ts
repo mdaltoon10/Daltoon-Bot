@@ -921,7 +921,7 @@ function getSystemSettings(db?: any) {
     hideBtnConfigDetails: false,
     hideBtnSearchConfig: false,
     useMiniAppMode: false,
-    startCommandMode: "dual_choice",
+    startCommandMode: "miniapp",
     btnTextMiniApp: "🚀 ورود به برنامه هوشمند",
     btnTextDashSimple: "📱 داشبورد ساده",
     btnTextDashPro: "🚀 داشبورد حرفه‌ای",

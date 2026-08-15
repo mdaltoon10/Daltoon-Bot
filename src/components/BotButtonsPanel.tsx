@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { PanelSettings, CustomButton } from "../types";
 import ConfirmationModal from "./ConfirmationModal";
 import {
@@ -273,10 +274,10 @@ export default function BotButtonsPanel({
     if (settings.btnTextSearchConfig !== undefined) setBtnTextSearchConfig(settings.btnTextSearchConfig || "🔍 سرچ کانفیگ (مدیریت)");
     if (settings.hideBtnSearchConfig !== undefined) setHideBtnSearchConfig(!!settings.hideBtnSearchConfig);
     if (settings.useMiniAppMode !== undefined) setUseMiniAppMode(!!settings.useMiniAppMode);
-    if (settings.startCommandMode !== undefined) {
+    if (settings.startCommandMode) {
       setStartCommandMode(settings.startCommandMode);
     } else if (settings.useMiniAppMode !== undefined) {
-      setStartCommandMode(settings.useMiniAppMode ? "dual_choice" : "buttons");
+      setStartCommandMode(settings.useMiniAppMode ? "miniapp" : "buttons");
     }
     if (settings.btnTextMiniApp !== undefined) setBtnTextMiniApp(settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند");
     if (settings.btnTextDashSimple !== undefined) setBtnTextDashSimple(settings.btnTextDashSimple || "📱 داشبورد ساده");
@@ -904,7 +905,7 @@ export default function BotButtonsPanel({
                     setUseMiniAppMode(checked);
                     if (!checked) {
                       setStartCommandMode("buttons");
-                    } else if (startCommandMode === "buttons") {
+                    } else {
                       setStartCommandMode("miniapp");
                     }
                   }}
@@ -1063,23 +1064,24 @@ export default function BotButtonsPanel({
                         <label className="text-[11px] font-medium text-gray-300 block">
                           {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                         </label>
-                        <select
-                          className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer font-medium"
+                        <CustomSelect
                           value={primaryButtonColors["btnMiniApp"] || primaryButtonColors["btnDashPro"] || "none"}
-                          onChange={(e) =>
+                          onChange={(val) =>
                             setPrimaryButtonColors({
                               ...primaryButtonColors,
-                              btnMiniApp: e.target.value,
-                              btnDashPro: e.target.value,
+                              btnMiniApp: val,
+                              btnDashPro: val,
                             })
                           }
+                          options={[
+                            { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                            { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                            { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                            { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                          ]}
+                          title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                           dir={lang === "fa" ? "rtl" : "ltr"}
-                        >
-                          <option value="none">{translateText("No Color (Default)", "بدون رنگ (عادی)", lang)}</option>
-                          <option value="primary">{translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang)}</option>
-                          <option value="success">{translateText("Green (Success)", "🟢 سبز (موفقیت)", lang)}</option>
-                          <option value="danger">{translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang)}</option>
-                        </select>
+                        />
                       </div>
                     </div>
 
@@ -1170,17 +1172,18 @@ export default function BotButtonsPanel({
                           <label className="text-[11px] font-medium text-gray-300 block">
                             {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                           </label>
-                          <select
-                            className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-emerald-500 cursor-pointer font-medium"
+                          <CustomSelect
                             value={primaryButtonColors["btnDashSimple"] || "none"}
-                            onChange={(e) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashSimple: e.target.value })}
+                            onChange={(val) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashSimple: val })}
+                            options={[
+                              { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                              { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                              { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                              { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                            ]}
+                            title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                             dir={lang === "fa" ? "rtl" : "ltr"}
-                          >
-                            <option value="none">{translateText("No Color (Default)", "بدون رنگ (عادی)", lang)}</option>
-                            <option value="success">{translateText("Green (Success)", "🟢 سبز (موفقیت)", lang)}</option>
-                            <option value="primary">{translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang)}</option>
-                            <option value="danger">{translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang)}</option>
-                          </select>
+                          />
                         </div>
                       </div>
 
@@ -1226,17 +1229,18 @@ export default function BotButtonsPanel({
                           <label className="text-[11px] font-medium text-gray-300 block">
                             {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                           </label>
-                          <select
-                            className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer font-medium"
+                          <CustomSelect
                             value={primaryButtonColors["btnDashPro"] || primaryButtonColors["btnMiniApp"] || "none"}
-                            onChange={(e) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashPro: e.target.value, btnMiniApp: e.target.value })}
+                            onChange={(val) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashPro: val, btnMiniApp: val })}
+                            options={[
+                              { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                              { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                              { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                              { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                            ]}
+                            title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
                             dir={lang === "fa" ? "rtl" : "ltr"}
-                          >
-                            <option value="none">{translateText("No Color (Default)", "بدون رنگ (عادی)", lang)}</option>
-                            <option value="primary">{translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang)}</option>
-                            <option value="success">{translateText("Green (Success)", "🟢 سبز (موفقیت)", lang)}</option>
-                            <option value="danger">{translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang)}</option>
-                          </select>
+                          />
                         </div>
 
                         <div className="space-y-1.5">
@@ -1596,37 +1600,41 @@ export default function BotButtonsPanel({
                         </button>
 
                         {/* Single vs Paired select */}
-                        <select
-                          className="bg-[#1b2230] border border-gray-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer flex-1 min-w-[110px]"
-                          value={singleButtons.includes(key) ? "single" : "pair"}
-                          onChange={(e) => {
-                            const isSingle = e.target.value === "single";
-                            setSingleButtons((prev) => {
-                              if (isSingle && !prev.includes(key)) return [...prev, key];
-                              if (!isSingle && prev.includes(key)) return prev.filter((k) => k !== key);
-                              return prev;
-                            });
-                          }}
-                          dir={lang === "fa" ? "rtl" : "ltr"}
-                          title={translateText("Button layout format", "چیدمان تکی یا دوتایی دکمه", lang)}
-                        >
-                          <option value="pair">{translateText("Paired", "👥 دوتایی", lang)}</option>
-                          <option value="single">{translateText("Single", "👤 تکی", lang)}</option>
-                        </select>
+                        <div className="flex-1 min-w-[110px]">
+                          <CustomSelect
+                            value={singleButtons.includes(key) ? "single" : "pair"}
+                            onChange={(val) => {
+                              const isSingle = val === "single";
+                              setSingleButtons((prev) => {
+                                if (isSingle && !prev.includes(key)) return [...prev, key];
+                                if (!isSingle && prev.includes(key)) return prev.filter((k) => k !== key);
+                                return prev;
+                              });
+                            }}
+                            options={[
+                              { value: "pair", label: translateText("Paired", "👥 دوتایی", lang) },
+                              { value: "single", label: translateText("Single", "👤 تکی", lang) },
+                            ]}
+                            title={translateText("Button layout format", "چیدمان تکی یا دوتایی دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
 
                         {/* Color selection dropdown */}
-                        <select
-                          className="bg-[#1b2230] border border-gray-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer flex-1 min-w-[110px]"
-                          value={primaryButtonColors[key] || "none"}
-                          onChange={(e) => setPrimaryButtonColors({...primaryButtonColors, [key]: e.target.value})}
-                          dir={lang === "fa" ? "rtl" : "ltr"}
-                          title={translateText("Select button color", "انتخاب رنگ دکمه", lang)}
-                        >
-                          <option value="none">{translateText("No Color", "بدون رنگ", lang)}</option>
-                          <option value="success">{translateText("Green", "🟢 سبز", lang)}</option>
-                          <option value="danger">{translateText("Red", "🔴 قرمز", lang)}</option>
-                          <option value="primary">{translateText("Blue", "🔵 آبی", lang)}</option>
-                        </select>
+                        <div className="flex-1 min-w-[110px]">
+                          <CustomSelect
+                            value={primaryButtonColors[key] || "none"}
+                            onChange={(val) => setPrimaryButtonColors({...primaryButtonColors, [key]: val})}
+                            options={[
+                              { value: "none", label: translateText("No Color", "بدون رنگ", lang) },
+                              { value: "success", label: translateText("Green", "🟢 سبز", lang) },
+                              { value: "danger", label: translateText("Red", "🔴 قرمز", lang) },
+                              { value: "primary", label: translateText("Blue", "🔵 آبی", lang) },
+                            ]}
+                            title={translateText("Select button color", "انتخاب رنگ دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
 
                         {/* Edit wallet amounts if applicable */}
                         {key === "btnWallet" && (
@@ -1695,21 +1703,24 @@ export default function BotButtonsPanel({
                         setExtraButtonColors(newList);
                       }}
                     />
-                    <select
-                      className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-[90px] shrink-0"
-                      value={item.color}
-                      onChange={(e) => {
-                        const newList = [...extraButtonColors];
-                        newList[idx].color = e.target.value;
-                        setExtraButtonColors(newList);
-                      }}
-                      dir={lang === "fa" ? "rtl" : "ltr"}
-                    >
-                      <option value="none">{translateText("None", "بدون رنگ", lang)}</option>
-                      <option value="success">{translateText("Green", "سبز", lang)}</option>
-                      <option value="danger">{translateText("Red", "قرمز", lang)}</option>
-                      <option value="primary">{translateText("Blue", "آبی", lang)}</option>
-                    </select>
+                    <div className="w-[105px] shrink-0">
+                      <CustomSelect
+                        value={item.color}
+                        onChange={(val) => {
+                          const newList = [...extraButtonColors];
+                          newList[idx].color = val;
+                          setExtraButtonColors(newList);
+                        }}
+                        options={[
+                          { value: "none", label: translateText("None", "بدون رنگ", lang) },
+                          { value: "success", label: translateText("Green", "سبز", lang) },
+                          { value: "danger", label: translateText("Red", "قرمز", lang) },
+                          { value: "primary", label: translateText("Blue", "آبی", lang) },
+                        ]}
+                        title={translateText("Color", "رنگ", lang)}
+                        dir={lang === "fa" ? "rtl" : "ltr"}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
