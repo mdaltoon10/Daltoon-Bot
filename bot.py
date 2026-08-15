@@ -5296,6 +5296,17 @@ def register_tg_user(tg_id, username, referral_id=None):
                 # Recalculate or increment the referral count to be 100% sure we don't drop invites
                 referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
                 
+                try:
+                    ref_uname = referrer.get("username") or str(referral_id)
+                    notify_admins_of_event(
+                        "👥",
+                        "دعوت کاربر جدید (زیرمجموعه‌گیری)",
+                        f"کاربر جدید با لینک اختصاصی کاربر «@{ref_uname}» (شناسه: {referral_id}) ثبت‌نام و دعوت شد.",
+                        user_info={"userId": tg_id, "username": username}
+                    )
+                except Exception as ex_ref:
+                    print("[Referral Invite Notif Error]", ex_ref)
+                
                 # Parse settings
                 import json
                 try:
@@ -5556,13 +5567,38 @@ def record_promo_code_usage(code_text, tg_id):
     except Exception as ex:
         print(f"[Promo Code Record Error]: {ex}")
 
+def get_notification_bot():
+    """
+    Returns the second bot (Receipt bot) if configured and active, otherwise falls back to main bot.
+    """
+    try:
+        r_mgr = ReceiptBotManager.get_instance()
+        if r_mgr and r_mgr.r_bot and r_mgr.current_token:
+            return r_mgr.r_bot
+        
+        cfg = get_config()
+        receipt_token = (cfg.get("RECEIPT_BOT_TOKEN") or "").strip()
+        if receipt_token and receipt_token.upper() != "123456:ABC-DEF1234GHIJKL-ZYX57W2V1U123EW11":
+            import telebot
+            temp_bot = telebot.TeleBot(receipt_token, parse_mode="HTML")
+            patch_telebot_currency(temp_bot)
+            return temp_bot
+    except Exception as e:
+        print(f"[get_notification_bot Error]: {e}")
+    
+    return bot
+
 def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
     """
-    Sends notification to admin(s) in PV.
+    Sends notification to admin(s) in PV using the second bot (if configured) or main bot (fallback).
     Replies to the previous notification message to create a single continuous thread/subject
     so notifications are never lost or scattered.
     """
     try:
+        # Completely suppress "/start" notifications from Telegram PV per user request
+        if title in ["ورود به ربات (/start)", "ورود به ربات"]:
+            return
+
         cfg = get_config()
         owner_id = cfg.get("OWNER_ID")
         admins = cfg.get("ADMINS", [])
@@ -5597,7 +5633,6 @@ def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
             
             if is_owner:
                 suppressed_titles = [
-                    "ورود به ربات (/start)",
                     "ورود و عضویت کاربر جدید",
                     "خروج / بلاک کردن ربات",
                     "آن‌بلاک / بازگشت به ربات",
@@ -5632,6 +5667,8 @@ def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
             f"⏱ <b>زمان:</b> <code>{now_str}</code>"
         )
 
+        target_bot = get_notification_bot()
+
         db_updated = False
         for target_id in targets:
             str_target = str(target_id)
@@ -5640,16 +5677,21 @@ def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
             sent_msg = None
             if last_msg_id:
                 try:
-                    sent_msg = bot.send_message(target_id, msg_text, parse_mode="HTML", reply_to_message_id=int(last_msg_id))
+                    sent_msg = target_bot.send_message(target_id, msg_text, parse_mode="HTML", reply_to_message_id=int(last_msg_id))
                 except Exception as ex:
                     print(f"[Admin Thread Notif Reply Fallback for {target_id}] {ex}")
                     sent_msg = None
 
             if not sent_msg:
                 try:
-                    sent_msg = bot.send_message(target_id, msg_text, parse_mode="HTML")
+                    sent_msg = target_bot.send_message(target_id, msg_text, parse_mode="HTML")
                 except Exception as ex2:
-                    print(f"[Admin Thread Notif Error] Could not send to {target_id}: {ex2}")
+                    print(f"[Admin Thread Notif Error with target_bot] {ex2}")
+                    if target_bot != bot:
+                        try:
+                            sent_msg = bot.send_message(target_id, msg_text, parse_mode="HTML")
+                        except Exception as ex3:
+                            print(f"[Admin Thread Notif Main Fallback Error] {ex3}")
 
             if sent_msg and hasattr(sent_msg, 'message_id'):
                 last_msg_ids[str_target] = sent_msg.message_id

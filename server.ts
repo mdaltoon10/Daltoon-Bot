@@ -889,6 +889,7 @@ function getSystemSettings(db?: any) {
 
   const settings: any = {
     botToken: process.env.BOT_TOKEN || "",
+    receiptBotToken: process.env.RECEIPT_BOT_TOKEN || "",
     baseUrl: process.env.XUI_URL || "",
     panelUrl: "",
     panelUsername: process.env.PANEL_USER || "",
@@ -8353,14 +8354,24 @@ function checkUserRoleAndAdmin(
 // Universal helper to send notification to all Admins and Owner
 async function sendAdminNotification(messageText: string, settings: any, replyMarkup?: any) {
   try {
-    const botToken = settings?.botToken || settings?.telegramBotToken || process.env.BOT_TOKEN;
-    if (!botToken || botToken === "DUMMY_TOKEN") return;
+    const mainToken = settings?.botToken || settings?.telegramBotToken || process.env.BOT_TOKEN;
+    const receiptToken = (settings?.receiptBotToken || settings?.receipt_bot_token || process.env.RECEIPT_BOT_TOKEN || "").trim();
+    const primaryToken = (receiptToken && receiptToken !== "DUMMY_TOKEN") ? receiptToken : mainToken;
+
+    if (!primaryToken || primaryToken === "DUMMY_TOKEN") return;
     const targets = getAdminTargetIds(settings);
     for (const targetId of targets) {
       try {
-        await sendTelegramMessage(botToken, targetId, messageText, replyMarkup);
+        await sendTelegramMessage(primaryToken, targetId, messageText, replyMarkup);
       } catch (err: any) {
-        console.warn(`[Admin Notify Warning] for ${targetId}:`, err?.message);
+        console.warn(`[Admin Notify Warning] for ${targetId} with primary token:`, err?.message);
+        if (primaryToken !== mainToken && mainToken && mainToken !== "DUMMY_TOKEN") {
+          try {
+            await sendTelegramMessage(mainToken, targetId, messageText, replyMarkup);
+          } catch (fallbackErr: any) {
+            console.warn(`[Admin Notify Fallback Warning] for ${targetId}:`, fallbackErr?.message);
+          }
+        }
       }
     }
   } catch (e: any) {
@@ -8372,8 +8383,11 @@ async function sendAdminNotification(messageText: string, settings: any, replyMa
 // Helper to send instant notification to all bot admins on new receipt submission
 async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
   try {
-    const botToken = settings.botToken || settings.telegramBotToken || process.env.BOT_TOKEN;
-    if (!botToken || botToken === "DUMMY_TOKEN") return;
+    const mainToken = settings?.botToken || settings?.telegramBotToken || process.env.BOT_TOKEN;
+    const receiptToken = (settings?.receiptBotToken || settings?.receipt_bot_token || process.env.RECEIPT_BOT_TOKEN || "").trim();
+    const primaryToken = (receiptToken && receiptToken !== "DUMMY_TOKEN") ? receiptToken : mainToken;
+
+    if (!primaryToken || primaryToken === "DUMMY_TOKEN") return;
 
     const adminTargets = getAdminTargetIds(settings);
     if (adminTargets.length === 0) return;
@@ -8406,12 +8420,23 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
     for (const targetId of adminTargets) {
       try {
         if (hasPhoto) {
-          await sendTelegramPhoto(botToken, targetId, tx.receiptImage, adminMsg, inlineMarkup);
+          await sendTelegramPhoto(primaryToken, targetId, tx.receiptImage, adminMsg, inlineMarkup);
         } else {
-          await sendTelegramMessage(botToken, targetId, adminMsg, inlineMarkup);
+          await sendTelegramMessage(primaryToken, targetId, adminMsg, inlineMarkup);
         }
       } catch (err: any) {
         console.warn(`[Admin Receipt Notify Warning] for ${targetId}:`, err.message);
+        if (primaryToken !== mainToken && mainToken && mainToken !== "DUMMY_TOKEN") {
+          try {
+            if (hasPhoto) {
+              await sendTelegramPhoto(mainToken, targetId, tx.receiptImage, adminMsg, inlineMarkup);
+            } else {
+              await sendTelegramMessage(mainToken, targetId, adminMsg, inlineMarkup);
+            }
+          } catch (fbErr: any) {
+            console.warn(`[Admin Receipt Notify Fallback Error] for ${targetId}:`, fbErr.message);
+          }
+        }
       }
     }
   } catch (e: any) {
