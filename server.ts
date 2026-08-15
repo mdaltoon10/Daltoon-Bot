@@ -2009,6 +2009,20 @@ async function handleRegenerateKeyLogic(id: string) {
 
     writeSqliteDb(db);
 
+    try {
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(key.serverId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const resetMsg =
+        `🔄 <b>[اعلان تغییر لینک / بازنشانی UUID]</b>\n\n` +
+        `👤 <b>کاربر/کانفیگ:</b> <code>${clientName || "نامشخص"}</code>${key.userId ? ` (شناسه: <code>${key.userId}</code>)` : ""}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `🔑 <b>شناسه جدید (UUID):</b> <code>${key.clientUuid}</code>\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(resetMsg, settings).catch(() => {});
+    } catch (e) {
+      console.error("[regenerate uuid notify error]", e);
+    }
+
     // Send Telegram Notification to user if botToken configured
     if (key.userId && settings.botToken) {
       const userMsg =
@@ -7578,6 +7592,24 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
       }
     }
 
+    try {
+      const settings = getSystemSettings(db);
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(effectiveServerId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const clientNameText = clientIdentifier || "نامشخص";
+      const uuidText = effectiveUuid || "نامشخص";
+      const userText = targetUserId ? ` (شناسه: <code>${targetUserId}</code>)` : "";
+      const deleteMsg =
+        `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
+        `👤 <b>کاربر/کانفیگ:</b> <code>${clientNameText}</code>${userText}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(deleteMsg, settings).catch(() => {});
+    } catch (e) {
+      console.error("[delete key notify error]", e);
+    }
+
     writeSqliteDb(db);
     res.json({
       success: true,
@@ -7771,6 +7803,22 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       }
     }
 
+    try {
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(key.serverId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const renewMsg =
+        `🔄 <b>[اعلان تمدید کانفیگ]</b>\n\n` +
+        `👤 <b>کاربر/کانفیگ:</b> <code>${clientName || "نامشخص"}</code>${key.userId ? ` (شناسه: <code>${key.userId}</code>)` : ""}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `➕ <b>افزایش حجم:</b> +${numGb} GB (مجموع: ${new_limit_gb} GB)\n` +
+        `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
+        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(renewMsg, settings).catch(() => {});
+    } catch (e) {
+      console.error("[renew key notify error]", e);
+    }
+
     writeSqliteDb(db);
 
     // Notify user on Telegram
@@ -7832,6 +7880,23 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
           c.status = newStatus;
         }
       }
+    }
+
+    try {
+      const settings = getSystemSettings(db);
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(keyToToggle.serverId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const statusIcon = newStatus === "active" ? "🟢" : "🔴";
+      const statusTextFa = newStatus === "active" ? "فعال‌سازی" : "غیرفعال‌سازی";
+      const toggleMsg =
+        `${statusIcon} <b>[اعلان تغییر وضعیت کانفیگ]</b>\n\n` +
+        `👤 <b>کاربر/کانفیگ:</b> <code>${clientIdentifier || "نامشخص"}</code>${keyToToggle.userId ? ` (شناسه: <code>${keyToToggle.userId}</code>)` : ""}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `⚡ <b>عملیات:</b> ${statusTextFa}\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(toggleMsg, settings).catch(() => {});
+    } catch (e) {
+      console.error("[toggle key notify error]", e);
     }
 
     writeSqliteDb(db);
@@ -7916,6 +7981,24 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
           );
         }
       }
+    }
+
+    try {
+      const settings = getSystemSettings(db);
+      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(targetServerId));
+      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const clientNameText = emailToDelete || "نامشخص";
+      const uuidText = uuidToDelete || "نامشخص";
+      const userText = effectiveUserId ? ` (شناسه: <code>${effectiveUserId}</code>)` : "";
+      const deleteMsg =
+        `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
+        `👤 <b>کاربر/کانفیگ:</b> <code>${clientNameText}</code>${userText}\n` +
+        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
+        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+      sendAdminNotification(deleteMsg, settings).catch(() => {});
+    } catch (e) {
+      console.error("[delete key notify error 2]", e);
     }
 
     writeSqliteDb(db);

@@ -5577,6 +5577,36 @@ def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
         if not targets:
             return
 
+        user_id = None
+        if user_info:
+            if isinstance(user_info, dict):
+                u_id = user_info.get("userId") or user_info.get("id") or user_info.get("tg_id")
+                if u_id:
+                    try:
+                        user_id = int(u_id)
+                    except:
+                        pass
+            elif isinstance(user_info, (int, str)):
+                if str(user_info).isdigit():
+                    user_id = int(user_info)
+
+        if user_id:
+            is_owner = False
+            if owner_id and int(user_id) == int(owner_id):
+                is_owner = True
+            
+            if is_owner:
+                suppressed_titles = [
+                    "ورود به ربات (/start)",
+                    "ورود و عضویت کاربر جدید",
+                    "خروج / بلاک کردن ربات",
+                    "آن‌بلاک / بازگشت به ربات",
+                    "عضویت در کانال اسپانسر"
+                ]
+                if title in suppressed_titles:
+                    print(f"[Notif Blocked] Suppressing '{title}' notification for owner {user_id}")
+                    return
+
         db = read_sqlite_db()
         last_msg_ids = db.get("admin_last_notification_ids", {})
         if not isinstance(last_msg_ids, dict):
@@ -11497,7 +11527,7 @@ def process_col_renew_days(message, acc, sub, add_gb):
         
         client_name = live_sub.get("clientName") or live_sub.get("planName", "")
         # Use extend_vpn_client_api instead of delete/add
-        extended = extend_vpn_client_api(client_name, extra_gb, extra_days, client_uuid=live_sub.get("clientUuid"), server_id=live_sub.get("serverId"), sub_link=live_sub.get("subLink"))
+        extended = extend_vpn_client_api(client_name, add_gb, days, client_uuid=live_sub.get("clientUuid"), server_id=live_sub.get("serverId"), sub_link=live_sub.get("subLink"))
         sub_link = live_sub.get("subLink", "")
         if not extended:
             sub_link = None
@@ -11521,6 +11551,18 @@ def process_col_renew_days(message, acc, sub, add_gb):
         keys[sub_idx] = live_sub
         db["subscription_keys"] = keys
         write_sqlite_db(db)
+
+        try:
+            notify_admins_of_event(
+                "🔄",
+                "تمدید کانفیگ توسط همکار",
+                f"همکار «{acc.get('username') or acc.get('name') or acc.get('id')}» اشتراک «{client_name}» را به میزان {add_gb}GB و {days} روز تمدید کرد.\n"
+                f"تاریخ انقضای جدید: {new_expire_date_str}\n"
+                f"مجموع حجم جدید: {new_limit_gb} GB",
+                user_info={"userId": acc.get("userId") or message.from_user.id, "username": acc.get("username")}
+            )
+        except Exception as e_notif:
+            print(f"[Colleague Renew Notif Error] {e_notif}")
         
         bot.send_message(message.chat.id, "✅ تمدید کاربر با موفقیت انجام شد.", reply_markup=get_custom_keyboard())
         
