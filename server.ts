@@ -550,6 +550,7 @@ interface DbSchema {
   colleague_categories?: any[];
   logs?: any[];
   plan_categories?: any[];
+  user_notifications?: any[];
   settings: Record<string, string>;
   link_tokens?: Record<string, string>;
 }
@@ -2011,14 +2012,15 @@ async function handleRegenerateKeyLogic(id: string) {
     writeSqliteDb(db);
 
     try {
-      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(key.serverId));
-      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const userInfoText = getUserDisplayInfo(key.userId, clientName, db);
+      const srvDisplay = getServerDisplayForNotification(key.serverId, settings, db, key.subLink);
+      const shamsiTime = formatShamsiDate(new Date(), true);
       const resetMsg =
         `🔄 <b>[اعلان تغییر لینک / بازنشانی UUID]</b>\n\n` +
-        `👤 <b>کاربر/کانفیگ:</b> <code>${clientName || "نامشخص"}</code>${key.userId ? ` (شناسه: <code>${key.userId}</code>)` : ""}\n` +
-        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `${userInfoText}\n` +
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
         `🔑 <b>شناسه جدید (UUID):</b> <code>${key.clientUuid}</code>\n` +
-        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        `⏱ <b>زمان:</b> ${shamsiTime}`;
       sendAdminNotification(resetMsg, settings).catch(() => {});
     } catch (e) {
       console.error("[regenerate uuid notify error]", e);
@@ -3431,11 +3433,24 @@ function getServerRemark(serverId: any, settings: any, db?: any, subLink?: strin
 function getUserDisplayInfo(userId: any, clientName?: string, db?: any): string {
   let usernameStr = "";
   let fullNameStr = "";
-  const cleanId = userId ? String(userId).trim() : "";
+  let cleanId = userId ? String(userId).trim() : "";
+
+  const dbData = db || readSqliteDb();
+
+  // If cleanId is missing or "0", try to resolve user from subscription_keys using clientName
+  if ((!cleanId || cleanId === "0") && clientName) {
+    const key = (dbData.subscription_keys || []).find((k: any) =>
+      String(k.clientName) === String(clientName) ||
+      String(k.clientUuid) === String(clientName) ||
+      String(k.id) === String(clientName)
+    );
+    if (key && key.userId) {
+      cleanId = String(key.userId);
+    }
+  }
 
   if (cleanId) {
     try {
-      const dbData = db || readSqliteDb();
       const user = (dbData.users || []).find((u: any) =>
         String(u.userId) === cleanId ||
         String(u.id) === cleanId ||
@@ -3452,14 +3467,66 @@ function getUserDisplayInfo(userId: any, clientName?: string, db?: any): string 
   }
 
   const cleanClient = clientName && String(clientName).trim() ? String(clientName).trim() : "";
-  const displayUser = usernameStr || (fullNameStr ? `<b>${fullNameStr}</b>` : "بدون یوزرنیم");
-  const idStr = cleanId ? ` (شناسه: <code>${cleanId}</code>)` : "";
+  let userPart = "";
+  if (usernameStr && fullNameStr) {
+    userPart = `${usernameStr} (${fullNameStr})`;
+  } else if (usernameStr) {
+    userPart = usernameStr;
+  } else if (fullNameStr) {
+    userPart = `<b>${fullNameStr}</b>`;
+  } else {
+    userPart = "بدون یوزرنیم";
+  }
 
-  let result = `👤 <b>کاربر:</b> ${displayUser}${idStr}`;
+  const idStr = cleanId && cleanId !== "0" ? ` (شناسه: <code>${cleanId}</code>)` : "";
+  let result = `👤 <b>کاربر:</b> ${userPart}${idStr}`;
   if (cleanClient) {
     result += `\n🏷 <b>نام کانفیگ:</b> <code>${cleanClient}</code>`;
   }
   return result;
+}
+
+function getServerDisplayForNotification(serverId: any, settings: any, db?: any, subLink?: string): string {
+  const dbData = db || readSqliteDb();
+  const activeServers = getActiveServers(settings);
+  const srv = activeServers.find((s: any) => String(s.id) === String(serverId));
+  const srvName = getServerRemark(serverId, settings, dbData, subLink);
+  const srvFlag = srv?.flag || (srv?.isColleague ? "👥" : "🌐");
+  return `${srvFlag} ${srvName}`;
+}
+
+function addUserNotification(
+  userId: number | string,
+  notification: {
+    title: string;
+    message: string;
+    type?: "receipt_approved" | "receipt_rejected" | "renew_approved" | "general";
+    subKey?: any;
+    txId?: string;
+  },
+  db: any
+) {
+  if (!userId || Number(userId) <= 0) return null;
+  if (!Array.isArray(db.user_notifications)) {
+    db.user_notifications = [];
+  }
+  const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const notifObj = {
+    id: notifId,
+    userId: Number(userId),
+    title: notification.title,
+    message: notification.message,
+    type: notification.type || "general",
+    subKey: notification.subKey || null,
+    txId: notification.txId || null,
+    isRead: false,
+    createdAt: new Date().toISOString(),
+  };
+  db.user_notifications.push(notifObj);
+  if (db.user_notifications.length > 1000) {
+    db.user_notifications = db.user_notifications.slice(-1000);
+  }
+  return notifObj;
 }
 
 function calculateCustomPlanPrice(trafficGb: number, durationDays: number, serverId: any, settings: any): { price: number; pricePerGb: number; pricePerDay: number } {
@@ -7204,6 +7271,7 @@ app.post("/api/transactions/approve", async (req, res) => {
     if (!db.transactions) db.transactions = [];
     const tx = db.transactions.find((t: any) => String(t.id).trim() === String(id).trim());
     if (tx) {
+      const isRenewTx = tx.type === "renew" || tx.planId === "custom_renew" || tx.pendingPurchase?.isRenew || tx.pendingPurchase?.type === "renew";
       if (tx.pendingPurchase) {
         if (!tx.planId && tx.pendingPurchase.planId) tx.planId = tx.pendingPurchase.planId;
         if (!tx.serverId && tx.pendingPurchase.serverId) tx.serverId = tx.pendingPurchase.serverId;
@@ -7212,7 +7280,7 @@ app.post("/api/transactions/approve", async (req, res) => {
         }
         if (!tx.customGb && tx.pendingPurchase.customGb) tx.customGb = tx.pendingPurchase.customGb;
         if (!tx.customDays && tx.pendingPurchase.customDays) tx.customDays = tx.pendingPurchase.customDays;
-        if (tx.type !== "PLAN_PURCHASE" && (tx.planId || tx.pendingPurchase.planId || tx.pendingPurchase.packageId)) {
+        if (!isRenewTx && tx.type !== "PLAN_PURCHASE" && (tx.planId || tx.pendingPurchase.planId || tx.pendingPurchase.packageId)) {
           tx.type = "PLAN_PURCHASE";
         }
       }
@@ -7221,7 +7289,7 @@ app.post("/api/transactions/approve", async (req, res) => {
         tx.planId = overridePlanId;
         if (overrideServerId) tx.serverId = overrideServerId;
       }
-      if (tx.planId && tx.type !== "PLAN_PURCHASE") {
+      if (!isRenewTx && tx.planId && tx.type !== "PLAN_PURCHASE") {
         tx.type = "PLAN_PURCHASE";
       }
       tx.status = "approved";
@@ -7236,7 +7304,139 @@ app.post("/api/transactions/approve", async (req, res) => {
 
       let messageTextForNotif = "";
 
-      if (tx.type === "PLAN_PURCHASE") {
+      if (isRenewTx) {
+        // Priority Renewal Handler
+        const targetSubId = tx.pendingPurchase?.subId || tx.pendingPurchase?.clientUuid || tx.clientName;
+        const settings = getSystemSettings(db);
+        const customGb = Number(tx.customGb || tx.pendingPurchase?.customGb || 10);
+        const customDays = Number(tx.customDays || tx.pendingPurchase?.customDays || 30);
+
+        const subscription_keys = db.subscription_keys || [];
+        const k = subscription_keys.find(
+          (sub: any) =>
+            String(sub.id) === String(targetSubId) ||
+            String(sub.clientUuid) === String(targetSubId) ||
+            String(sub.clientName) === String(targetSubId) ||
+            (tx.pendingPurchase?.clientUuid && String(sub.clientUuid) === String(tx.pendingPurchase.clientUuid)) ||
+            (tx.pendingPurchase?.clientName && String(sub.clientName) === String(tx.pendingPurchase.clientName))
+        );
+
+        if (k) {
+          const clientName = k.clientName || k.clientEmail || k.planName || "";
+          const serverId = tx.pendingPurchase?.serverId || tx.serverId || k.serverId;
+
+          let expDt = new Date();
+          try {
+            const parsed = new Date(k.expireDate);
+            if (!isNaN(parsed.getTime()) && parsed.getTime() > Date.now()) {
+              expDt = parsed;
+            }
+          } catch (e) {}
+
+          const newExpDt = new Date(
+            expDt.getTime() + customDays * 24 * 60 * 60 * 1000,
+          );
+          const newExpireDateStr = newExpDt.toISOString().split("T")[0];
+          const newLimitGb = (Number(k.trafficLimitGb) || 0) + customGb;
+
+          try {
+            const addResult = await extendVpnClientApi(
+              clientName,
+              customGb,
+              customDays,
+              k.clientUuid,
+              serverId,
+              k.subLink
+            );
+
+            if (addResult.success) {
+              // Existing client on panel was extended successfully
+              k.expireDate = newExpireDateStr;
+              k.trafficLimitGb = newLimitGb;
+              k.status = "active";
+              k.disabled = false;
+            } else {
+              // Client was deleted/not found on panel -> recreate client on the panel
+              console.warn(`[Approve Renew] Client ${clientName} not found on panel, recreating on server ${serverId}...`);
+              const vpnResult = await addVpnClientApi(
+                clientName,
+                customGb,
+                customDays,
+                settings,
+                undefined,
+                serverId
+              );
+              if (vpnResult.success && vpnResult.subLink) {
+                k.clientUuid = vpnResult.clientUuid || k.clientUuid;
+                k.subLink = vpnResult.subLink;
+                k.vlessConfigs = vpnResult.vlessConfigs || [];
+                k.vlessLinks = vpnResult.vlessLinks || [];
+                k.trafficLimitGb = customGb;
+                k.trafficUsedGb = 0;
+                k.expireDate = new Date(Date.now() + customDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                k.status = "active";
+                k.disabled = false;
+                k.serverId = serverId;
+              } else {
+                k.expireDate = newExpireDateStr;
+                k.trafficLimitGb = newLimitGb;
+                k.status = "active";
+                k.disabled = false;
+              }
+            }
+
+            if (user) {
+              user.activePlansCount = (db.subscription_keys || []).filter(
+                (sub: any) => Number(sub.userId) === Number(user.userId) && sub.status === "active" && !sub.disabled
+              ).length;
+              if (Array.isArray(user.configs)) {
+                const c = user.configs.find((cfg: any) => String(cfg.id) === String(k.id) || String(cfg.uuid) === String(k.clientUuid));
+                if (c) {
+                  c.expireDate = k.expireDate;
+                  c.trafficLimitGb = k.trafficLimitGb;
+                  c.status = "active";
+                  c.disabled = false;
+                  if (k.subLink) c.subLink = k.subLink;
+                }
+              }
+            }
+
+            const srvRemark = getServerRemark(serverId, settings, db, k.subLink);
+            const activeServers = getActiveServers(settings);
+            const srvObj = activeServers.find((s: any) => String(s.id) === String(serverId));
+            const srvFlag = srvObj?.flag || (srvObj?.isColleague ? "👥" : "🌐");
+            const srvDisplay = `${srvFlag} ${srvRemark}`;
+            const shamsiExpDate = formatShamsiDate(newExpDt);
+
+            messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n` +
+              `👤 <b>سرویس:</b> <code>${clientName}</code>\n` +
+              `🌐 <b>سرور:</b> ${srvDisplay}\n` +
+              `➕ <b>حجم افزوده شده:</b> <b>${customGb} گیگابایت</b>\n` +
+              `➕ <b>مدت افزوده شده:</b> <b>${customDays} روز</b>\n\n` +
+              `📅 <b>تاریخ انقضای جدید:</b> <b>${shamsiExpDate}</b>\n` +
+              `📊 <b>حجم کل جدید:</b> <b>${k.trafficLimitGb} گیگابایت</b>\n\n` +
+              `🔗 <b>لینک اشتراک:</b>\n<code>${k.subLink || ""}</code>`;
+
+            tx._generatedSubId = k.id;
+            tx._generatedSubLink = k.subLink;
+
+            if (!db.logs) db.logs = [];
+            db.logs.push({
+              id: Math.random().toString(36).substring(2, 9),
+              date: new Date().toISOString(),
+              userId: Number(tx.userId),
+              username: tx.username || `user_${tx.userId}`,
+              action: "تمدید اشتراک",
+              details: `اشتراک ${clientName} تمدید و فعال شد (فیش تایید شد).`,
+            });
+          } catch (apiErr: any) {
+            tx.status = "failed";
+            messageTextForNotif = `❌ خطا در اعمال تمدید اشتراک روی سرور: ${apiErr.message}`;
+          }
+        } else {
+          messageTextForNotif = `❌ خطا: اشتراک مورد نظر جهت تمدید یافت نشد.`;
+        }
+      } else if (tx.type === "PLAN_PURCHASE") {
         if (
           tx.planId &&
           (tx.planId.startsWith("COL_BUY:") ||
@@ -7763,6 +7963,18 @@ app.post("/api/transactions/approve", async (req, res) => {
         console.warn("Error notifying user of approval:", notifyErr);
       }
 
+      // Record persistent notification for user in miniapp
+      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+      db.user_notifications.push({
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        userId: Number(tx.userId),
+        title: isRenewTx ? "🎉 تمدید اشتراک تایید شد!" : "🎉 رسید شما تایید شد!",
+        message: messageTextForNotif || (isRenewTx ? "اشتراک شما تمدید و فعال گردید." : "سرویس شما توسط مدیریت تایید و فعال گردید."),
+        type: "success",
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+
       writeSqliteDb(db);
 
       res.json({
@@ -7803,6 +8015,18 @@ app.post("/api/transactions/reject", async (req, res) => {
       if (db.logs.length > 1000) {
         db.logs = db.logs.slice(-1000);
       }
+
+      // Record persistent notification for user in miniapp
+      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+      db.user_notifications.push({
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        userId: Number(tx.userId),
+        title: "❌ رسید شما رد شد",
+        message: `رسید تراکنش شما با شناسه ${tx.id} به مبلغ ${Number(tx.amount || 0).toLocaleString()} تومان توسط مدیریت بررسی و تایید نگردید.`,
+        type: "error",
+        read: false,
+        createdAt: new Date().toISOString()
+      });
 
       writeSqliteDb(db);
 
@@ -8081,17 +8305,15 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
 
     try {
       const settings = getSystemSettings(db);
-      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(effectiveServerId));
-      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
-      const clientNameText = clientIdentifier || "نامشخص";
+      const srvDisplay = getServerDisplayForNotification(effectiveServerId, settings, db);
+      const userInfoText = getUserDisplayInfo(targetUserId, clientIdentifier, db);
       const uuidText = effectiveUuid || "نامشخص";
-      const userText = targetUserId ? ` (شناسه: <code>${targetUserId}</code>)` : "";
       const deleteMsg =
         `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
-        `👤 <b>کاربر/کانفیگ:</b> <code>${clientNameText}</code>${userText}\n` +
-        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `${userInfoText}\n` +
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
         `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
-        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
       sendAdminNotification(deleteMsg, settings).catch(() => {});
     } catch (e) {
       console.error("[delete key notify error]", e);
@@ -8354,7 +8576,23 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     );
 
     if (!addResult.success) {
-      console.warn("Could not renew on panel, renewing locally anyway. Error:", addResult.error);
+      console.warn("[Renew API] Client not found on panel during extend, recreating client on panel:", addResult.error);
+      const vpnResult = await addVpnClientApi(
+        clientName,
+        numGb,
+        numDays,
+        settings,
+        undefined,
+        key.serverId
+      );
+      if (vpnResult.success && vpnResult.subLink) {
+        key.clientUuid = vpnResult.clientUuid || key.clientUuid;
+        key.subLink = vpnResult.subLink;
+        key.vlessConfigs = vpnResult.vlessConfigs || [];
+        key.vlessLinks = vpnResult.vlessLinks || [];
+        key.trafficLimitGb = numGb;
+        key.trafficUsedGb = 0;
+      }
     }
 
     // Update locally
@@ -8535,16 +8773,16 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
 
     try {
       const settings = getSystemSettings(db);
-      const srvName = getServerRemark(keyToToggle.serverId, settings, db);
+      const srvDisplay = getServerDisplayForNotification(keyToToggle.serverId, settings, db, targetSubLink);
       const userInfoText = getUserDisplayInfo(keyToToggle.userId, clientIdentifier, db);
       const statusIcon = newStatus === "active" ? "🟢" : "🔴";
-      const statusTextFa = newStatus === "active" ? "فعال‌سازی" : "غیرفعال‌سازی";
+      const statusTextFa = newStatus === "active" ? "فعال‌سازی" : "غیرفعال‌سازی (تعلیق)";
       const toggleMsg =
         `${statusIcon} <b>[اعلان تغییر وضعیت کانفیگ]</b>\n\n` +
         `${userInfoText}\n` +
-        `🌐 <b>سرور:</b> ${srvName}\n` +
-        `⚡ <b>عملیات:</b> ${statusTextFa}\n` +
-        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
+        `⚡ <b>وضعیت جدید:</b> ${statusTextFa}\n` +
+        `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
       sendAdminNotification(toggleMsg, settings).catch(() => {});
     } catch (e) {
       console.error("[toggle key notify error]", e);
@@ -8636,15 +8874,15 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
 
     try {
       const settings = getSystemSettings(db);
-      const srvName = getServerRemark(targetServerId, settings, db);
+      const srvDisplay = getServerDisplayForNotification(targetServerId, settings, db, targetKey?.subLink);
       const userInfoText = getUserDisplayInfo(effectiveUserId, emailToDelete, db);
       const uuidText = uuidToDelete || "نامشخص";
       const deleteMsg =
         `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
         `${userInfoText}\n` +
-        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
         `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
-        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
       sendAdminNotification(deleteMsg, settings).catch(() => {});
     } catch (e) {
       console.error("[delete key notify error 2]", e);
@@ -9571,10 +9809,36 @@ app.get("/api/miniapp/data", async (req, res) => {
         },
         subscriptions: userSubs,
         tickets: userTickets,
-        transactions: userTransactions
+        transactions: userTransactions,
+        notifications: tgId > 0 ? (db.user_notifications || []).filter((n: any) => Number(n.userId) === tgId && !n.read) : []
       });
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Mark notification(s) as read for MiniApp user
+app.post("/api/miniapp/notifications/read", (req, res) => {
+  try {
+    const { id, userId, all } = req.body;
+    const db = readSqliteDb();
+    if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+
+    if (all && userId) {
+      for (const n of db.user_notifications) {
+        if (Number(n.userId) === Number(userId)) {
+          n.read = true;
+        }
+      }
+    } else if (id) {
+      const notif = db.user_notifications.find((n: any) => String(n.id) === String(id));
+      if (notif) notif.read = true;
+    }
+
+    writeSqliteDb(db);
+    res.json({ success: true });
+  } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -13298,7 +13562,7 @@ async function startServer() {
   setInterval(checkAutoBackup, 60 * 1000);
   setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
 
-  const isProduction = process.env.NODE_ENV === "production" || process.argv[1].includes('server.cjs');
+  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.argv[1]?.includes('server.cjs'));
 
   if (!isProduction) {
     console.log("[Server] Mount dev Vite middleware mode.");
@@ -13478,8 +13742,8 @@ async function startServer() {
     try { if (socket) socket.destroy(); } catch (e) {}
   };
 
-  if (isSslActive && sslOptions) {
-    // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000)
+  if (isProduction && isSslActive && sslOptions && sslOptions.cert !== "DUMMY") {
+    // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000) for production deployment
     try {
       const httpServerMain = http.createServer(app);
       const httpsServerMain = https.createServer({
@@ -13541,10 +13805,8 @@ async function startServer() {
       console.warn(`[HTTPS ${PORT} setup error, fallback to standard HTTP]`, e.message);
       app.listen(PORT, "0.0.0.0");
     }
-
-
   } else {
-    // Standard HTTP server on PORT when SSL is not active
+    // Standard HTTP server on PORT for development and standard deployments
     app.listen(PORT, "0.0.0.0", () => {
       console.log(
         `[Daltoon Full-Stack Server] HTTP Server running at: http://0.0.0.0:${PORT}`,

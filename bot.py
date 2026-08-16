@@ -6402,25 +6402,30 @@ def get_cancel_keyboard(back_callback=None):
 def notify_admins_of_purchase(tg_id, purchase_type_title, plan_details_str, price, sub_id):
     try:
         db = read_sqlite_db()
-        user = next((u for u in db.get("users", []) if u["userId"] == tg_id), None)
+        user = next((u for u in db.get("users", []) if str(u.get("userId")) == str(tg_id)), None)
         username_val = user.get("username", "N/A") if user else "N/A"
         
-        # Try to find server_id from subscription_keys
-        sub = next((s for s in db.get("subscription_keys", []) if s.get("id") == sub_id), None)
+        # Try to find server_id and client details from subscription_keys
+        sub = next((s for s in db.get("subscription_keys", []) if str(s.get("id")) == str(sub_id)), None)
         server_info = ""
-        if sub and sub.get("serverId"):
+        client_info = ""
+        if sub:
             srv_id = sub.get("serverId")
             cfg_srvs = get_config().get("SERVERS", [])
             srv = next((s for s in cfg_srvs if str(s.get("id")) == str(srv_id)), None)
-            server_name = srv.get("name") if srv and srv.get("name") else srv_id
-            server_info = f"\n🖥️ سرور: <b>{server_name}</b>"
+            server_name = srv.get("name") if srv and srv.get("name") else (srv_id or "اصلی (پیش‌فرض)")
+            server_info = f"\n🌐 <b>سرور:</b> {server_name}"
+            if sub.get("clientName"):
+                client_info = f"\n🔑 <b>نام اکانت:</b> <code>{sub.get('clientName')}</code>"
 
         price_display = f"{int(price):,} تومان" if price > 0 else "رایگان / تست"
         
         details_text = (
-            f"📊 طرح: {plan_details_str}\n"
-            f"💰 مبلغ: {price_display}\n"
-            f"🆔 اشتراک: {sub_id}{server_info}"
+            f"📊 <b>طرح:</b> {plan_details_str}\n"
+            f"💰 <b>مبلغ:</b> {price_display}\n"
+            f"🆔 <b>شناسه اشتراک:</b> <code>{sub_id}</code>"
+            f"{client_info}"
+            f"{server_info}"
         )
         
         notify_admins_of_event(
@@ -9067,7 +9072,18 @@ def callback_handler(call):
                 extended = extend_vpn_client_api(client_name, spec['traffic'], spec['duration'], client_uuid=k.get("clientUuid"), server_id=k.get("serverId"), sub_link=k.get("subLink"))
                 sub_link = k.get("subLink", "")
                 if not extended:
-                    sub_link = None
+                    # Client was deleted or not found on panel -> Recreate client on the server panel!
+                    print(f"[bot renew] Client {client_name} not found on panel, recreating on server...")
+                    new_uuid, new_sub_link, created_srv_id = add_vpn_client_api(client_name, spec['traffic'], spec['duration'], server_id=k.get("serverId"))
+                    if new_uuid and new_sub_link:
+                        extended = True
+                        k['clientUuid'] = new_uuid
+                        k['subLink'] = new_sub_link
+                        sub_link = new_sub_link
+                        k['trafficLimitGb'] = float(spec['traffic'])
+                        k['trafficUsedGb'] = 0
+                    else:
+                        sub_link = None
                 
                 if not extended:
                     if not is_privileged:
