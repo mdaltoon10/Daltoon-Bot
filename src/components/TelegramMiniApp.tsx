@@ -371,6 +371,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [renewModalKey, setRenewModalKey] = useState<any | null>(null);
   const [renewModalGb, setRenewModalGb] = useState<string>("30");
   const [renewModalDays, setRenewModalDays] = useState<string>("30");
+  const [renewPaymentMethod, setRenewPaymentMethod] = useState<"wallet" | "card_to_card">("wallet");
+  const [renewCardReceiptImage, setRenewCardReceiptImage] = useState<string>("");
   const [renewSubmitting, setRenewSubmitting] = useState<boolean>(false);
   const [regeneratingKeyId, setRegeneratingKeyId] = useState<string | null>(null);
   const [togglingKeyId, setTogglingKeyId] = useState<string | null>(null);
@@ -516,6 +518,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const addDays = Math.max(1, Number(renewModalDays) || 30);
     const effUserId = tgUser?.id || userData?.id || userData?.userId;
 
+    const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
+    const finalMethod = isFree ? "admin_free" : renewPaymentMethod;
+
+    if (!isFree && finalMethod === "card_to_card" && !renewCardReceiptImage.trim()) {
+      showThemedModal("رسید واریز الزامی است", "لطفاً تصویر یا فیش واریز کارت به کارت را پیوست فرمایید.", "warning");
+      return;
+    }
+
     setRenewSubmitting(true);
     try {
       const res = await fetch("/api/subscription-keys/renew", {
@@ -526,10 +536,23 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           addGb,
           addDays,
           userId: effUserId,
+          paymentMethod: finalMethod,
+          receiptImage: renewCardReceiptImage,
         }),
       });
       const data = await res.json();
-      if (data.success && data.key) {
+      if (data.success) {
+        if (data.pendingReceipt) {
+          setRenewModalKey(null);
+          setRenewCardReceiptImage("");
+          showThemedModal(
+            "⌛ ثبت فیش تمدید",
+            data.message || "رسید تمدید اشتراک شما با موفقیت ثبت شد و پس از بررسی و تایید مدیریت، سرویس شما تمدید و فعال می‌گردد.",
+            "info"
+          );
+          return;
+        }
+
         if (data.userBalance !== undefined) {
           setUserData((prev: any) => prev ? { ...prev, balance: data.userBalance, walletBalance: data.userBalance } : prev);
         }
@@ -539,8 +562,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             item.id === renewModalKey.id || item.clientUuid === renewModalKey.clientUuid
               ? {
                   ...item,
-                  expireDate: data.key.expireDate || item.expireDate,
-                  trafficLimitGb: data.key.trafficLimitGb || item.trafficLimitGb,
+                  expireDate: data.key?.expireDate || item.expireDate,
+                  trafficLimitGb: data.key?.trafficLimitGb || item.trafficLimitGb,
                   status: "active",
                   disabled: false,
                 }
@@ -552,8 +575,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             item.id === renewModalKey.id || item.clientUuid === renewModalKey.clientUuid
               ? {
                   ...item,
-                  expireDate: data.key.expireDate || item.expireDate,
-                  trafficLimitGb: data.key.trafficLimitGb || item.trafficLimitGb,
+                  expireDate: data.key?.expireDate || item.expireDate,
+                  trafficLimitGb: data.key?.trafficLimitGb || item.trafficLimitGb,
                   status: "active",
                   disabled: false,
                 }
@@ -562,6 +585,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         );
 
         setRenewModalKey(null);
+        setRenewCardReceiptImage("");
         const costStr = data.cost && data.cost > 0 ? ` به مبلغ ${Number(data.cost).toLocaleString()} تومان از کیف پول کسر و` : "";
         showThemedModal(
           "🎉 تمدید موفقیت‌آمیز اشتراک",
@@ -5355,18 +5379,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       {renewModalKey && (
         <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl text-right animate-fade-in my-auto">
+          <div className="bg-slate-900 border border-emerald-500/40 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl text-right animate-fade-in my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
                   <RefreshCw className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-sm text-white">تمدید اشتراک</h4>
+                  <h4 className="font-extrabold text-sm text-white">تمدید و ارتقای اشتراک</h4>
                   <span className="text-[10px] text-slate-400 font-mono">{renewModalKey.planName || renewModalKey.clientName || renewModalKey.id}</span>
                 </div>
               </div>
-              <button onClick={() => setRenewModalKey(null)} className="text-slate-400 hover:text-white p-1">
+              <button onClick={() => { setRenewModalKey(null); setRenewCardReceiptImage(""); }} className="text-slate-400 hover:text-white p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -5443,50 +5467,155 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               const days = Math.max(0, Number(renewModalDays) || 0);
               let pricePerGb = 3000;
               let pricePerDay = 2000;
-              const boxes = miniappData?.customPricingBoxes || miniappData?.customPricing?.boxes || [];
+              const boxes = customPricing?.boxes || [];
               const srvId = renewModalKey?.serverId;
-              const matchedBox = boxes.find((b: any) => Array.isArray(b.serverIds) && b.serverIds.some((sid: any) => String(sid) === String(srvId)));
+              const matchedBox = Array.isArray(boxes) ? boxes.find((b: any) => Array.isArray(b.serverIds) && b.serverIds.some((sid: any) => String(sid) === String(srvId))) : null;
               if (matchedBox) {
                 if (matchedBox.pricePerGb) pricePerGb = Number(matchedBox.pricePerGb);
                 if (matchedBox.pricePerDay) pricePerDay = Number(matchedBox.pricePerDay);
+              } else {
+                if (customPricing?.defaultPricePerGb) pricePerGb = Number(customPricing.defaultPricePerGb);
+                if (customPricing?.defaultPricePerDay) pricePerDay = Number(customPricing.defaultPricePerDay);
               }
               const cost = (gb * pricePerGb) + (days * pricePerDay);
               const balance = Number(userData?.balance ?? userData?.walletBalance ?? 0);
-              const isInsufficient = balance < cost && cost > 0;
+              const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
+              const isInsufficient = !isFree && renewPaymentMethod === "wallet" && balance < cost && cost > 0;
 
               return (
-                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-400">
-                    <span>حجم جدید پس از تمدید:</span>
+                    <span>حجم کل جدید:</span>
                     <span className="font-bold text-emerald-300 font-mono">
-                      {(Number(renewModalKey.trafficLimitGb || 0) + (Number(renewModalGb) || 0))} GB
+                      {(Number(renewModalKey.trafficLimitGb || 0) + gb)} GB
                     </span>
                   </div>
                   <div className="flex justify-between text-slate-400">
-                    <span>مبلغ تمدید (نرخ هوشمند):</span>
-                    <span className="font-extrabold text-amber-400 font-mono">
-                      {cost.toLocaleString()} تومان
+                    <span>نرخ محاسبه:</span>
+                    <span className="text-[11px] text-slate-300 font-mono">
+                      گیگی {pricePerGb.toLocaleString()} + روزی {pricePerDay.toLocaleString()} ت
                     </span>
                   </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>موجودی کیف پول شما:</span>
-                    <span className={`font-bold font-mono ${isInsufficient ? "text-rose-400" : "text-emerald-400"}`}>
-                      {balance.toLocaleString()} تومان
+                  <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-900">
+                    <span className="font-bold">مبلغ فاکتور تمدید:</span>
+                    <span className="font-extrabold text-amber-400 text-sm font-mono">
+                      {isFree ? "رایگان (مدیر)" : `${cost.toLocaleString()} تومان`}
                     </span>
                   </div>
-                  {isInsufficient && (
-                    <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2 text-rose-300 text-[11px] flex items-center justify-between mt-1">
-                      <span>⚠️ موجودی کیف پول کمتر از هزینه است</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRenewModalKey(null);
-                          setActiveTab("wallet");
-                        }}
-                        className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-rose-600/30"
-                      >
-                        شارژ کیف پول
-                      </button>
+
+                  {/* Payment Method Selector */}
+                  {!isFree && (
+                    <div className="pt-2 border-t border-slate-900 space-y-2">
+                      <label className="text-[11px] font-bold text-slate-400 block">انتخاب روش پرداخت:</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRenewPaymentMethod("wallet")}
+                          className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                            renewPaymentMethod === "wallet"
+                              ? "bg-purple-500/20 border-purple-500/60 text-purple-200 shadow-md shadow-purple-950"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+                          }`}
+                        >
+                          <Wallet className="w-4 h-4 text-purple-400" />
+                          <span className="text-xs font-bold">کیف پول</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{balance.toLocaleString()} ت</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRenewPaymentMethod("card_to_card")}
+                          className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                            renewPaymentMethod === "card_to_card"
+                              ? "bg-emerald-500/20 border-emerald-500/60 text-emerald-200 shadow-md shadow-emerald-950"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+                          }`}
+                        >
+                          <CreditCard className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs font-bold">کارت به کارت</span>
+                          <span className="text-[10px] text-slate-400">ارسال فیش واریزی</span>
+                        </button>
+                      </div>
+
+                      {/* Wallet Balance Check */}
+                      {renewPaymentMethod === "wallet" && isInsufficient && (
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2.5 text-rose-300 text-[11px] flex items-center justify-between mt-2">
+                          <span>⚠️ موجودی کیف پول کمتر از مبلغ تمدید است</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenewModalKey(null);
+                              setActiveTab("wallet");
+                            }}
+                            className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-rose-600/30"
+                          >
+                            شارژ کیف پول
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Card-to-Card Info & Upload */}
+                      {renewPaymentMethod === "card_to_card" && (
+                        <div className="mt-2 space-y-2 bg-slate-900/90 border border-emerald-500/20 rounded-xl p-2.5">
+                          <span className="text-[11px] font-bold text-emerald-300 block">شماره کارت جهت واریز:</span>
+                          {effectiveCards.length > 0 ? (
+                            <div className="space-y-1.5">
+                              {effectiveCards.map((c, idx) => (
+                                <div key={idx} className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex items-center justify-between text-[11px]">
+                                  <div>
+                                    <div className="font-bold text-white">{c.bankName || "بانک"} - {c.holderName || "پذیرنده"}</div>
+                                    <div className="font-mono text-emerald-400 tracking-wider text-xs">{c.cardNumber}</div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(c.cardNumber, `renew-card-${idx}`)}
+                                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] flex items-center gap-1 font-bold"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                    <span>{copiedId === `renew-card-${idx}` ? "کپی شد" : "کپی کارت"}</span>
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-400 text-center py-1">شماره کارت پیش‌فرض تنظیم نشده است.</div>
+                          )}
+
+                          {/* Upload Receipt */}
+                          <div className="pt-1.5">
+                            <label className="text-[11px] font-bold text-slate-300 block mb-1">تصویر فیش یا رسید واریز:</label>
+                            {renewCardReceiptImage ? (
+                              <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 max-h-36 bg-black flex items-center justify-center">
+                                <img src={renewCardReceiptImage} alt="Receipt" className="object-contain max-h-36 w-full" />
+                                <button
+                                  type="button"
+                                  onClick={() => setRenewCardReceiptImage("")}
+                                  className="absolute top-1 left-1 bg-rose-600/90 text-white p-1 rounded-lg text-[10px] flex items-center gap-1 hover:bg-rose-500"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-950/60 hover:bg-slate-950 transition-all">
+                                <Upload className="w-5 h-5 text-emerald-400" />
+                                <span className="text-[11px] text-slate-300 font-bold">انتخاب عکس فیش از گالری</span>
+                                <span className="text-[9px] text-slate-500">PNG, JPG یا JPEG تا ۱۵ مگابایت</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      processImageFile(file, (b64) => setRenewCardReceiptImage(b64));
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -5497,7 +5626,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => setRenewModalKey(null)}
+                onClick={() => { setRenewModalKey(null); setRenewCardReceiptImage(""); }}
                 disabled={renewSubmitting}
                 className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-bold text-xs transition-colors"
               >
@@ -5512,12 +5641,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                 {renewSubmitting ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>در حال تمدید...</span>
+                    <span>در حال ثبت...</span>
                   </>
                 ) : (
                   <>
                     <Check className="w-3.5 h-3.5" />
-                    <span>ثبت و تمدید اشتراک</span>
+                    <span>
+                      {isAdmin || isOwner || userRole === "admin" || userRole === "owner"
+                        ? "تمدید ویژه مدیر"
+                        : renewPaymentMethod === "card_to_card"
+                        ? "ارسال فیش و تمدید"
+                        : "پرداخت از کیف پول و تمدید"}
+                    </span>
                   </>
                 )}
               </button>

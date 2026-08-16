@@ -7358,20 +7358,23 @@ app.post("/api/transactions/approve", async (req, res) => {
             } catch (e: any) {
               messageTextForNotif = `❌ خطا در سیستم ساخت کانفیگ دلخواه: ${e.message}`;
             }
-          } else if (tx.planId === "custom_renew") {
-            const targetSubId = tx.clientName;
+          } else if (tx.planId === "custom_renew" || tx.type === "renew" || tx.pendingPurchase?.type === "renew" || tx.pendingPurchase?.isRenew) {
+            const targetSubId = tx.pendingPurchase?.subId || tx.pendingPurchase?.clientUuid || tx.clientName;
             const settings = getSystemSettings(db);
-            const customGb = Number(tx.customGb) || 10;
-            const customDays = Number(tx.customDays) || 30;
+            const customGb = Number(tx.customGb || tx.pendingPurchase?.customGb || 10);
+            const customDays = Number(tx.customDays || tx.pendingPurchase?.customDays || 30);
 
             const subscription_keys = db.subscription_keys || [];
             const k = subscription_keys.find(
-              (sub: any) => sub.id === targetSubId,
+              (sub: any) =>
+                String(sub.id) === String(targetSubId) ||
+                String(sub.clientUuid) === String(targetSubId) ||
+                String(sub.clientName) === String(targetSubId)
             );
 
             if (k) {
-              const clientName = k.clientName;
-              const serverId = k.serverId;
+              const clientName = k.clientName || k.clientEmail || k.planName || "";
+              const serverId = tx.pendingPurchase?.serverId || k.serverId;
 
               let expDt = new Date();
               try {
@@ -7387,45 +7390,50 @@ app.post("/api/transactions/approve", async (req, res) => {
               const newExpireDateStr = newExpDt.toISOString().split("T")[0];
               const newLimitGb = (Number(k.trafficLimitGb) || 0) + customGb;
 
-              const remainingDays = Math.max(
-                1,
-                Math.ceil(
-                  (newExpDt.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
-                ),
-              );
-
               try {
                 const addResult = await extendVpnClientApi(
                   clientName,
                   customGb,
                   customDays,
                   k.clientUuid,
-                  serverId
+                  serverId,
+                  k.subLink
                 );
 
-                if (addResult.success) {
-                  k.expireDate = newExpireDateStr;
-                  k.trafficLimitGb = newLimitGb;
-                  // k.subLink = addResult.subLink; // SubLink remains the same
+                k.expireDate = newExpireDateStr;
+                k.trafficLimitGb = newLimitGb;
+                k.status = "active";
+                k.disabled = false;
 
-                  messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n👤 سرویس: <code>${clientName}</code>\n➕ حجم ترافیک افزوده شده: <b>${customGb} گیگابایت</b>\n➕ مدت زمان افزوده شده: <b>${customDays} روز</b>\n\n📅 تاریخ انقضای جدید: <b>${newExpireDateStr}</b>\n📊 حجم کل جدید: <b>${newLimitGb} گیگابایت</b>`;
-
-                  tx._generatedSubId = k.id;
-                  tx._generatedSubLink = k.subLink;
-
-                  if (!db.logs) db.logs = [];
-                  db.logs.push({
-                    id: Math.random().toString(36).substring(2, 9),
-                    date: new Date().toISOString(),
-                    userId: Number(tx.userId),
-                    username: tx.username || `user_${tx.userId}`,
-                    action: "تمدید اشتراک",
-                    details: `اشتراک ${clientName} تمدید شد (فیش تایید شد).`,
-                  });
-                } else {
-                  tx.status = "failed";
-                  messageTextForNotif = `❌ <b>خطا در اعمال تمدید اشتراک!</b>\n\nمتاسفانه مشکلی در اتصال به سرور جهت تمدید اشتراک رخ داد:\n<code>${addResult.error || "خطای نامشخص"}</code>\n\nلطفاً موضوع را با پشتیبانی هماهنگ فرمایید.`;
+                if (user) {
+                  user.activePlansCount = (db.subscription_keys || []).filter(
+                    (sub: any) => Number(sub.userId) === Number(user.userId) && sub.status === "active" && !sub.disabled
+                  ).length;
+                  if (Array.isArray(user.configs)) {
+                    const c = user.configs.find((cfg: any) => String(cfg.id) === String(k.id) || String(cfg.uuid) === String(k.clientUuid));
+                    if (c) {
+                      c.expireDate = k.expireDate;
+                      c.trafficLimitGb = k.trafficLimitGb;
+                      c.status = "active";
+                      c.disabled = false;
+                    }
+                  }
                 }
+
+                messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n👤 سرویس: <code>${clientName}</code>\n➕ حجم افزوده شده: <b>${customGb} گیگابایت</b>\n➕ مدت افزوده شده: <b>${customDays} روز</b>\n\n📅 تاریخ انقضای جدید: <b>${newExpireDateStr}</b>\n📊 حجم کل جدید: <b>${newLimitGb} گیگابایت</b>\n\n🔗 <b>لینک اشتراک:</b>\n<code>${k.subLink || ""}</code>`;
+
+                tx._generatedSubId = k.id;
+                tx._generatedSubLink = k.subLink;
+
+                if (!db.logs) db.logs = [];
+                db.logs.push({
+                  id: Math.random().toString(36).substring(2, 9),
+                  date: new Date().toISOString(),
+                  userId: Number(tx.userId),
+                  username: tx.username || `user_${tx.userId}`,
+                  action: "تمدید اشتراک",
+                  details: `اشتراک ${clientName} تمدید و فعال شد (فیش تایید شد).`,
+                });
               } catch (apiErr: any) {
                 tx.status = "failed";
                 messageTextForNotif = `❌ خطا در اعمال تمدید اشتراک روی سرور: ${apiErr.message}`;
@@ -7998,7 +8006,7 @@ app.post("/api/subscription-keys/delete-expired", async (req, res) => {
 
 app.post("/api/subscription-keys/renew", async (req, res) => {
   try {
-    const { id, addGb, addDays, userId } = req.body;
+    const { id, addGb, addDays, userId, paymentMethod = "wallet", receiptImage = "" } = req.body;
     const db = readSqliteDb();
 
     const key = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
@@ -8026,6 +8034,56 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     const ownerId = Number(settings.ownerId || settings.adminId || 0);
     const isOwnerOrAdmin = effectiveUserId && (Number(effectiveUserId) === ownerId || (settings.adminIds || []).map(Number).includes(Number(effectiveUserId)));
 
+    // Handle Card-to-Card Receipt Renewal
+    if (!isOwnerOrAdmin && paymentMethod === "card_to_card") {
+      if (!receiptImage || !String(receiptImage).trim()) {
+        return res.status(400).json({ success: false, error: "تصویر رسید واریز الزامی است." });
+      }
+
+      const txId = `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const newTx: any = {
+        id: txId,
+        userId: Number(effectiveUserId),
+        username: user?.username || `user_${effectiveUserId}`,
+        type: "renew",
+        planId: "custom_renew",
+        clientName: String(key.id || key.clientUuid),
+        customGb: numGb,
+        customDays: numDays,
+        amount: renewCost,
+        status: "pending",
+        receiptImage: receiptImage,
+        description: `درخواست تمدید کانفیگ ${clientName} (+${numGb} GB, +${numDays} روز)`,
+        createdAt: new Date().toISOString(),
+        pendingPurchase: {
+          type: "renew",
+          isRenew: true,
+          subId: String(key.id),
+          clientUuid: key.clientUuid,
+          clientName: key.clientName,
+          serverId: key.serverId,
+          customGb: numGb,
+          customDays: numDays,
+          cost: renewCost,
+        },
+      };
+
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      // Instant notification to admins via Telegram
+      notifyAdminsOnNewReceipt(newTx, db, settings).catch(() => {});
+
+      return res.json({
+        success: true,
+        pendingReceipt: true,
+        message: "رسید تمدید شما با موفقیت ثبت شد و پس از تایید مدیریت، سرویس شما تمدید و فعال می‌گردد.",
+        txId,
+      });
+    }
+
+    // Wallet Payment
     if (!isOwnerOrAdmin && user && renewCost > 0) {
       const currentBal = Number(user.walletBalance || user.balance || 0);
       if (currentBal < renewCost) {
@@ -8131,7 +8189,7 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       sendTelegramMessage(settings.botToken, key.userId, renewUserMsg).catch(() => {});
     }
 
-    res.json({ success: true, key, userBalance: user ? user.walletBalance : undefined });
+    res.json({ success: true, key, userBalance: user ? user.walletBalance : undefined, cost: renewCost });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
