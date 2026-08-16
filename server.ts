@@ -3331,18 +3331,55 @@ function formatSubUrlWithToken(baseUrl: string, token: string): string {
   }
 }
 
-function getServerRemark(serverId: any, settings: any, db?: any): string {
+function formatShamsiDate(dateInput: any, includeTime = false): string {
+  if (!dateInput) return "نامشخص";
+  try {
+    let d: Date;
+    if (typeof dateInput === "number") {
+      d = new Date(dateInput > 1e11 ? dateInput : dateInput * 1000);
+    } else if (typeof dateInput === "string") {
+      let str = dateInput.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+        str = str + "T12:00:00Z";
+      }
+      d = new Date(str);
+    } else {
+      d = dateInput;
+    }
+    if (isNaN(d.getTime())) return String(dateInput);
+    const opts: Intl.DateTimeFormatOptions = {
+      timeZone: "Asia/Tehran",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    };
+    if (includeTime) {
+      opts.hour = "2-digit";
+      opts.minute = "2-digit";
+      opts.second = "2-digit";
+      opts.hour12 = false;
+    }
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", opts).format(d);
+  } catch (e) {
+    return String(dateInput);
+  }
+}
+
+function getServerRemark(serverId: any, settings: any, db?: any, subLink?: string): string {
   const activeSrvs = getActiveServers(settings);
-  if (serverId !== undefined && serverId !== null && String(serverId).trim() !== "") {
-    const targetId = String(serverId).trim();
+  const targetId = (serverId !== undefined && serverId !== null) ? String(serverId).trim() : "";
+
+  if (targetId) {
+    // 1. Search in active servers (regular and colleague)
     const found = activeSrvs.find((s: any) =>
       String(s.id) === targetId ||
       String(s.name) === targetId ||
       String(s.remark) === targetId ||
-      String(s.panelUrl) === targetId
+      (s.panelUrl && String(s.panelUrl).includes(targetId))
     );
     if (found) return found.remark || found.name || "سرور اختصاصی";
 
+    // 2. Search in db.servers or settings.servers / colleagueServers
     if (db && Array.isArray(db.servers)) {
       const inDb = db.servers.find((s: any) =>
         String(s.id) === targetId ||
@@ -3351,9 +3388,40 @@ function getServerRemark(serverId: any, settings: any, db?: any): string {
       );
       if (inDb) return inDb.remark || inDb.name || "سرور اختصاصی";
     }
+    if (settings && Array.isArray(settings.servers)) {
+      const inSet = settings.servers.find((s: any) =>
+        String(s.id) === targetId ||
+        String(s.name) === targetId ||
+        String(s.remark) === targetId
+      );
+      if (inSet) return inSet.remark || inSet.name || "سرور اختصاصی";
+    }
+    if (settings && Array.isArray(settings.colleagueServers)) {
+      const inCol = settings.colleagueServers.find((s: any) =>
+        String(s.id) === targetId ||
+        String(s.name) === targetId ||
+        String(s.remark) === targetId
+      );
+      if (inCol) return inCol.remark || inCol.name || "سرور همکاران";
+    }
   }
 
-  // Fallback to first active server or settings remark
+  // 3. If subLink is provided, match host/domain with server panelUrl or subDomain
+  if (subLink && typeof subLink === "string") {
+    const matchSrv = activeSrvs.find((s: any) => {
+      if (s.subDomain && subLink.includes(s.subDomain)) return true;
+      if (s.panelUrl) {
+        try {
+          const host = new URL(s.panelUrl).hostname;
+          if (host && subLink.includes(host)) return true;
+        } catch (e) {}
+      }
+      return false;
+    });
+    if (matchSrv) return matchSrv.remark || matchSrv.name || "سرور اختصاصی";
+  }
+
+  // 4. Fallback to first active server or settings remark
   if (activeSrvs.length > 0) {
     return activeSrvs[0].remark || activeSrvs[0].name || settings.panelRemark || settings.remark || "سرور اختصاصی";
   }
@@ -7296,7 +7364,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                 if (vlessLinks.length === 0) {
                   try {
                     const fetchRef = globalThis.fetch || fetch;
-                    const res = await fetchRef(subLink);
+                    const res = await fetchRef(subLink, { signal: (AbortSignal as any).timeout ? (AbortSignal as any).timeout(2000) : undefined });
                     if (res.ok) {
                       const text = await res.text();
                       const decoded = Buffer.from(text, "base64").toString(
@@ -7330,16 +7398,11 @@ app.post("/api/transactions/approve", async (req, res) => {
                   }
                 }
 
-                let serverDetailsText = "";
                 const activeServers = getActiveServers(settings);
-                let selectedServer = activeServers.find((s: any) => s.id === tx.serverId);
-                if (!selectedServer && activeServers.length > 0) {
-                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
-                }
-                if (selectedServer) {
-                  const serverName = selectedServer.remark || selectedServer.name || "نامشخص";
-                  serverDetailsText = `🌐 سرور: <b>${serverName}</b>\n\n`;
-                }
+                const srvRemark = getServerRemark(tx.serverId, settings, db, subLink);
+                const selectedServer = activeServers.find((s: any) => String(s.id) === String(tx.serverId));
+                const srvFlag = selectedServer?.flag || (selectedServer?.isColleague ? "👥" : "🌐");
+                const serverDetailsText = `🌐 سرور: <b>${srvFlag} ${srvRemark}</b>\n\n`;
 
                 messageTextForNotif = `✅ <b>رسید شما تایید و سرویس فعال شد!</b>\n\n${planDetailsText}\n${serverDetailsText}${linksDisplay}`;
 
@@ -7449,16 +7512,11 @@ app.post("/api/transactions/approve", async (req, res) => {
                   linksDisplay = `⚠️ <b>توجه:</b> امکان استخراج تفکیکی لینک‌های کانفیگ در این لحظه میسر نشد.\n\n👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>\n\n<code>${subLink}</code>\n\n💡 لینک بالا را کپی کرده و در برنامه v2rayNG یا V2box خود به عنوان <b>Subscription (سابسکریپشن)</b> وارد کرده و بروزرسانی (Update) نمایید تا همه کانفیگ‌ها به طور خودکار دریافت شوند.`;
                 }
 
-                let serverDetailsText = "";
                 const activeServers = getActiveServers(settings);
-                let selectedServer = activeServers.find((s: any) => s.id === tx.serverId);
-                if (!selectedServer && activeServers.length > 0) {
-                  selectedServer = activeServers[Math.floor(Math.random() * activeServers.length)];
-                }
-                if (selectedServer) {
-                  const serverName = selectedServer.remark || selectedServer.name || "نامشخص";
-                  serverDetailsText = `🌐 سرور: <b>${serverName}</b>\n\n`;
-                }
+                const srvRemark = getServerRemark(tx.serverId, settings, db, subLink);
+                const selectedServer = activeServers.find((s: any) => String(s.id) === String(tx.serverId));
+                const srvFlag = selectedServer?.flag || (selectedServer?.isColleague ? "👥" : "🌐");
+                const serverDetailsText = `🌐 سرور: <b>${srvFlag} ${srvRemark}</b>\n\n`;
 
                 messageTextForNotif = `✅ <b>کانفیگ دلخواه شما آماده شد!</b>\n\n📦 حجم: <b>${customGb} گیگابایت</b> | زمان: <b>${customDays} روز</b>\n${serverDetailsText}${linksDisplay}`;
 
@@ -7570,7 +7628,21 @@ app.post("/api/transactions/approve", async (req, res) => {
                   }
                 }
 
-                messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n👤 سرویس: <code>${clientName}</code>\n➕ حجم افزوده شده: <b>${customGb} گیگابایت</b>\n➕ مدت افزوده شده: <b>${customDays} روز</b>\n\n📅 تاریخ انقضای جدید: <b>${newExpireDateStr}</b>\n📊 حجم کل جدید: <b>${newLimitGb} گیگابایت</b>\n\n🔗 <b>لینک اشتراک:</b>\n<code>${k.subLink || ""}</code>`;
+                const srvRemark = getServerRemark(serverId, settings, db, k.subLink);
+                const activeServers = getActiveServers(settings);
+                const srvObj = activeServers.find((s: any) => String(s.id) === String(serverId));
+                const srvFlag = srvObj?.flag || (srvObj?.isColleague ? "👥" : "🌐");
+                const srvDisplay = `${srvFlag} ${srvRemark}`;
+                const shamsiExpDate = formatShamsiDate(newExpDt);
+
+                messageTextForNotif = `🎉 <b>اشتراک شما با موفقیت تمدید شد! (تایید فیش)</b>\n\n` +
+                  `👤 <b>سرویس:</b> <code>${clientName}</code>\n` +
+                  `🌐 <b>سرور:</b> ${srvDisplay}\n` +
+                  `➕ <b>حجم افزوده شده:</b> <b>${customGb} گیگابایت</b>\n` +
+                  `➕ <b>مدت افزوده شده:</b> <b>${customDays} روز</b>\n\n` +
+                  `📅 <b>تاریخ انقضای جدید:</b> <b>${shamsiExpDate}</b>\n` +
+                  `📊 <b>حجم کل جدید:</b> <b>${newLimitGb} گیگابایت</b>\n\n` +
+                  `🔗 <b>لینک اشتراک:</b>\n<code>${k.subLink || ""}</code>`;
 
                 tx._generatedSubId = k.id;
                 tx._generatedSubLink = k.subLink;
@@ -7633,7 +7705,7 @@ app.post("/api/transactions/approve", async (req, res) => {
           let replyMarkupObj: any = undefined;
 
           if (
-            tx.type === "PLAN_PURCHASE" &&
+            (tx.type === "PLAN_PURCHASE" || tx.type === "renew" || tx.pendingPurchase?.isRenew || tx.planId === "custom_renew") &&
             tx._generatedSubLink &&
             tx._generatedSubId
           ) {
@@ -8308,17 +8380,22 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     }
 
     try {
-      const srvName = getServerRemark(key.serverId, settings, db);
+      const srvName = getServerRemark(key.serverId, settings, db, key.subLink);
+      const activeServers = getActiveServers(settings);
+      const srvObj = activeServers.find((s: any) => String(s.id) === String(key.serverId));
+      const srvFlag = srvObj?.flag || (srvObj?.isColleague ? "👥" : "🌐");
+      const srvDisplay = `${srvFlag} ${srvName}`;
+      const shamsiExpDate = formatShamsiDate(expDt, false);
       const userInfoText = getUserDisplayInfo(key.userId, clientName, db);
       const renewMsg =
         `🔄 <b>[اعلان تمدید کانفیگ]</b>\n\n` +
         `${userInfoText}\n` +
-        `🌐 <b>سرور:</b> ${srvName}\n` +
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
         `➕ <b>افزایش حجم:</b> +${numGb} GB (مجموع: ${new_limit_gb} GB)\n` +
         `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
-        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n` +
+        `📅 <b>تاریخ انقضای جدید:</b> ${shamsiExpDate}\n` +
         `💰 <b>مبلغ تمدید:</b> ${renewCost.toLocaleString("fa-IR")} تومان\n` +
-        `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
+        `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
       sendAdminNotification(renewMsg, settings).catch(() => {});
     } catch (e) {
       console.error("[renew key notify error]", e);
@@ -8327,16 +8404,36 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     writeSqliteDb(db);
 
     // Notify user on Telegram
-    if (key.userId && settings.botToken) {
+    const effectiveBotToken = settings.botToken || settings.telegramBotToken || process.env.BOT_TOKEN;
+    if (key.userId && effectiveBotToken && effectiveBotToken !== "DUMMY_TOKEN") {
+      const srvName = getServerRemark(key.serverId, settings, db, key.subLink);
+      const activeServers = getActiveServers(settings);
+      const srvObj = activeServers.find((s: any) => String(s.id) === String(key.serverId));
+      const srvFlag = srvObj?.flag || (srvObj?.isColleague ? "👥" : "🌐");
+      const srvDisplay = `${srvFlag} ${srvName}`;
+      const shamsiExpDate = formatShamsiDate(expDt, false);
+
       const renewUserMsg =
         `🎉 <b>اشتراک شما با موفقیت تمدید شد</b>\n\n` +
-        `📦 <b>پلن:</b> ${key.planName || "اشتراک اختصاصی"}\n` +
+        `👤 <b>سرویس:</b> <code>${clientName}</code>\n` +
+        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
         `➕ <b>افزایش حجم:</b> +${numGb} گیگابایت (مجموع: ${new_limit_gb} GB)\n` +
         `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
-        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n` +
+        `📅 <b>تاریخ انقضای جدید:</b> <b>${shamsiExpDate}</b>\n` +
         `💰 <b>مبلغ:</b> ${renewCost.toLocaleString("fa-IR")} تومان\n\n` +
-        `🔗 <b>لینک اتصال:</b>\n<code>${key.subLink || ""}</code>`;
-      sendTelegramMessage(settings.botToken, key.userId, renewUserMsg).catch(() => {});
+        `🔗 <b>لینک سابسکریپشن:</b>\n<code>${key.subLink || ""}</code>`;
+
+      let replyMarkupObj: any = undefined;
+      if (key.subLink) {
+        replyMarkupObj = {
+          inline_keyboard: [
+            [{ text: "🔗 لینک‌های کانفیگ", callback_data: `mysub_vless_${key.id}` }],
+            [{ text: settings.btnTextGuides || "💡 آموزش ها", callback_data: "mm_btnGuides" }],
+            [{ text: "🏠 بازگشت به منوی اصلی", callback_data: "btn_back_home" }]
+          ]
+        };
+      }
+      sendTelegramMessage(effectiveBotToken, key.userId, renewUserMsg, replyMarkupObj).catch(() => {});
     }
 
     res.json({ success: true, key, userBalance: user ? user.walletBalance : undefined, cost: renewCost });
@@ -8944,17 +9041,41 @@ async function notifyAdminsOnNewReceipt(tx: any, db: any, settings: any) {
     if (adminTargets.length === 0) return;
 
     const usernameDisplay = tx.username ? `@${tx.username.replace(/^@/, '')}` : `کاربر (${tx.userId})`;
-    const planInfo = tx.pendingPurchase?.planName || tx.description || "خرید اشتراک";
+    const serverId = tx.pendingPurchase?.serverId || tx.serverId;
+    const serverRemark = getServerRemark(serverId, settings, db, tx.pendingPurchase?.subLink);
+    const activeServers = getActiveServers(settings);
+    const serverObj = activeServers.find((s: any) => String(s.id) === String(serverId));
+    const srvFlag = serverObj?.flag || (serverObj?.isColleague ? "👥" : "🌐");
+    const serverDisplay = `${srvFlag} ${serverRemark}`;
+
+    const isRenew = tx.type === "renew" || tx.pendingPurchase?.type === "renew" || tx.pendingPurchase?.isRenew || tx.planId === "custom_renew";
+    let typeDisplay = "";
+    const configNameDisplay = tx.pendingPurchase?.clientUsername || tx.pendingPurchase?.clientName || tx.clientName || "";
+
+    if (isRenew) {
+      const renewGb = tx.pendingPurchase?.customGb || tx.customGb || 0;
+      const renewDays = tx.pendingPurchase?.customDays || tx.customDays || 0;
+      typeDisplay = `🔄 <b>تمدید اشتراک</b> (+${renewGb} گیگابایت / +${renewDays} روز)`;
+    } else {
+      typeDisplay = tx.pendingPurchase?.planName || tx.description || "خرید اشتراک جدید";
+    }
+
     const receiptInfo = (tx.receiptImage && !tx.receiptImage.startsWith("data:image/")) ? tx.receiptImage : "تصویر فیش پیوست شد";
     const amountFormatted = Number(tx.amount || 0).toLocaleString("fa-IR");
+    const shamsiTime = formatShamsiDate(new Date(), true);
 
-    const adminMsg = `🔔 <b>رسید جدید برای تایید واریز شد! (مینی‌اپ)</b>\n\n` +
+    let adminMsg = `🔔 <b>رسید جدید برای تایید واریز شد! (مینی‌اپ)</b>\n\n` +
       `👤 <b>کاربر:</b> ${usernameDisplay} (<code>${tx.userId}</code>)\n` +
       `💰 <b>مبلغ فاکتور:</b> ${amountFormatted} تومان\n` +
       `🆔 <b>شناسه تراکنش:</b> <code>${tx.id}</code>\n` +
-      `📦 <b>سرویس انتخابی:</b> ${planInfo}\n` +
+      `📦 <b>سرویس انتخابی:</b> ${typeDisplay}\n`;
+
+    if (configNameDisplay) {
+      adminMsg += `👤 <b>نام کانفیگ:</b> <code>${configNameDisplay}</code>\n`;
+    }
+    adminMsg += `🌐 <b>سرور:</b> ${serverDisplay}\n` +
       `📝 <b>توضیحات/فیش:</b> <code>${receiptInfo}</code>\n` +
-      `⏱ <b>زمان ثبت:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}\n\n` +
+      `⏱ <b>زمان ثبت:</b> ${shamsiTime}\n\n` +
       `📥 <i>جهت تایید یا رد مستقیم می‌توانید از پنل داشبورد یا دکمه‌های زیر استفاده کنید:</i>`;
 
     const inlineMarkup = {

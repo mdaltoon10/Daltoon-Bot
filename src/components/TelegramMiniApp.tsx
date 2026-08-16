@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { CustomSelect } from "./CustomSelect";
 import { getThemeStyles } from "../utils/theme";
+import { formatDateTime } from "../utils/dateTimeUtils";
 import {
   ShoppingBag,
   CreditCard,
@@ -247,6 +248,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
   // Client Details & Promo
   const [clientUsername, setClientUsername] = useState<string>("");
+  const [randomSuffix] = useState<string>(() => Math.random().toString(36).substring(2, 8));
+  const fullClientUsername = useMemo(() => {
+    const raw = clientUsername.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    if (raw) {
+      return raw.includes("-") ? raw : `${raw}-${randomSuffix}`;
+    }
+    return `usr_${tgUser?.id || "vpn"}_${randomSuffix}`;
+  }, [clientUsername, tgUser?.id, randomSuffix]);
   const [promoCodeInput, setPromoCodeInput] = useState<string>("");
   const [appliedPromo, setAppliedPromo] = useState<any>(null);
   const [validatingPromo, setValidatingPromo] = useState<boolean>(false);
@@ -1233,7 +1242,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           planName: planMode === "custom" ? `پلن دلخواه (${customGb}GB - ${customDays} روز)` : selectedPlan?.name,
           customGb: planMode === "custom" ? customGb : (selectedPlan?.trafficGb || 30),
           customDays: planMode === "custom" ? customDays : (selectedPlan?.durationDays || 30),
-          clientUsername: clientUsername.trim() || `usr_${tgUser?.id}_${Math.random().toString(36).substring(2, 6)}`,
+          clientUsername: fullClientUsername,
           paymentMethod: isAdmin ? "admin_free" : paymentMethod,
           promoCode: appliedPromo?.code || appliedPromo?.promo?.code || promoCodeInput.trim() || undefined,
           receiptImage: cardReceiptImage || undefined,
@@ -2554,6 +2563,10 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       onChange={(e) => setClientUsername(e.target.value)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-left font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-purple-500"
                     />
+                    <div className="bg-slate-950/80 p-2.5 rounded-xl border border-purple-900/30 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">شناسه نهایی در پنل:</span>
+                      <span className="font-mono text-purple-300 font-bold tracking-wide" dir="ltr">{fullClientUsername}</span>
+                    </div>
                     <p className="text-[10px] text-slate-500">
                       تنها از حروف انگلیسی و اعداد استفاده کنید. در صورت خالی بودن، به صورت خودکار ایجاد می‌شود.
                     </p>
@@ -2661,8 +2674,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
                     <div className="flex justify-between text-slate-300">
                       <span className="text-slate-400">نام کاربری کانفیگ:</span>
-                      <span className="font-mono text-slate-200">
-                        {clientUsername.trim() || `user_${tgUser?.id || "vpn"}`}
+                      <span className="font-mono text-purple-300 font-bold" dir="ltr">
+                        {fullClientUsername}
                       </span>
                     </div>
 
@@ -3413,7 +3426,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-2">
                               <div className="flex justify-between text-xs text-slate-400 font-medium">
                                 <span>تاریخ انقضا:</span>
-                                <span className="text-white font-bold">{sub.expireDate || "۳۰ روزه"}</span>
+                                <span className="text-white font-bold">{sub.expireDate ? formatDateTime(sub.expireDate, { timeZone: "Asia/Tehran", calendarSystem: "jalali", includeTime: false }) : "۳۰ روزه"}</span>
                               </div>
                               <div className="flex justify-between text-xs text-slate-400 font-medium">
                                 <span>وضعیت اتصال:</span>
@@ -4396,7 +4409,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-2">
                                 <div className="flex justify-between text-xs text-slate-400 font-medium">
                                   <span>تاریخ انقضا:</span>
-                                  <span className="text-white font-bold">{client.expireDate || "۳۰ روزه"}</span>
+                                  <span className="text-white font-bold">{client.expireDate ? formatDateTime(client.expireDate, { timeZone: "Asia/Tehran", calendarSystem: "jalali", includeTime: false }) : "۳۰ روزه"}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-slate-400 font-medium">
                                   <span>وضعیت اتصال:</span>
@@ -5562,29 +5575,59 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
                       {/* Card-to-Card Info & Upload */}
                       {renewPaymentMethod === "card_to_card" && (
-                        <div className="mt-2 space-y-2 bg-slate-900/90 border border-emerald-500/20 rounded-xl p-2.5">
-                          <span className="text-[11px] font-bold text-emerald-300 block">شماره کارت جهت واریز:</span>
+                        <div className="mt-2 space-y-2.5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                              <CreditCard className="w-4 h-4 text-emerald-400" />
+                              <span>اطلاعات کارت جهت واریز تمدید:</span>
+                            </span>
+                            <span className="text-[10px] text-slate-400">یک کارت را جهت انتقال انتخاب کنید</span>
+                          </div>
+
                           {effectiveCards.length > 0 ? (
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                               {effectiveCards.map((c, idx) => (
-                                <div key={idx} className="bg-slate-950 border border-slate-800 rounded-lg p-2 flex items-center justify-between text-[11px]">
-                                  <div>
-                                    <div className="font-bold text-white">{c.bankName || "بانک"} - {c.holderName || "پذیرنده"}</div>
-                                    <div className="font-mono text-emerald-400 tracking-wider text-xs">{c.cardNumber}</div>
+                                <div key={idx} className="bg-slate-950/90 p-3 rounded-xl border border-emerald-900/40 space-y-1.5 text-xs shadow-inner">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                      <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span>{c.bank || "کارت بانکی مقصد"}</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(c.number.replace(/\s+/g, ""), `renew-card-${idx}`)}
+                                      className="text-[10px] bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-700/50 flex items-center gap-1 font-mono transition-all font-bold"
+                                    >
+                                      {copiedId === `renew-card-${idx}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                          <span className="text-emerald-400">کپی شد</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3 text-emerald-400" />
+                                          <span>کپی شماره کارت</span>
+                                        </>
+                                      )}
+                                    </button>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => copyToClipboard(c.cardNumber, `renew-card-${idx}`)}
-                                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded text-[10px] flex items-center gap-1 font-bold"
-                                  >
-                                    <Copy className="w-3 h-3" />
-                                    <span>{copiedId === `renew-card-${idx}` ? "کپی شد" : "کپی کارت"}</span>
-                                  </button>
+                                  <div className="flex justify-between items-center pt-0.5">
+                                    <span className="text-slate-400 text-[11px]">شماره کارت:</span>
+                                    <span className="font-mono text-emerald-300 font-bold text-sm tracking-widest" dir="ltr">
+                                      {c.number}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-400 text-[11px]">به نام:</span>
+                                    <span className="text-slate-200 font-bold text-xs">{c.holder || "مدیریت سرور"}</span>
+                                  </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="text-[11px] text-slate-400 text-center py-1">شماره کارت پیش‌فرض تنظیم نشده است.</div>
+                            <div className="text-[11px] text-slate-400 text-center py-2 bg-slate-950/60 rounded-xl">
+                              شماره کارتی در سیستم تنظیم نشده است. لطفاً با پشتیبانی در ارتباط باشید.
+                            </div>
                           )}
 
                           {/* Upload Receipt */}

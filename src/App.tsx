@@ -1505,7 +1505,14 @@ export default function App() {
     fetch("/api/subscription-keys/toggle", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: keyId, status: nextStatus }),
+      body: JSON.stringify({
+        id: keyId,
+        status: nextStatus,
+        clientUuid: key.clientUuid || (key as any).uuid || key.id,
+        clientName: key.clientName || key.clientEmail || (key as any).name || (key as any).email || "",
+        serverId: key.serverId,
+        subLink: key.subLink || (key as any).link,
+      }),
     }).catch((err) => console.warn("Failed syncing toggled sub config:", err));
   };
 
