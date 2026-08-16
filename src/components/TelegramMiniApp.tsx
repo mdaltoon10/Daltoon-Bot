@@ -155,6 +155,36 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const activeDashboardTheme = systemSettings?.dashboard_theme || systemSettings?.dashboardTheme || localStorage.getItem("dashboard_theme") || "default";
   const isLightMode = systemSettings?.theme_mode === "light" || localStorage.getItem("theme") === "light";
 
+  // Notification Queue Ref to prevent duplicate popups
+  const shownNotifIdsRef = useRef<Set<string>>(new Set());
+
+  const processUnreadNotifications = (notifs: any[], currentUserId?: any) => {
+    if (!Array.isArray(notifs) || notifs.length === 0) return;
+    const unshown = notifs.filter((n: any) => n && n.id && !shownNotifIdsRef.current.has(String(n.id)));
+    if (unshown.length > 0) {
+      const notif = unshown[0];
+      shownNotifIdsRef.current.add(String(notif.id));
+
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.notificationOccurred(notif.type === "error" ? "error" : "success");
+      }
+
+      showThemedModal(
+        notif.title || "اعلان جدید",
+        notif.message || "",
+        notif.type || "success",
+        "متوجه شدم",
+        () => {
+          fetch("/api/miniapp/notifications/read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: notif.id, userId: currentUserId || tgUser?.id }),
+          }).catch(() => {});
+        }
+      );
+    }
+  };
+
   useEffect(() => {
     if (isLightMode) {
       document.body.classList.add("light");
@@ -865,6 +895,11 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         if (data.servers && data.servers.length > 0 && !selectedServer) {
           setSelectedServer(data.servers[0]);
         }
+
+        // Process unread server notifications
+        if (data.notifications && data.notifications.length > 0) {
+          processUnreadNotifications(data.notifications, data.user?.userId || tgUser?.id);
+        }
       } else {
         setErrorMessage(error || data?.error || "خطای نامشخص در دریافت اطلاعات");
       }
@@ -932,6 +967,11 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
             }
           }
+        }
+
+        // Process unread server notifications
+        if (data.notifications && data.notifications.length > 0) {
+          processUnreadNotifications(data.notifications, tgUser?.id);
         }
 
         setSubscriptions(newSubs);

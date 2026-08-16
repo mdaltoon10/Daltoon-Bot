@@ -546,6 +546,7 @@ interface DbSchema {
   colleague_categories?: any[];
   logs?: any[];
   plan_categories?: any[];
+  user_notifications?: any[];
   settings: Record<string, string>;
   link_tokens?: Record<string, string>;
 }
@@ -7924,6 +7925,29 @@ app.post("/api/transactions/approve", async (req, res) => {
         console.warn("Error notifying user of approval:", notifyErr);
       }
 
+      // Record persistent notification for user in miniapp
+      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+      let miniappTitle = "🎉 رسید شما تایید شد!";
+      let miniappMsg = "سرویس شما توسط مدیریت تایید و فعال گردید. می‌توانید اطلاعات و کانفیگ جدید را در بخش سرویس‌های من دریافت کنید.";
+
+      if (isRenewTx) {
+        miniappTitle = "🎉 تمدید اشتراک تایید شد!";
+        miniappMsg = "درخواست تمدید سرویس شما توسط مدیریت تایید شد و ترافیک و زمان جدید به اشتراک شما اضافه گردید.";
+      } else if (tx.type === "deposit" || (!tx.planId && tx.type !== "PLAN_PURCHASE")) {
+        miniappTitle = "🎉 افزایش موجودی تایید شد!";
+        miniappMsg = `درخواست افزایش موجودی شما به مبلغ ${Number(tx.amount || 0).toLocaleString("fa-IR")} تومان تایید و به کیف پول شما واریز گردید.`;
+      }
+
+      db.user_notifications.push({
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        userId: Number(tx.userId),
+        title: miniappTitle,
+        message: miniappMsg,
+        type: "success",
+        read: false,
+        createdAt: new Date().toISOString()
+      });
+
       writeSqliteDb(db);
 
       res.json({
@@ -7964,6 +7988,18 @@ app.post("/api/transactions/reject", async (req, res) => {
       if (db.logs.length > 1000) {
         db.logs = db.logs.slice(-1000);
       }
+
+      // Record persistent notification for user in miniapp
+      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+      db.user_notifications.push({
+        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        userId: Number(tx.userId),
+        title: "❌ رسید شما رد شد",
+        message: `رسید تراکنش شما با شناسه ${tx.id} به مبلغ ${Number(tx.amount || 0).toLocaleString("fa-IR")} تومان توسط مدیریت بررسی و تایید نگردید.`,
+        type: "error",
+        read: false,
+        createdAt: new Date().toISOString()
+      });
 
       writeSqliteDb(db);
 
@@ -9746,10 +9782,40 @@ app.get("/api/miniapp/data", async (req, res) => {
         },
         subscriptions: userSubs,
         tickets: userTickets,
-        transactions: userTransactions
+        transactions: userTransactions,
+        notifications: tgId > 0 ? (db.user_notifications || []).filter((n: any) => Number(n.userId) === tgId && !n.read && !n.isRead) : []
       });
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Mark notification(s) as read for MiniApp user
+app.post("/api/miniapp/notifications/read", (req, res) => {
+  try {
+    const { id, userId, all } = req.body;
+    const db = readSqliteDb();
+    if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
+
+    if (all && userId) {
+      for (const n of db.user_notifications) {
+        if (Number(n.userId) === Number(userId)) {
+          n.read = true;
+          n.isRead = true;
+        }
+      }
+    } else if (id) {
+      const notif = db.user_notifications.find((n: any) => String(n.id) === String(id));
+      if (notif) {
+        notif.read = true;
+        notif.isRead = true;
+      }
+    }
+
+    writeSqliteDb(db);
+    res.json({ success: true });
+  } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
