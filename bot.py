@@ -5652,11 +5652,24 @@ def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
 
         user_str = ""
         if user_info:
+            u_id = None
+            u_uname = None
             if isinstance(user_info, dict):
                 u_id = user_info.get("userId") or user_info.get("id") or user_info.get("tg_id")
                 u_uname = user_info.get("username")
-                u_uname_str = f"@{u_uname}" if u_uname and u_uname != "N/A" and not str(u_uname).startswith("user_") else "بدون یوزرنیم"
-                user_str = f"\n👤 <b>کاربر:</b> {u_uname_str} (<code>{u_id}</code>)"
+            elif isinstance(user_info, (int, str)) and str(user_info).strip().isdigit():
+                u_id = int(str(user_info).strip())
+            
+            if u_id and (not u_uname or u_uname == "N/A" or str(u_uname).startswith("user_")):
+                db_users = db.get("users", [])
+                matching_u = next((u for u in db_users if str(u.get("userId", "")) == str(u_id) or str(u.get("id", "")) == str(u_id)), None)
+                if matching_u:
+                    u_uname = matching_u.get("username")
+            
+            if u_id:
+                u_uname_clean = str(u_uname).replace('@', '') if u_uname else ""
+                u_uname_str = f"@{u_uname_clean}" if u_uname_clean and u_uname_clean != "N/A" and not u_uname_clean.startswith("user_") else "بدون یوزرنیم"
+                user_str = f"\n👤 <b>کاربر:</b> {u_uname_str} (شناسه: <code>{u_id}</code>)"
             else:
                 user_str = f"\n👤 <b>کاربر:</b> {user_info}"
 
@@ -6600,16 +6613,6 @@ def start_cmd(message):
     print(f"[DEBUG] Received /start from {message.from_user.id} (@{message.from_user.username})")
     tg_id = message.from_user.id
     username = message.from_user.username
-    
-    try:
-        notify_admins_of_event(
-            "🟢",
-            "ورود به ربات (/start)",
-            "کاربر دستور /start ارسال کرد و وارد ربات شد.",
-            user_info={"userId": tg_id, "username": username or f"user_{tg_id}"}
-        )
-    except Exception as ex_notif:
-        print(f"[Start Notif Error] {ex_notif}")
     
     try:
         bot.clear_step_handlers_by_chat_id(chat_id=message.chat.id)

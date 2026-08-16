@@ -3331,6 +3331,97 @@ function formatSubUrlWithToken(baseUrl: string, token: string): string {
   }
 }
 
+function getServerRemark(serverId: any, settings: any, db?: any): string {
+  const activeSrvs = getActiveServers(settings);
+  if (serverId !== undefined && serverId !== null && String(serverId).trim() !== "") {
+    const targetId = String(serverId).trim();
+    const found = activeSrvs.find((s: any) =>
+      String(s.id) === targetId ||
+      String(s.name) === targetId ||
+      String(s.remark) === targetId ||
+      String(s.panelUrl) === targetId
+    );
+    if (found) return found.remark || found.name || "سرور اختصاصی";
+
+    if (db && Array.isArray(db.servers)) {
+      const inDb = db.servers.find((s: any) =>
+        String(s.id) === targetId ||
+        String(s.name) === targetId ||
+        String(s.remark) === targetId
+      );
+      if (inDb) return inDb.remark || inDb.name || "سرور اختصاصی";
+    }
+  }
+
+  // Fallback to first active server or settings remark
+  if (activeSrvs.length > 0) {
+    return activeSrvs[0].remark || activeSrvs[0].name || settings.panelRemark || settings.remark || "سرور اختصاصی";
+  }
+  return settings.panelRemark || settings.remark || "سرور اختصاصی دالتون";
+}
+
+function getUserDisplayInfo(userId: any, clientName?: string, db?: any): string {
+  let usernameStr = "";
+  let fullNameStr = "";
+  const cleanId = userId ? String(userId).trim() : "";
+
+  if (cleanId) {
+    try {
+      const dbData = db || readSqliteDb();
+      const user = (dbData.users || []).find((u: any) =>
+        String(u.userId) === cleanId ||
+        String(u.id) === cleanId ||
+        String(u.user_id) === cleanId ||
+        String(u.tg_id) === cleanId
+      );
+      if (user) {
+        if (user.username && String(user.username).trim() && user.username !== "N/A" && !String(user.username).startsWith("user_")) {
+          usernameStr = `@${String(user.username).replace(/^@/, '')}`;
+        }
+        fullNameStr = user.fullName || user.firstName || "";
+      }
+    } catch (e) {}
+  }
+
+  const cleanClient = clientName && String(clientName).trim() ? String(clientName).trim() : "";
+  const displayUser = usernameStr || (fullNameStr ? `<b>${fullNameStr}</b>` : "بدون یوزرنیم");
+  const idStr = cleanId ? ` (شناسه: <code>${cleanId}</code>)` : "";
+
+  let result = `👤 <b>کاربر:</b> ${displayUser}${idStr}`;
+  if (cleanClient) {
+    result += `\n🏷 <b>نام کانفیگ:</b> <code>${cleanClient}</code>`;
+  }
+  return result;
+}
+
+function calculateCustomPlanPrice(trafficGb: number, durationDays: number, serverId: any, settings: any): { price: number; pricePerGb: number; pricePerDay: number } {
+  let pricePerGb = 3000;
+  let pricePerDay = 2000;
+
+  try {
+    const pc = typeof settings.panel_config === "string" ? JSON.parse(settings.panel_config) : (settings.panel_config || {});
+    const boxes = pc.customPricingBoxes || settings.customPricingBoxes || [];
+    if (Array.isArray(boxes)) {
+      for (const box of boxes) {
+        if (box && Array.isArray(box.serverIds) && box.serverIds.some((sid: any) => String(sid) === String(serverId))) {
+          if (box.pricePerGb) pricePerGb = Number(box.pricePerGb);
+          if (box.pricePerDay) pricePerDay = Number(box.pricePerDay);
+          break;
+        }
+      }
+    }
+    if (pc.pricePerGb && pricePerGb === 3000) pricePerGb = Number(pc.pricePerGb);
+    if (pc.pricePerDay && pricePerDay === 2000) pricePerDay = Number(pc.pricePerDay);
+    if (settings.pricePerGb && pricePerGb === 3000) pricePerGb = Number(settings.pricePerGb);
+    if (settings.pricePerDay && pricePerDay === 2000) pricePerDay = Number(settings.pricePerDay);
+  } catch (e) {}
+
+  const gbVal = Math.max(0, Number(trafficGb) || 0);
+  const daysVal = Math.max(0, Number(durationDays) || 0);
+  const total = Math.max(0, (gbVal * pricePerGb) + (daysVal * pricePerDay));
+  return { price: total, pricePerGb, pricePerDay };
+}
+
 function buildCorrectSubLinkForClient(
   keyOrSubLink: any,
   serverId?: string,
@@ -5168,182 +5259,347 @@ async function extendVpnClientApi(
   addGb: number,
   addDays: number,
   clientUuid?: string,
-  serverId?: string
+  serverId?: string,
+  subLink?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
     const activeServers = getActiveServers(settings);
 
-    let server = null;
+    // Collect candidate servers: specified server first, then all active servers
+    const targetServers: any[] = [];
     if (serverId) {
-      server = activeServers.find((s: any) => s.id === serverId);
+      const srv = activeServers.find((s: any) => String(s.id) === String(serverId));
+      if (srv) targetServers.push(srv);
     }
-    if (!server && activeServers.length > 0) {
-      server = activeServers.find((s: any) => s.status === "active") || activeServers[0];
-    }
-
-    if (!server) return { success: false, error: "No active server" };
-
-    const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-
-    const panelType = (server.panelType || "sanaei").toLowerCase();
-    if (["rebecca", "pasarguard", "marzban"].includes(panelType)) {
-      try {
-        const token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
-        if (!token) return { success: false, error: "ورود به پنل نمایندگی/دالتون با خطا مواجه شد" };
-
-        let safeEmail = clientEmail ? clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "") : "";
-
-        const userRes = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}`, {
-          method: "GET",
-          headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" }
-        }, 10000).catch(() => null);
-
-        let currentTotal = 0;
-        let currentExpiry = 0;
-        if (userRes && userRes.ok) {
-          const uData = await userRes.json().catch(() => ({}));
-          const userObj = uData?.data || uData;
-          currentTotal = Number(userObj?.data_limit || 0);
-          currentExpiry = Number(userObj?.expire || 0);
-        }
-
-        const addBytes = Math.floor(addGb * 1024 * 1024 * 1024);
-        const addSec = Math.floor(addDays * 24 * 60 * 60);
-        const newTotal = currentTotal + addBytes;
-        const nowSec = Math.floor(Date.now() / 1000);
-        let newExpiry = (currentExpiry <= 0 || currentExpiry < nowSec) ? (nowSec + addSec) : (currentExpiry + addSec);
-
-        const payload = {
-          data_limit: newTotal,
-          expire: newExpiry,
-          status: "active"
-        };
-
-        for (const method of ["PUT", "PATCH", "POST"]) {
-          const updRes = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}`, {
-            method,
-            headers: {
-              "Authorization": `Bearer ${token}`,
-              "Content-Type": "application/json",
-              "Accept": "application/json"
-            },
-            body: JSON.stringify(payload)
-          }, 10000).catch(() => null);
-
-          if (updRes && updRes.ok) {
-            console.log(`[${panelType} Extend API] Extended user '${safeEmail}' via ${method}`);
-            return { success: true };
-          }
-        }
-        return { success: false, error: "خطا در بروزرسانی حجم/زمان روی پنل" };
-      } catch (e: any) {
-        return { success: false, error: e.message || "خطا در تمدید اشتراک" };
+    for (const s of activeServers) {
+      if (!targetServers.some((ts: any) => String(ts.id) === String(s.id)) && s.status !== "inactive") {
+        targetServers.push(s);
       }
     }
 
-    const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
-    if (!loginResult.success || !loginResult.cookie) {
-      return { success: false, error: "XUI Login Failed" };
+    if (targetServers.length === 0) {
+      return { success: false, error: "هیچ سرور فعالی یافت نشد" };
     }
 
-    const headers: Record<string, string> = {
-      Cookie: loginResult.cookie,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    };
-    if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+    // Candidate tokens for matching
+    const candidateUuids = new Set<string>();
+    const candidateEmails = new Set<string>();
+    const candidateSubs = new Set<string>();
 
-    const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
-    let safeEmail = clientEmail ? clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "") : "";
+    if (clientUuid && String(clientUuid).trim()) {
+      candidateUuids.add(String(clientUuid).trim().toLowerCase());
+    }
+    if (clientEmail && String(clientEmail).trim()) {
+      const e = String(clientEmail).trim().toLowerCase();
+      candidateEmails.add(e);
+      candidateEmails.add(e.replace(/[\s/]+/g, "_"));
+      candidateEmails.add(e.replace(/[^A-Za-z0-9_-]/g, ""));
+      const uuMatches = e.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g);
+      if (uuMatches) {
+        uuMatches.forEach((m) => candidateUuids.add(m.toLowerCase()));
+      }
+    }
+    if (subLink && String(subLink).trim()) {
+      const s = String(subLink).trim().toLowerCase();
+      candidateSubs.add(s);
+      const uuMatches = s.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g);
+      if (uuMatches) {
+        uuMatches.forEach((m) => candidateUuids.add(m.toLowerCase()));
+      }
+      const subMatches = s.match(/\/sub\/([a-zA-Z0-9_-]+)/g);
+      if (subMatches) {
+        subMatches.forEach((tok) => {
+          const cleanTok = tok.replace("/sub/", "");
+          candidateSubs.add(cleanTok);
+          candidateEmails.add(cleanTok);
+        });
+      }
+    }
 
-    // Get client to read current limits
-    let clientData: any = null;
-    let inboundId = null;
+    for (const server of targetServers) {
+      const cleanedUrl = normalizeXuiUrl(server.panelUrl);
+      if (!cleanedUrl) continue;
 
-    const listRes = await xuiFetch(`${baseUrl}/panel/api/inbounds/list`, { method: "GET", headers }, 10000);
-    if (listRes.ok) {
-      const resJson = await listRes.json().catch(() => ({}));
-      if (resJson && resJson.success && Array.isArray(resJson.obj)) {
-        for (const inbound of resJson.obj) {
-          let clients = [];
+      const panelType = (server.panelType || "sanaei").toLowerCase();
+
+      // Rebecca / Pasarguard / Marzban Panels
+      if (["rebecca", "pasarguard", "marzban"].includes(panelType)) {
+        try {
+          const token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
+          if (!token) continue;
+
+          const possibleUsernames = [...candidateEmails, ...candidateUuids, ...candidateSubs];
+          let userFound = false;
+
+          for (const username of possibleUsernames) {
+            if (!username || username.length < 2) continue;
+
+            const userRes = await xuiFetch(`${cleanedUrl}/api/user/${username}`, {
+              method: "GET",
+              headers: { "Authorization": `Bearer ${token}`, "Accept": "application/json" }
+            }, 10000).catch(() => null);
+
+            if (userRes && userRes.ok) {
+              const uData = await userRes.json().catch(() => ({}));
+              const userObj = uData?.data || uData;
+              const currentTotal = Number(userObj?.data_limit || 0);
+              const currentExpiry = Number(userObj?.expire || 0);
+
+              const addBytes = Math.floor(addGb * 1024 * 1024 * 1024);
+              const addSec = Math.floor(addDays * 24 * 60 * 60);
+              const newTotal = currentTotal + addBytes;
+              const nowSec = Math.floor(Date.now() / 1000);
+              const newExpiry = (currentExpiry <= 0 || currentExpiry < nowSec) ? (nowSec + addSec) : (currentExpiry + addSec);
+
+              const payload = {
+                data_limit: newTotal,
+                expire: newExpiry,
+                status: "active"
+              };
+
+              for (const method of ["PUT", "PATCH", "POST"]) {
+                const updRes = await xuiFetch(`${cleanedUrl}/api/user/${username}`, {
+                  method,
+                  headers: {
+                    "Authorization": `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                  },
+                  body: JSON.stringify(payload)
+                }, 10000).catch(() => null);
+
+                if (updRes && updRes.ok) {
+                  console.log(`[${panelType} Extend API] Extended user '${username}' via ${method}`);
+                  userFound = true;
+                  break;
+                }
+              }
+            }
+            if (userFound) return { success: true };
+          }
+        } catch (e: any) {
+          console.error(`[${panelType} Extend Error]`, e);
+        }
+        continue;
+      }
+
+      // Sanaei / 3x-ui / Alireza / XUI Panels
+      const loginResult = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword);
+      if (!loginResult.success || !loginResult.cookie) {
+        continue;
+      }
+
+      const headers: Record<string, string> = {
+        Cookie: loginResult.cookie,
+        Accept: "application/json",
+      };
+      if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+
+      const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
+
+      let inboundsList: any[] = [];
+      const listUrls = [
+        `${baseUrl}/panel/api/inbounds/list`,
+        `${baseUrl}/panel/api/inbounds/`,
+        `${baseUrl}/api/inbounds/list`,
+      ];
+
+      for (const lUrl of listUrls) {
+        try {
+          const listRes = await xuiFetch(lUrl, { method: "GET", headers }, 10000);
+          if (listRes.ok) {
+            const resJson = await listRes.json().catch(() => ({}));
+            if (resJson && resJson.success && Array.isArray(resJson.obj)) {
+              inboundsList = resJson.obj;
+              break;
+            } else if (Array.isArray(resJson.data)) {
+              inboundsList = resJson.data;
+              break;
+            } else if (Array.isArray(resJson)) {
+              inboundsList = resJson;
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+
+      let clientData: any = null;
+      let inboundId: any = null;
+      let inboundObj: any = null;
+
+      if (inboundsList.length > 0) {
+        const allClients: Array<{ c: any; inbId: any; inb: any }> = [];
+        for (const inbound of inboundsList) {
+          if (!inbound || typeof inbound !== "object") continue;
+          let clients: any[] = [];
           try {
-             clients = JSON.parse(inbound.settings || "{}").clients || [];
-          } catch(e) {}
-          
+            const parsed = typeof inbound.settings === "string" ? JSON.parse(inbound.settings || "{}") : (inbound.settings || {});
+            if (Array.isArray(parsed.clients)) {
+              clients = parsed.clients;
+            }
+          } catch (e) {}
+
           for (const c of clients) {
-             if ((clientUuid && String(c.id) === String(clientUuid)) || (safeEmail && c.email === safeEmail)) {
-                 clientData = c;
-                 inboundId = inbound.id;
-                 break;
-             }
+            if (c && typeof c === "object") {
+              allClients.push({ c, inbId: inbound.id, inb: inbound });
+            }
           }
-          if (clientData) break;
+        }
+
+        // Pass 1: UUID match
+        for (const item of allClients) {
+          const cId = String(item.c.id || "").trim().toLowerCase();
+          if (cId && (candidateUuids.has(cId) || Array.from(candidateUuids).some((cand) => cId.includes(cand)))) {
+            clientData = item.c;
+            inboundId = item.inbId;
+            inboundObj = item.inb;
+            break;
+          }
+        }
+
+        // Pass 2: Email / Username match
+        if (!clientData) {
+          for (const item of allClients) {
+            const cEmail = String(item.c.email || "").trim().toLowerCase();
+            if (cEmail && (candidateEmails.has(cEmail) || Array.from(candidateEmails).some((cand) => cand.length >= 2 && cEmail.includes(cand)))) {
+              clientData = item.c;
+              inboundId = item.inbId;
+              inboundObj = item.inb;
+              break;
+            }
+          }
+        }
+
+        // Pass 3: SubId match
+        if (!clientData) {
+          for (const item of allClients) {
+            const cSub = String(item.c.subId || "").trim().toLowerCase();
+            const cEmail = String(item.c.email || "").trim().toLowerCase();
+            const cId = String(item.c.id || "").trim().toLowerCase();
+            if ((cSub && Array.from(candidateSubs).some((s) => s.length >= 3 && cSub.includes(s))) ||
+                (cEmail && Array.from(candidateSubs).some((s) => s.length >= 3 && cEmail.includes(s))) ||
+                (cId && Array.from(candidateSubs).some((s) => s.length >= 3 && cId.includes(s)))) {
+              clientData = item.c;
+              inboundId = item.inbId;
+              inboundObj = item.inb;
+              break;
+            }
+          }
         }
       }
-    }
 
-    if (!clientData) {
-       return { success: false, error: "Client not found in panel" };
-    }
-
-    const currentTotal = Number(clientData.total) || 0;
-    const currentExpiry = Number(clientData.expiryTime) || 0;
-
-    const addBytes = Math.floor(addGb * 1024 * 1024 * 1024);
-    const addMs = Math.floor(addDays * 24 * 60 * 60 * 1000);
-
-    const newTotal = currentTotal + addBytes;
-    const nowMs = Date.now();
-    let newExpiry = currentExpiry === 0 || currentExpiry < nowMs ? nowMs + addMs : currentExpiry + addMs;
-
-    const mergedC = { ...clientData };
-    mergedC.total = newTotal;
-    mergedC.expiryTime = newExpiry;
-    mergedC.enable = true;
-
-    const uid = mergedC.id;
-
-    // Try update by UUID
-    try {
-      const updRes = await xuiFetch(`${baseUrl}/panel/api/clients/update/${uid}`, { method: "POST", headers, body: JSON.stringify(mergedC) }, 10000);
-      if (updRes.ok) {
-        const updJson = await updRes.json().catch(() => ({}));
-        if (updJson && updJson.success) return { success: true };
+      if (!clientData) {
+        continue;
       }
-    } catch(e) {}
 
-    // Fallback: update by email
-    try {
-      const updRes2 = await xuiFetch(`${baseUrl}/panel/api/clients/update/${safeEmail}`, { method: "POST", headers, body: JSON.stringify(mergedC) }, 10000);
-      if (updRes2.ok) {
-        const updJson2 = await updRes2.json().catch(() => ({}));
-        if (updJson2 && updJson2.success) return { success: true };
+      const currentTotal = Number(clientData.totalGB) || Number(clientData.total) || 0;
+      const rawExpiry = Number(clientData.expiryTime) || 0;
+      const currentExpiryMs = (rawExpiry > 0 && rawExpiry < 10000000000) ? rawExpiry * 1000 : rawExpiry;
+
+      const addBytes = Math.floor(addGb * 1024 * 1024 * 1024);
+      const addMs = Math.floor(addDays * 24 * 60 * 60 * 1000);
+
+      const newTotal = currentTotal + addBytes;
+      const nowMs = Date.now();
+      const newExpiryMs = (currentExpiryMs <= 0 || currentExpiryMs < nowMs) ? (nowMs + addMs) : (currentExpiryMs + addMs);
+
+      const mergedC = { ...clientData };
+      mergedC.total = newTotal;
+      mergedC.totalGB = newTotal;
+      mergedC.expiryTime = newExpiryMs;
+      mergedC.enable = true;
+
+      const uid = mergedC.id || mergedC.email;
+      const safeEmail = mergedC.email || String(uid);
+      const inbIdStr = String(inboundId || "1");
+      const inbIdInt = Number(inboundId) || 1;
+
+      const payloadIntStr = JSON.stringify({ clients: [mergedC] });
+      const formBodyInt = `id=${inbIdInt}&settings=${encodeURIComponent(payloadIntStr)}`;
+      const formBodyStr = `id=${inbIdStr}&settings=${encodeURIComponent(payloadIntStr)}`;
+
+      const testConfigs = [
+        // 1. Standard /panel/api/inbounds/updateClient/{uid}
+        { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBodyInt },
+        { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBodyStr },
+        { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+        // 2. Inbound ID in URL
+        { url: `${baseUrl}/panel/api/inbounds/${inbIdStr}/updateClient/${uid}`, isForm: true, body: formBodyInt },
+        { url: `${baseUrl}/panel/api/inbounds/${inbIdStr}/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+        // 3. Email in URL
+        { url: `${baseUrl}/panel/api/inbounds/updateClient/${safeEmail}`, isForm: true, body: formBodyInt },
+        { url: `${baseUrl}/panel/api/inbounds/updateClient/${safeEmail}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+        // 4. Unified API
+        { url: `${baseUrl}/panel/api/clients/update/${uid}`, isForm: false, body: JSON.stringify(mergedC) },
+        { url: `${baseUrl}/panel/api/clients/update/${safeEmail}`, isForm: false, body: JSON.stringify(mergedC) },
+        // 5. Fallback endpoint
+        { url: `${baseUrl}/panel/api/inbounds/updateClient`, isForm: true, body: formBodyInt },
+        { url: `${baseUrl}/panel/api/inbounds/updateClient`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+      ];
+
+      for (const tc of testConfigs) {
+        try {
+          const reqHeaders = {
+            ...headers,
+            "Content-Type": tc.isForm ? "application/x-www-form-urlencoded; charset=UTF-8" : "application/json"
+          };
+          const updRes = await xuiFetch(tc.url, {
+            method: "POST",
+            headers: reqHeaders,
+            body: tc.body
+          }, 10000);
+
+          if (updRes.ok) {
+            const updJson = await updRes.json().catch(() => ({}));
+            if (updJson && (updJson.success || updJson.obj || String(updJson.msg || "").toLowerCase() === "success")) {
+              console.log(`[XUI Extend API] Extended client '${safeEmail || uid}' on server '${server.name || server.id}' via ${tc.url}`);
+              return { success: true };
+            }
+          }
+        } catch (e) {}
       }
-    } catch(e) {}
 
-    // Fallback: update via inbound endpoint
-    if (inboundId) {
-      try {
-        const updRes3 = await xuiFetch(`${baseUrl}/panel/api/inbounds/${inboundId}/updateClient/${uid}`, {
-           method: "POST",
-           headers,
-           body: JSON.stringify({
-             id: inboundId,
-             settings: JSON.stringify({ clients: [mergedC] })
-           })
-        }, 10000);
-        if (updRes3.ok) {
-          const updJson3 = await updRes3.json().catch(() => ({}));
-          if (updJson3 && updJson3.success) return { success: true };
-        }
-      } catch(e) {}
+      // Fallback: Full Inbound Update
+      if (inboundObj && inboundObj.settings) {
+        try {
+          const inbSettings = typeof inboundObj.settings === "string" ? JSON.parse(inboundObj.settings) : inboundObj.settings;
+          if (Array.isArray(inbSettings.clients)) {
+            let foundInInb = false;
+            for (let i = 0; i < inbSettings.clients.length; i++) {
+              const cl = inbSettings.clients[i];
+              if (cl && (cl.id === uid || cl.email === safeEmail)) {
+                inbSettings.clients[i] = mergedC;
+                foundInInb = true;
+                break;
+              }
+            }
+            if (foundInInb) {
+              const inbPayload = {
+                ...inboundObj,
+                settings: JSON.stringify(inbSettings)
+              };
+              const inbUpdRes = await xuiFetch(`${baseUrl}/panel/api/inbounds/update/${inbIdStr}`, {
+                method: "POST",
+                headers: { ...headers, "Content-Type": "application/json" },
+                body: JSON.stringify(inbPayload)
+              }, 10000);
+              if (inbUpdRes.ok) {
+                console.log(`[XUI Extend API] Extended client '${safeEmail || uid}' via full inbound update`);
+                return { success: true };
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      return { success: true };
     }
 
-    return { success: false, error: "Failed to update client via APIs" };
-  } catch(e: any) {
-    return { success: false, error: e.message };
+    return { success: false, error: "کانفیگ مورد نظر روی هیچ یک از سرورها پیدا نشد." };
+  } catch (e: any) {
+    return { success: false, error: e.message || String(e) };
   }
 }
 
@@ -7742,7 +7998,7 @@ app.post("/api/subscription-keys/delete-expired", async (req, res) => {
 
 app.post("/api/subscription-keys/renew", async (req, res) => {
   try {
-    const { id, addGb, addDays } = req.body;
+    const { id, addGb, addDays, userId } = req.body;
     const db = readSqliteDb();
 
     const key = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
@@ -7753,19 +8009,56 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     const settings = getSystemSettings(db);
     const clientName = key.clientName || key.clientEmail || key.planName || "";
 
+    const numGb = Math.max(0, Number(addGb) || 0);
+    const numDays = Math.max(0, Number(addDays) || 0);
+
+    if (numGb === 0 && numDays === 0) {
+      return res.status(400).json({ success: false, error: "حجم یا مدت زمان تمدید باید مشخص شود." });
+    }
+
+    // Calculate price using custom pricing configured in the bot/panel
+    const pricing = calculateCustomPlanPrice(numGb, numDays, key.serverId, settings);
+    const renewCost = pricing.price;
+
+    const effectiveUserId = userId || key.userId;
+    const user = (db.users || []).find((u: any) => Number(u.userId) === Number(effectiveUserId) || Number(u.id) === Number(effectiveUserId));
+
+    const ownerId = Number(settings.ownerId || settings.adminId || 0);
+    const isOwnerOrAdmin = effectiveUserId && (Number(effectiveUserId) === ownerId || (settings.adminIds || []).map(Number).includes(Number(effectiveUserId)));
+
+    if (!isOwnerOrAdmin && user && renewCost > 0) {
+      const currentBal = Number(user.walletBalance || user.balance || 0);
+      if (currentBal < renewCost) {
+        return res.status(400).json({
+          success: false,
+          error: `موجودی کیف پول شما (${currentBal.toLocaleString("fa-IR")} تومان) برای تمدید این اشتراک (${renewCost.toLocaleString("fa-IR")} تومان) کافی نیست. لطفاً ابتدا کیف پول خود را شارژ نمایید.`
+        });
+      }
+      user.walletBalance = Math.max(0, currentBal - renewCost);
+
+      // Record transaction
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      db.transactions.push({
+        id: `tx_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        userId: Number(effectiveUserId),
+        type: "renew",
+        amount: renewCost,
+        status: "approved",
+        description: `تمدید اشتراک ${clientName} (+${numGb} GB, +${numDays} روز)`,
+        createdAt: new Date().toISOString()
+      });
+    }
+
     // Calculate new expiration date
     let expDt: Date;
     try {
       expDt = new Date(key.expireDate);
-      if (isNaN(expDt.getTime()) || expDt < new Date()) {
+      if (isNaN(expDt.getTime()) || expDt.getTime() < Date.now()) {
         expDt = new Date();
       }
     } catch {
       expDt = new Date();
     }
-
-    const numGb = Math.max(0, Number(addGb) || 0);
-    const numDays = Math.max(0, Number(addDays) || 0);
 
     expDt.setDate(expDt.getDate() + numDays);
     const new_expire_date_str = expDt.toISOString().split("T")[0];
@@ -7776,7 +8069,8 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       numGb,
       numDays,
       key.clientUuid,
-      key.serverId
+      key.serverId,
+      key.subLink
     );
 
     if (!addResult.success) {
@@ -7787,12 +8081,12 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
     key.expireDate = new_expire_date_str;
     key.trafficLimitGb = new_limit_gb;
     key.status = "active";
+    key.disabled = false;
 
     // Re-enable in users if count updated
-    const user = (db.users || []).find((u: any) => Number(u.userId) === Number(key.userId));
     if (user) {
       user.activePlansCount = (db.subscription_keys || []).filter(
-        (k: any) => Number(k.userId) === Number(key.userId) && k.status === "active",
+        (k: any) => Number(k.userId) === Number(user.userId) && k.status === "active" && !k.disabled
       ).length;
       if (Array.isArray(user.configs)) {
         const c = user.configs.find((cfg: any) => String(cfg.id) === String(key.id) || String(cfg.uuid) === String(key.clientUuid));
@@ -7800,20 +8094,22 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
           c.expireDate = key.expireDate;
           c.trafficLimitGb = key.trafficLimitGb;
           c.status = "active";
+          c.disabled = false;
         }
       }
     }
 
     try {
-      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(key.serverId));
-      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const srvName = getServerRemark(key.serverId, settings, db);
+      const userInfoText = getUserDisplayInfo(key.userId, clientName, db);
       const renewMsg =
         `🔄 <b>[اعلان تمدید کانفیگ]</b>\n\n` +
-        `👤 <b>کاربر/کانفیگ:</b> <code>${clientName || "نامشخص"}</code>${key.userId ? ` (شناسه: <code>${key.userId}</code>)` : ""}\n` +
+        `${userInfoText}\n` +
         `🌐 <b>سرور:</b> ${srvName}\n` +
         `➕ <b>افزایش حجم:</b> +${numGb} GB (مجموع: ${new_limit_gb} GB)\n` +
         `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
         `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n` +
+        `💰 <b>مبلغ تمدید:</b> ${renewCost.toLocaleString("fa-IR")} تومان\n` +
         `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
       sendAdminNotification(renewMsg, settings).catch(() => {});
     } catch (e) {
@@ -7829,12 +8125,13 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
         `📦 <b>پلن:</b> ${key.planName || "اشتراک اختصاصی"}\n` +
         `➕ <b>افزایش حجم:</b> +${numGb} گیگابایت (مجموع: ${new_limit_gb} GB)\n` +
         `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
-        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n\n` +
+        `📅 <b>تاریخ انقضای جدید:</b> ${new_expire_date_str}\n` +
+        `💰 <b>مبلغ:</b> ${renewCost.toLocaleString("fa-IR")} تومان\n\n` +
         `🔗 <b>لینک اتصال:</b>\n<code>${key.subLink || ""}</code>`;
       sendTelegramMessage(settings.botToken, key.userId, renewUserMsg).catch(() => {});
     }
 
-    res.json({ success: true, key });
+    res.json({ success: true, key, userBalance: user ? user.walletBalance : undefined });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -7885,13 +8182,13 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
 
     try {
       const settings = getSystemSettings(db);
-      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(keyToToggle.serverId));
-      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
+      const srvName = getServerRemark(keyToToggle.serverId, settings, db);
+      const userInfoText = getUserDisplayInfo(keyToToggle.userId, clientIdentifier, db);
       const statusIcon = newStatus === "active" ? "🟢" : "🔴";
       const statusTextFa = newStatus === "active" ? "فعال‌سازی" : "غیرفعال‌سازی";
       const toggleMsg =
         `${statusIcon} <b>[اعلان تغییر وضعیت کانفیگ]</b>\n\n` +
-        `👤 <b>کاربر/کانفیگ:</b> <code>${clientIdentifier || "نامشخص"}</code>${keyToToggle.userId ? ` (شناسه: <code>${keyToToggle.userId}</code>)` : ""}\n` +
+        `${userInfoText}\n` +
         `🌐 <b>سرور:</b> ${srvName}\n` +
         `⚡ <b>عملیات:</b> ${statusTextFa}\n` +
         `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
@@ -7986,14 +8283,12 @@ app.post("/api/subscription-keys/delete", async (req, res) => {
 
     try {
       const settings = getSystemSettings(db);
-      const serverObj = (db.servers || []).find((s: any) => String(s.id) === String(targetServerId));
-      const srvName = serverObj?.name || serverObj?.remark || "سرور نامشخص";
-      const clientNameText = emailToDelete || "نامشخص";
+      const srvName = getServerRemark(targetServerId, settings, db);
+      const userInfoText = getUserDisplayInfo(effectiveUserId, emailToDelete, db);
       const uuidText = uuidToDelete || "نامشخص";
-      const userText = effectiveUserId ? ` (شناسه: <code>${effectiveUserId}</code>)` : "";
       const deleteMsg =
         `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
-        `👤 <b>کاربر/کانفیگ:</b> <code>${clientNameText}</code>${userText}\n` +
+        `${userInfoText}\n` +
         `🌐 <b>سرور:</b> ${srvName}\n` +
         `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
         `⏱ <b>زمان:</b> ${new Date().toLocaleTimeString("fa-IR")} - ${new Date().toLocaleDateString("fa-IR")}`;
@@ -8693,21 +8988,73 @@ app.get("/api/miniapp/data", async (req, res) => {
 
     // User Subscriptions (Configs) - Sorted newest first by default
     let dbUpdatedSubs = false;
+    const nowMs = Date.now();
     const userSubs = tgId > 0
       ? (db.subscription_keys || [])
           .filter((k: any) => Number(k.userId) === tgId || Number(k.user_id) === tgId)
           .map((k: any) => {
-            const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
             const liveSubLink = buildCorrectSubLinkForClient(k, k.serverId, settings, db);
             if (k.subLink !== liveSubLink) {
               k.subLink = liveSubLink;
               dbUpdatedSubs = true;
             }
             const vlessData = generateVlessConfigsForClient(k.clientName, k.clientUuid, k.serverId, settings, liveSubLink);
+
+            const usedGb = Number(k.trafficUsedGb ?? k.traffic_used_gb ?? k.usedGb ?? 0);
+            const limitGb = Number(k.trafficLimitGb ?? k.traffic_limit_gb ?? k.totalGb ?? 30);
+            const remainingGb = Math.max(0, limitGb - usedGb);
+
+            let daysRemaining = 30;
+            let isExpired = false;
+            let isExhausted = false;
+
+            if (k.expireDate) {
+              try {
+                const expTime = new Date(k.expireDate).getTime();
+                if (!isNaN(expTime)) {
+                  daysRemaining = Math.ceil((expTime - nowMs) / (1000 * 60 * 60 * 24));
+                  if (daysRemaining <= 0 || expTime < nowMs) {
+                    isExpired = true;
+                    daysRemaining = 0;
+                  }
+                }
+              } catch (e) {}
+            } else if (k.expireTimestamp) {
+              const expTime = Number(k.expireTimestamp) > 10000000000 ? Number(k.expireTimestamp) : Number(k.expireTimestamp) * 1000;
+              daysRemaining = Math.ceil((expTime - nowMs) / (1000 * 60 * 60 * 24));
+              if (daysRemaining <= 0 || expTime < nowMs) {
+                isExpired = true;
+                daysRemaining = 0;
+              }
+            }
+
+            if (limitGb > 0 && usedGb >= limitGb) {
+              isExhausted = true;
+            }
+
+            let effectiveStatus = k.status || "active";
+            if (k.disabled === true || effectiveStatus === "disabled" || effectiveStatus === "suspended") {
+              effectiveStatus = "disabled";
+            } else if (isExhausted) {
+              effectiveStatus = "exhausted";
+            } else if (isExpired) {
+              effectiveStatus = "expired";
+            } else {
+              effectiveStatus = "active";
+            }
+
+            const srvName = getServerRemark(k.serverId, settings, db);
+            const srv = rawServers.find((s: any) => String(s.id) === String(k.serverId));
+
             return {
               ...k,
+              trafficUsedGb: usedGb,
+              trafficLimitGb: limitGb,
+              remainingGb: Number(remainingGb.toFixed(2)),
+              daysRemaining,
+              status: effectiveStatus,
               subLink: liveSubLink,
-              serverName: srv ? (srv.name || srv.remark) : "سرور عمومی",
+              serverName: srvName,
               serverFlag: srv ? mapServerFormat(srv).flag : "🌐",
               vlessConfigs: k.vlessConfigs && k.vlessConfigs.length > 0 ? k.vlessConfigs : vlessData.vlessConfigs,
               vlessLinks: k.vlessLinks && k.vlessLinks.length > 0 ? k.vlessLinks : vlessData.vlessLinks

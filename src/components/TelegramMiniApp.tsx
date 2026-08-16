@@ -514,6 +514,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const subId = renewModalKey.id || renewModalKey.clientUuid;
     const addGb = Math.max(1, Number(renewModalGb) || 10);
     const addDays = Math.max(1, Number(renewModalDays) || 30);
+    const effUserId = tgUser?.id || userData?.id || userData?.userId;
 
     setRenewSubmitting(true);
     try {
@@ -524,10 +525,15 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           id: subId,
           addGb,
           addDays,
+          userId: effUserId,
         }),
       });
       const data = await res.json();
       if (data.success && data.key) {
+        if (data.userBalance !== undefined) {
+          setUserData((prev: any) => prev ? { ...prev, balance: data.userBalance, walletBalance: data.userBalance } : prev);
+        }
+
         setSubscriptions((prev) =>
           prev.map((item) =>
             item.id === renewModalKey.id || item.clientUuid === renewModalKey.clientUuid
@@ -556,9 +562,10 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         );
 
         setRenewModalKey(null);
+        const costStr = data.cost && data.cost > 0 ? ` به مبلغ ${Number(data.cost).toLocaleString()} تومان از کیف پول کسر و` : "";
         showThemedModal(
           "🎉 تمدید موفقیت‌آمیز اشتراک",
-          `اشتراک شما با موفقیت به میزان +${addGb} گیگابایت حجم و +${addDays} روز تمدید شد و وضعیت آن در پنل سرور و ربات فعال گردید.`,
+          `اشتراک شما با موفقیت${costStr} به میزان +${addGb} گیگابایت حجم و +${addDays} روز تمدید شد و وضعیت آن در پنل سرور و ربات فعال گردید.`,
           "success"
         );
       } else {
@@ -5430,19 +5437,61 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               />
             </div>
 
-            {/* Summary Preview */}
-            <div className="bg-slate-950 p-2.5 rounded-2xl border border-slate-800/80 space-y-1 text-xs">
-              <div className="flex justify-between text-slate-400">
-                <span>حجم جدید پس از تمدید:</span>
-                <span className="font-bold text-emerald-300 font-mono">
-                  {(Number(renewModalKey.trafficLimitGb || 0) + (Number(renewModalGb) || 0))} GB
-                </span>
-              </div>
-              <div className="flex justify-between text-slate-400">
-                <span>وضعیت پس از تمدید:</span>
-                <span className="font-bold text-emerald-400">فعال در پنل و ربات</span>
-              </div>
-            </div>
+            {/* Summary Preview & Pricing Calculation */}
+            {(() => {
+              const gb = Math.max(0, Number(renewModalGb) || 0);
+              const days = Math.max(0, Number(renewModalDays) || 0);
+              let pricePerGb = 3000;
+              let pricePerDay = 2000;
+              const boxes = miniappData?.customPricingBoxes || miniappData?.customPricing?.boxes || [];
+              const srvId = renewModalKey?.serverId;
+              const matchedBox = boxes.find((b: any) => Array.isArray(b.serverIds) && b.serverIds.some((sid: any) => String(sid) === String(srvId)));
+              if (matchedBox) {
+                if (matchedBox.pricePerGb) pricePerGb = Number(matchedBox.pricePerGb);
+                if (matchedBox.pricePerDay) pricePerDay = Number(matchedBox.pricePerDay);
+              }
+              const cost = (gb * pricePerGb) + (days * pricePerDay);
+              const balance = Number(userData?.balance ?? userData?.walletBalance ?? 0);
+              const isInsufficient = balance < cost && cost > 0;
+
+              return (
+                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
+                  <div className="flex justify-between text-slate-400">
+                    <span>حجم جدید پس از تمدید:</span>
+                    <span className="font-bold text-emerald-300 font-mono">
+                      {(Number(renewModalKey.trafficLimitGb || 0) + (Number(renewModalGb) || 0))} GB
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>مبلغ تمدید (نرخ هوشمند):</span>
+                    <span className="font-extrabold text-amber-400 font-mono">
+                      {cost.toLocaleString()} تومان
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-slate-400">
+                    <span>موجودی کیف پول شما:</span>
+                    <span className={`font-bold font-mono ${isInsufficient ? "text-rose-400" : "text-emerald-400"}`}>
+                      {balance.toLocaleString()} تومان
+                    </span>
+                  </div>
+                  {isInsufficient && (
+                    <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2 text-rose-300 text-[11px] flex items-center justify-between mt-1">
+                      <span>⚠️ موجودی کیف پول کمتر از هزینه است</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRenewModalKey(null);
+                          setActiveTab("wallet");
+                        }}
+                        className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-rose-600/30"
+                      >
+                        شارژ کیف پول
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Submit & Cancel Buttons */}
             <div className="flex items-center gap-2 pt-1">
