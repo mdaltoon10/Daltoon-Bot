@@ -155,31 +155,6 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const activeDashboardTheme = systemSettings?.dashboard_theme || systemSettings?.dashboardTheme || localStorage.getItem("dashboard_theme") || "default";
   const isLightMode = systemSettings?.theme_mode === "light" || localStorage.getItem("theme") === "light";
 
-  // Notification Queue Ref to prevent duplicate popups
-  const shownNotifIdsRef = useRef<Set<string>>(new Set());
-
-  const processUnreadNotifications = (notifs: any[], currentUserId?: any) => {
-    if (!Array.isArray(notifs) || notifs.length === 0) return;
-    const unshown = notifs.filter((n: any) => n && n.id && !shownNotifIdsRef.current.has(String(n.id)));
-    if (unshown.length > 0) {
-      const notif = unshown[0];
-      shownNotifIdsRef.current.add(String(notif.id));
-      showThemedModal(
-        notif.title || "اعلان جدید",
-        notif.message || "",
-        notif.type || "info",
-        "متوجه شدم",
-        () => {
-          fetch("/api/miniapp/notifications/read", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: notif.id, userId: currentUserId || tgUser?.id }),
-          }).catch(() => {});
-        }
-      );
-    }
-  };
-
   useEffect(() => {
     if (isLightMode) {
       document.body.classList.add("light");
@@ -886,11 +861,6 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           setSelectedColleaguePkg(data.colleaguePackages[0]);
         }
 
-        // Process unread notifications on app open / refresh
-        if (data.notifications) {
-          processUnreadNotifications(data.notifications, user?.id);
-        }
-
         // Auto-select first server if available
         if (data.servers && data.servers.length > 0 && !selectedServer) {
           setSelectedServer(data.servers[0]);
@@ -938,11 +908,6 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         if (data.colleaguePackages) setColleaguePackages(data.colleaguePackages);
         if (data.userColleagueAccounts) setUserColleagueAccounts(data.userColleagueAccounts);
 
-        // Process any unread persistent notifications from server
-        if (data.notifications) {
-          processUnreadNotifications(data.notifications, tgUser.id);
-        }
-
         const newSubs = data.subscriptions || [];
 
         // Check if a pending receipt purchase was approved by admin
@@ -958,6 +923,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             setDeliveredSubKey(matchingNewSub);
             setPurchaseStep(5);
             setActiveTab("plans");
+            showThemedModal(
+              "🎉 رسید شما تایید شد!",
+              "سرویس شما توسط مدیریت تایید و بلافاصله فعال گردید. کانفیگ و لینک‌های اتصال روی صفحه آماده استفاده هستند.",
+              "success"
+            );
+            if (window.Telegram?.WebApp?.HapticFeedback) {
+              window.Telegram.WebApp.HapticFeedback.notificationOccurred("success");
+            }
           }
         }
 

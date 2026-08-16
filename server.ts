@@ -546,7 +546,6 @@ interface DbSchema {
   colleague_categories?: any[];
   logs?: any[];
   plan_categories?: any[];
-  user_notifications?: any[];
   settings: Record<string, string>;
   link_tokens?: Record<string, string>;
 }
@@ -3489,40 +3488,6 @@ function getServerDisplayForNotification(serverId: any, settings: any, db?: any,
   const srvName = getServerRemark(serverId, settings, dbData, subLink);
   const srvFlag = srv?.flag || (srv?.isColleague ? "👥" : "🌐");
   return `${srvFlag} ${srvName}`;
-}
-
-function addUserNotification(
-  userId: number | string,
-  notification: {
-    title: string;
-    message: string;
-    type?: "receipt_approved" | "receipt_rejected" | "renew_approved" | "general";
-    subKey?: any;
-    txId?: string;
-  },
-  db: any
-) {
-  if (!userId || Number(userId) <= 0) return null;
-  if (!Array.isArray(db.user_notifications)) {
-    db.user_notifications = [];
-  }
-  const notifId = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const notifObj = {
-    id: notifId,
-    userId: Number(userId),
-    title: notification.title,
-    message: notification.message,
-    type: notification.type || "general",
-    subKey: notification.subKey || null,
-    txId: notification.txId || null,
-    isRead: false,
-    createdAt: new Date().toISOString(),
-  };
-  db.user_notifications.push(notifObj);
-  if (db.user_notifications.length > 1000) {
-    db.user_notifications = db.user_notifications.slice(-1000);
-  }
-  return notifObj;
 }
 
 function calculateCustomPlanPrice(trafficGb: number, durationDays: number, serverId: any, settings: any): { price: number; pricePerGb: number; pricePerDay: number } {
@@ -7959,18 +7924,6 @@ app.post("/api/transactions/approve", async (req, res) => {
         console.warn("Error notifying user of approval:", notifyErr);
       }
 
-      // Record persistent notification for user in miniapp
-      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
-      db.user_notifications.push({
-        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        userId: Number(tx.userId),
-        title: isRenewTx ? "🎉 تمدید اشتراک تایید شد!" : "🎉 رسید شما تایید شد!",
-        message: messageTextForNotif || (isRenewTx ? "اشتراک شما تمدید و فعال گردید." : "سرویس شما توسط مدیریت تایید و فعال گردید."),
-        type: "success",
-        read: false,
-        createdAt: new Date().toISOString()
-      });
-
       writeSqliteDb(db);
 
       res.json({
@@ -8011,18 +7964,6 @@ app.post("/api/transactions/reject", async (req, res) => {
       if (db.logs.length > 1000) {
         db.logs = db.logs.slice(-1000);
       }
-
-      // Record persistent notification for user in miniapp
-      if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
-      db.user_notifications.push({
-        id: `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        userId: Number(tx.userId),
-        title: "❌ رسید شما رد شد",
-        message: `رسید تراکنش شما با شناسه ${tx.id} به مبلغ ${Number(tx.amount || 0).toLocaleString()} تومان توسط مدیریت بررسی و تایید نگردید.`,
-        type: "error",
-        read: false,
-        createdAt: new Date().toISOString()
-      });
 
       writeSqliteDb(db);
 
@@ -9805,36 +9746,10 @@ app.get("/api/miniapp/data", async (req, res) => {
         },
         subscriptions: userSubs,
         tickets: userTickets,
-        transactions: userTransactions,
-        notifications: tgId > 0 ? (db.user_notifications || []).filter((n: any) => Number(n.userId) === tgId && !n.read) : []
+        transactions: userTransactions
       });
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Mark notification(s) as read for MiniApp user
-app.post("/api/miniapp/notifications/read", (req, res) => {
-  try {
-    const { id, userId, all } = req.body;
-    const db = readSqliteDb();
-    if (!Array.isArray(db.user_notifications)) db.user_notifications = [];
-
-    if (all && userId) {
-      for (const n of db.user_notifications) {
-        if (Number(n.userId) === Number(userId)) {
-          n.read = true;
-        }
-      }
-    } else if (id) {
-      const notif = db.user_notifications.find((n: any) => String(n.id) === String(id));
-      if (notif) notif.read = true;
-    }
-
-    writeSqliteDb(db);
-    res.json({ success: true });
-  } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
