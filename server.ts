@@ -956,8 +956,7 @@ function getSystemSettings(db?: any) {
     !fs.existsSync(settings.sslPrivateKeyPath)
   ) {
     try {
-      const rawDom = (settings.domainName || "").trim();
-      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+      const targetDom = (settings.domainName || "").trim();
       let autoPub = "";
       let autoPriv = "";
 
@@ -13512,9 +13511,7 @@ function getDynamicSecureContext(hostname: string) {
     
     // Auto-detect if not configured
     if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const rawDom = (hostname || settings.domainName || "").trim();
-      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
-      
+      const targetDom = hostname || settings.domainName || "";
       if (targetDom) {
         if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
           pubPath = `/root/cert/${targetDom}/fullchain.pem`;
@@ -13528,22 +13525,6 @@ function getDynamicSecureContext(hostname: string) {
         } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
           pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
           privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
-        }
-      }
-
-      // If still not found, check any available cert directory in /root/cert or /etc/letsencrypt/live
-      if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-        if (fs.existsSync("/root/cert")) {
-          const dirs = fs.readdirSync("/root/cert");
-          for (const d of dirs) {
-            const p1 = path.join("/root/cert", d, "fullchain.pem");
-            const p2 = path.join("/root/cert", d, "privkey.pem");
-            if (fs.existsSync(p1) && fs.existsSync(p2)) {
-              pubPath = p1;
-              privPath = p2;
-              break;
-            }
-          }
         }
       }
     }
@@ -13577,7 +13558,7 @@ async function startServer() {
   setInterval(checkAutoBackup, 60 * 1000);
   setTimeout(checkAutoBackup, 5000); // Check once shortly after startup
 
-  const isProduction = process.env.NODE_ENV === "production" || Boolean(process.argv[1]?.includes('server.cjs'));
+  const isProduction = process.env.NODE_ENV === "production" || process.argv[1].includes('server.cjs');
 
   if (!isProduction) {
     console.log("[Server] Mount dev Vite middleware mode.");
@@ -13683,8 +13664,7 @@ async function startServer() {
     
     // Auto-detect if not configured in DB at boot
     if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const rawDom = (settings.domainName || "").trim();
-      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+      const targetDom = (settings.domainName || "").trim();
       if (targetDom) {
         if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
           pubPath = `/root/cert/${targetDom}/fullchain.pem`;
@@ -13698,21 +13678,6 @@ async function startServer() {
         } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
           pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
           privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
-        }
-      }
-
-      if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-        if (fs.existsSync("/root/cert")) {
-          const dirs = fs.readdirSync("/root/cert");
-          for (const d of dirs) {
-            const p1 = path.join("/root/cert", d, "fullchain.pem");
-            const p2 = path.join("/root/cert", d, "privkey.pem");
-            if (fs.existsSync(p1) && fs.existsSync(p2)) {
-              pubPath = p1;
-              privPath = p2;
-              break;
-            }
-          }
         }
       }
     }
@@ -13773,7 +13738,7 @@ async function startServer() {
     try { if (socket) socket.destroy(); } catch (e) {}
   };
 
-  if (isSslActive && sslOptions && sslOptions.cert && sslOptions.cert !== "DUMMY") {
+  if (isSslActive && sslOptions) {
     // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000)
     try {
       const httpServerMain = http.createServer(app);
@@ -13807,7 +13772,7 @@ async function startServer() {
             socket.pause();
             
             // 0x16 (22) is TLS Handshake
-            const isTls = buffer && buffer.length > 0 && buffer[0] === 22;
+            const isTls = buffer[0] === 22;
             const targetServer = isTls ? httpsServerMain : httpServerMain;
             
             targetServer.emit('connection', socket);
@@ -13836,8 +13801,9 @@ async function startServer() {
       console.warn(`[HTTPS ${PORT} setup error, fallback to standard HTTP]`, e.message);
       app.listen(PORT, "0.0.0.0");
     }
+
   } else {
-    // Standard HTTP server on PORT for development and standard deployments
+    // Standard HTTP server on PORT when SSL is not active
     app.listen(PORT, "0.0.0.0", () => {
       console.log(
         `[Daltoon Full-Stack Server] HTTP Server running at: http://0.0.0.0:${PORT}`,
