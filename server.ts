@@ -10,7 +10,6 @@ import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
-import { fileURLToPath } from "url";
 import dns from "dns";
 // Replaced better-sqlite3 with custom pure-JS/Python bridge to prevent native dependency issues on cloud run containers
 // import Database from "better-sqlite3";
@@ -22,10 +21,7 @@ dns.setDefaultResultOrder("ipv4first");
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
-const _dirname =
-  typeof __dirname !== "undefined"
-    ? __dirname
-    : path.dirname(fileURLToPath(import.meta.url));
+const _dirname = typeof __dirname !== "undefined" ? __dirname : process.cwd();
 
 try {
   dotenv.config({ path: path.resolve(_dirname, ".env") });

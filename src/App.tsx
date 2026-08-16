@@ -570,7 +570,7 @@ export default function App() {
   useEffect(() => {
     if (updateStatusState !== "running") return;
 
-    let checkCount = 0;
+    let consecutiveErrors = 0;
     let isRebooting = false;
 
     const waitForServerAndReload = () => {
@@ -601,10 +601,10 @@ export default function App() {
     };
 
     const pollInterval = setInterval(() => {
-      checkCount++;
       fetch("/api/system/update-log?t=" + Date.now())
         .then((res) => res.json())
         .then((data) => {
+          consecutiveErrors = 0;
           if (data.success && data.log) {
             setUpdateLogs(data.log);
             if (
@@ -625,8 +625,9 @@ export default function App() {
           }
         })
         .catch(() => {
+          consecutiveErrors++;
           // Server disconnect during restart (e.g. PM2 restart or process exit)
-          if (checkCount > 4 && !isRebooting) {
+          if (consecutiveErrors >= 5 && !isRebooting) {
             isRebooting = true;
             clearInterval(pollInterval);
             waitForServerAndReload();
