@@ -614,7 +614,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       const res = await fetch("/api/subscription-keys/toggle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: subId, status: targetStatus }),
+        body: JSON.stringify({
+          id: subId,
+          status: targetStatus,
+          clientUuid: sub.clientUuid || (sub.subLink ? (sub.subLink.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i) || [])[0] : ""),
+          clientName: sub.clientName || sub.clientEmail || sub.planName || "",
+          serverId: sub.serverId,
+          subLink: sub.subLink,
+        }),
       });
       const data = await res.json();
       if (data.success) {

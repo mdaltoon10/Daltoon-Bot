@@ -5785,8 +5785,14 @@ async function deleteVpnClientApi(clientEmail: string, clientUuid?: string, serv
   }
 }
 
-// 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel
-async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientUuid?: string, serverId?: string) {
+// 2.4 Toggle (Enable/Disable) a VPN client on XUI Panel / Marzban / D-UI
+async function toggleVpnClientApi(
+  clientEmail: string,
+  enabled: boolean,
+  clientUuid?: string,
+  serverId?: string,
+  subLink?: string
+) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
@@ -5794,50 +5800,125 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
     if (activeServers.length === 0)
       return { success: false, error: "XUI disconnected" };
 
+    // Build exhaustive set of candidate keys
+    const candidateEmails = new Set<string>();
+    const candidateUuids = new Set<string>();
+    const candidateSubs = new Set<string>();
+
+    const addCand = (val?: string) => {
+      if (!val) return;
+      const s = String(val).trim();
+      if (!s) return;
+      const sLower = s.toLowerCase();
+
+      // Check if it's a UUID
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) {
+        candidateUuids.add(sLower);
+      } else {
+        candidateEmails.add(sLower);
+        const safe = s.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "").toLowerCase();
+        if (safe) candidateEmails.add(safe);
+      }
+    };
+
+    addCand(clientEmail);
+    addCand(clientUuid);
+
+    // Extract candidates from subLink
+    if (subLink) {
+      const subStr = String(subLink);
+      const uuidMatch = subStr.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (uuidMatch) candidateUuids.add(uuidMatch[0].toLowerCase());
+
+      const subMatch = subStr.match(/\/sub\/([^/?#]+)/i);
+      if (subMatch && subMatch[1]) candidateSubs.add(subMatch[1].trim().toLowerCase());
+
+      const vlessMatch = subStr.match(/vless:\/\/([^@]+)@/i);
+      if (vlessMatch && vlessMatch[1]) candidateUuids.add(vlessMatch[1].trim().toLowerCase());
+    }
+
+    // Prioritize target server if serverId is provided
+    let targetServers = activeServers;
+    if (serverId) {
+      const matched = activeServers.filter((s: any) => String(s.id).trim() === String(serverId).trim());
+      const others = activeServers.filter((s: any) => String(s.id).trim() !== String(serverId).trim());
+      targetServers = [...matched, ...others];
+    }
+
     let toggledAtLeastOnce = false;
 
-    for (const server of activeServers) {
+    for (const server of targetServers) {
       try {
         const cleanedUrl = normalizeXuiUrl(server.panelUrl);
-
         const panelType = (server.panelType || "sanaei").toLowerCase();
-        if (["rebecca", "pasarguard", "marzban"].includes(panelType)) {
+
+        // 1. Marzban / Rebecca / Pasarguard / D-UI
+        if (["rebecca", "pasarguard", "marzban", "d-ui", "dui"].includes(panelType)) {
           try {
             const token = await loginReebekaPasarguard(cleanedUrl, server.panelUsername, server.panelPassword);
             if (token) {
-              let safeEmail = clientEmail ? clientEmail.replace(/ /g, "_").replace(/\n/g, "").replace(/\//g, "").replace(/[^A-Za-z0-9_-]/g, "") : "";
               const statusStr = enabled ? "active" : "disabled";
-              
-              // 1. Try PUT /api/user/{username}/disabled
-              const res1 = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}/disabled`, {
-                method: "PUT",
-                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/json" },
-                body: JSON.stringify({ status: statusStr })
-              }, 5000).catch(() => null);
+              const headers = {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                Accept: "application/json"
+              };
 
-              if (res1 && res1.ok) {
-                toggledAtLeastOnce = true;
-                continue;
-              }
+              const allUsernames = new Set<string>([...candidateEmails, ...candidateUuids]);
+              for (const u of allUsernames) {
+                const safeU = encodeURIComponent(u);
 
-              // 2. Try PUT / PATCH /api/user/{username}
-              for (const method of ["PUT", "PATCH"]) {
-                const res2 = await xuiFetch(`${cleanedUrl}/api/user/${safeEmail}`, {
-                  method,
-                  headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json", "Accept": "application/json" },
-                  body: JSON.stringify({ status: statusStr })
+                // Attempt 1: PUT /api/user/{username}
+                const res1 = await xuiFetch(`${cleanedUrl}/api/user/${safeU}`, {
+                  method: "PUT",
+                  headers,
+                  body: JSON.stringify({ status: statusStr, is_active: enabled })
                 }, 5000).catch(() => null);
+                if (res1 && res1.ok) {
+                  toggledAtLeastOnce = true;
+                  break;
+                }
 
+                // Attempt 2: PATCH /api/user/{username}
+                const res2 = await xuiFetch(`${cleanedUrl}/api/user/${safeU}`, {
+                  method: "PATCH",
+                  headers,
+                  body: JSON.stringify({ status: statusStr, is_active: enabled })
+                }, 5000).catch(() => null);
                 if (res2 && res2.ok) {
                   toggledAtLeastOnce = true;
                   break;
                 }
+
+                // Attempt 3: PUT /api/user/{username}/disabled
+                const res3 = await xuiFetch(`${cleanedUrl}/api/user/${safeU}/disabled`, {
+                  method: "PUT",
+                  headers,
+                  body: JSON.stringify({ status: statusStr })
+                }, 5000).catch(() => null);
+                if (res3 && res3.ok) {
+                  toggledAtLeastOnce = true;
+                  break;
+                }
+
+                // Attempt 4: PUT /api/user/{username}/status
+                const res4 = await xuiFetch(`${cleanedUrl}/api/user/${safeU}/status`, {
+                  method: "PUT",
+                  headers,
+                  body: JSON.stringify({ status: statusStr })
+                }, 5000).catch(() => null);
+                if (res4 && res4.ok) {
+                  toggledAtLeastOnce = true;
+                  break;
+                }
               }
+
               if (toggledAtLeastOnce) continue;
             }
-          } catch(e) {}
+          } catch (e) {}
         }
 
+        // 2. X-UI / 3X-UI / Sanaei / Alireza / FranzKafkaYu
         const loginResult = await loginXuiPanel(
           cleanedUrl,
           server.panelUsername,
@@ -5852,7 +5933,7 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
         };
         const formHeaders: Record<string, string> = {
           Cookie: loginResult.cookie,
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
           Accept: "application/json",
         };
         if (loginResult.csrfToken) {
@@ -5861,112 +5942,181 @@ async function toggleVpnClientApi(clientEmail: string, enabled: boolean, clientU
         }
 
         const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
-        const safeEmail = encodeURIComponent(clientEmail);
-        let globalUpdateSuccess = false;
 
-        // Try getting the client globally
-        try {
-          const getUrl = `${baseUrl}/panel/api/clients/get/${safeEmail}`;
-          const getRes = await xuiFetch(getUrl, { method: "GET", headers }, 4000).catch(() => null);
-          if (getRes && getRes.ok) {
-            const getJson = await getRes.json().catch(() => ({}));
-            if (getJson.success && getJson.obj) {
-              const client = getJson.obj;
-              client.enable = enabled;
+        // Fetch all inbounds
+        const listUrl = `${baseUrl}/panel/api/inbounds/list`;
+        const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 8000).catch(() => null);
+        if (!listRes || !listRes.ok) continue;
 
-              const updateUrl = `${baseUrl}/panel/api/clients/update/${safeEmail}`;
-              
-              // 1. Try form data payload
-              const inboundId = client.inboundId || 0;
-              const payloadStr = JSON.stringify({ clients: [client] });
-              const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
-              
-              const formRes = await xuiFetch(updateUrl, { method: "POST", headers: formHeaders, body: formBody }, 5000).catch(() => null);
-              if (formRes && formRes.ok) {
-                const r = await formRes.json().catch(()=>({}));
-                if(r.success) {
-                  globalUpdateSuccess = true;
+        const listJson = await listRes.json().catch(() => ({}));
+        const inboundsList = Array.isArray(listJson.obj) ? listJson.obj : [];
+
+        // Flatten all clients
+        const allClients: Array<{ c: any; inbId: any; inb: any }> = [];
+        for (const inb of inboundsList) {
+          try {
+            let settingsObj = inb.settings;
+            if (typeof settingsObj === "string") settingsObj = JSON.parse(settingsObj);
+            const clients = settingsObj?.clients || [];
+            for (const c of clients) {
+              allClients.push({ c, inbId: inb.id, inb });
+            }
+          } catch (e) {}
+        }
+
+        let clientData: any = null;
+        let inboundId: any = null;
+        let inboundObj: any = null;
+
+        // Pass 1: Match by UUID
+        for (const item of allClients) {
+          const cId = String(item.c.id || "").trim().toLowerCase();
+          if (cId && (candidateUuids.has(cId) || Array.from(candidateUuids).some((cand) => cId.includes(cand)))) {
+            clientData = item.c;
+            inboundId = item.inbId;
+            inboundObj = item.inb;
+            break;
+          }
+        }
+
+        // Pass 2: Match by Email / Username
+        if (!clientData) {
+          for (const item of allClients) {
+            const cEmail = String(item.c.email || "").trim().toLowerCase();
+            if (cEmail && (candidateEmails.has(cEmail) || Array.from(candidateEmails).some((cand) => cand.length >= 2 && cEmail.includes(cand)))) {
+              clientData = item.c;
+              inboundId = item.inbId;
+              inboundObj = item.inb;
+              break;
+            }
+          }
+        }
+
+        // Pass 3: Match by SubId
+        if (!clientData) {
+          for (const item of allClients) {
+            const cSub = String(item.c.subId || "").trim().toLowerCase();
+            const cEmail = String(item.c.email || "").trim().toLowerCase();
+            const cId = String(item.c.id || "").trim().toLowerCase();
+            if ((cSub && Array.from(candidateSubs).some((s) => s.length >= 3 && cSub.includes(s))) ||
+                (cEmail && Array.from(candidateSubs).some((s) => s.length >= 3 && cEmail.includes(s))) ||
+                (cId && Array.from(candidateSubs).some((s) => s.length >= 3 && cId.includes(s)))) {
+              clientData = item.c;
+              inboundId = item.inbId;
+              inboundObj = item.inb;
+              break;
+            }
+          }
+        }
+
+        if (!clientData) continue;
+
+        // Create updated client object
+        const mergedC = { ...clientData };
+        mergedC.enable = enabled;
+        if (mergedC.status !== undefined) {
+          mergedC.status = enabled ? "active" : "disabled";
+        }
+
+        const uid = mergedC.id || mergedC.email;
+        const safeEmail = mergedC.email || String(uid);
+        const inbIdStr = String(inboundId || "1");
+        const inbIdInt = Number(inboundId) || 1;
+
+        const payloadIntStr = JSON.stringify({ clients: [mergedC] });
+        const formBodyInt = `id=${inbIdInt}&settings=${encodeURIComponent(payloadIntStr)}`;
+        const formBodyStr = `id=${inbIdStr}&settings=${encodeURIComponent(payloadIntStr)}`;
+
+        const testEndpoints = [
+          // 1. /panel/api/inbounds/updateClient/{uid}
+          { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBodyInt },
+          { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBodyStr },
+          { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+          // 2. /panel/api/inbounds/{inbId}/updateClient/{uid}
+          { url: `${baseUrl}/panel/api/inbounds/${inbIdStr}/updateClient/${uid}`, isForm: true, body: formBodyInt },
+          { url: `${baseUrl}/panel/api/inbounds/${inbIdStr}/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+          // 3. /panel/api/inbounds/updateClient/{safeEmail}
+          { url: `${baseUrl}/panel/api/inbounds/updateClient/${encodeURIComponent(safeEmail)}`, isForm: true, body: formBodyInt },
+          { url: `${baseUrl}/panel/api/inbounds/updateClient/${encodeURIComponent(safeEmail)}`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+          // 4. Unified /panel/api/clients/update/{uid}
+          { url: `${baseUrl}/panel/api/clients/update/${uid}`, isForm: false, body: JSON.stringify(mergedC) },
+          { url: `${baseUrl}/panel/api/clients/update/${encodeURIComponent(safeEmail)}`, isForm: false, body: JSON.stringify(mergedC) },
+          { url: `${baseUrl}/panel/api/clients/update/${encodeURIComponent(safeEmail)}`, isForm: true, body: formBodyInt },
+          // 5. Fallback endpoint
+          { url: `${baseUrl}/panel/api/inbounds/updateClient`, isForm: true, body: formBodyInt },
+          { url: `${baseUrl}/panel/api/inbounds/updateClient`, isForm: false, body: JSON.stringify({ id: inbIdInt, settings: payloadIntStr }) },
+        ];
+
+        let updatedClientOk = false;
+        for (const ep of testEndpoints) {
+          try {
+            const reqHeaders = {
+              ...headers,
+              "Content-Type": ep.isForm ? "application/x-www-form-urlencoded; charset=UTF-8" : "application/json"
+            };
+            const updRes = await xuiFetch(ep.url, {
+              method: "POST",
+              headers: reqHeaders,
+              body: ep.body
+            }, 8000);
+
+            if (updRes.ok) {
+              const updJson = await updRes.json().catch(() => ({}));
+              if (updJson && (updJson.success || updJson.obj || String(updJson.msg || "").toLowerCase() === "success")) {
+                console.log(`[XUI Toggle API] Set client enable=${enabled} for '${safeEmail || uid}' on server '${server.name || server.id}' via ${ep.url}`);
+                toggledAtLeastOnce = true;
+                updatedClientOk = true;
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+
+        // Fallback: Full Inbound Update
+        if (!updatedClientOk && inboundObj && inboundObj.settings) {
+          try {
+            const inbSettings = typeof inboundObj.settings === "string" ? JSON.parse(inboundObj.settings) : inboundObj.settings;
+            if (Array.isArray(inbSettings.clients)) {
+              let foundInInb = false;
+              for (let i = 0; i < inbSettings.clients.length; i++) {
+                const cl = inbSettings.clients[i];
+                if (cl && (cl.id === uid || cl.email === safeEmail)) {
+                  inbSettings.clients[i] = mergedC;
+                  foundInInb = true;
+                  break;
+                }
+              }
+              if (foundInInb) {
+                const inbPayload = {
+                  ...inboundObj,
+                  settings: JSON.stringify(inbSettings)
+                };
+                const inbUpdRes = await xuiFetch(`${baseUrl}/panel/api/inbounds/update/${inbIdStr}`, {
+                  method: "POST",
+                  headers: { ...headers, "Content-Type": "application/json" },
+                  body: JSON.stringify(inbPayload)
+                }, 10000);
+                if (inbUpdRes.ok) {
+                  console.log(`[XUI Toggle API] Set client enable=${enabled} for '${safeEmail || uid}' via full inbound update`);
                   toggledAtLeastOnce = true;
-                }
-              }
-
-              // 2. Try json payload
-              if (!globalUpdateSuccess) {
-                const jsonRes = await xuiFetch(updateUrl, { method: "POST", headers, body: JSON.stringify(client) }, 5000).catch(() => null);
-                if (jsonRes && jsonRes.ok) {
-                  const r = await jsonRes.json().catch(()=>({}));
-                  if(r.success) {
-                    globalUpdateSuccess = true;
-                    toggledAtLeastOnce = true;
-                  }
+                  updatedClientOk = true;
                 }
               }
             }
-          }
-        } catch (e) {}
-
-        // Fallback: search across all inbounds
-        try {
-          const listUrl = `${baseUrl}/panel/api/inbounds/list`;
-          const listRes = await xuiFetch(listUrl, { method: "GET", headers }, 5000).catch(() => null);
-          if (listRes && listRes.ok) {
-            const data = await listRes.json().catch(() => ({}));
-            if (data && data.success && Array.isArray(data.obj)) {
-              for (const inbound of data.obj) {
-                let clients: any[] = [];
-                try {
-                  const settings = JSON.parse(inbound.settings || "{}");
-                  clients = settings.clients || [];
-                } catch (e) {}
-
-                const clientMatch = clients.find((c: any) => 
-                  (clientUuid && c.id === clientUuid) || c.email === clientEmail
-                );
-                
-                if (clientMatch && clientMatch.id) {
-                  const mergedClient = { ...clientMatch, enable: enabled };
-                  const inboundId = inbound.id;
-                  const uid = clientMatch.id;
-                  
-                  const payloadStr = JSON.stringify({ clients: [mergedClient] });
-                  const formBody = `id=${inboundId}&settings=${encodeURIComponent(payloadStr)}`;
-
-                  // Attempt different update combinations
-                  const attempts = [
-                    { url: `${baseUrl}/panel/api/clients/update/${uid}`, isForm: true, body: formBody },
-                    { url: `${baseUrl}/panel/api/clients/update/${uid}`, isForm: false, body: JSON.stringify(mergedClient) },
-                    { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: true, body: formBody },
-                    { url: `${baseUrl}/panel/api/inbounds/updateClient/${uid}`, isForm: false, body: JSON.stringify({ id: inboundId, settings: payloadStr }) }
-                  ];
-
-                  for (const attempt of attempts) {
-                    const reqHeaders = attempt.isForm ? formHeaders : headers;
-                    const aRes = await xuiFetch(attempt.url, { method: "POST", headers: reqHeaders, body: attempt.body }, 5000).catch(()=>null);
-                    if (aRes && aRes.ok) {
-                      const r = await aRes.json().catch(()=>({}));
-                      if (r.success) {
-                        toggledAtLeastOnce = true;
-                        break;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
 
       } catch (e) {
-        // Ignore individual server errors and try others
+        // Continue trying remaining servers
       }
     }
 
     return {
       success: toggledAtLeastOnce,
-      error: toggledAtLeastOnce ? undefined : "Toggle failed on all servers",
+      error: toggledAtLeastOnce ? undefined : "Toggle failed on all servers or client was not found",
     };
-  } catch (e) {
-    return { success: false, error: "Exception during toggle" };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Exception during toggle" };
   }
 }
 
@@ -8197,43 +8347,91 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
 
 app.post("/api/subscription-keys/toggle", async (req, res) => {
   try {
-    const { id, status } = req.body;
+    const { id, status, clientUuid, clientName, serverId, subLink } = req.body;
     const db = readSqliteDb();
 
-    const keyToToggle = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
-    if (!keyToToggle)
-      return res.status(404).json({ success: false, error: "کانفیگ مورد نظر یافت نشد." });
+    let keyToToggle = (db.subscription_keys || []).find((k: any) =>
+      String(k.id) === String(id) ||
+      String(k.clientUuid) === String(id) ||
+      (clientUuid && String(k.clientUuid) === String(clientUuid)) ||
+      (clientName && (k.clientName === clientName || k.clientEmail === clientName))
+    );
 
-    const newStatus = status === "active" ? "active" : "suspended";
-    const clientIdentifier = keyToToggle.clientName || keyToToggle.clientEmail || keyToToggle.planName || "";
-
-    if (clientIdentifier) {
-      const vpnResult = await toggleVpnClientApi(
-        clientIdentifier,
-        newStatus === "active",
-        keyToToggle.clientUuid,
-        keyToToggle.serverId
-      );
-      if (!vpnResult.success) {
-        console.warn(
-          "[XUI Toggle] Failed to sync status with panel:",
-          vpnResult.error,
-        );
+    // If still not found, search in all users' configs
+    if (!keyToToggle) {
+      for (const u of db.users || []) {
+        if (Array.isArray(u.configs)) {
+          const matchedCfg = u.configs.find((c: any) =>
+            String(c.id) === String(id) ||
+            String(c.uuid) === String(id) ||
+            (clientUuid && String(c.uuid) === String(clientUuid)) ||
+            (clientName && (c.name === clientName || c.email === clientName))
+          );
+          if (matchedCfg) {
+            keyToToggle = {
+              id: matchedCfg.id || id,
+              userId: u.userId,
+              clientUuid: matchedCfg.uuid || clientUuid || id,
+              clientName: matchedCfg.name || clientName || "",
+              clientEmail: matchedCfg.email || matchedCfg.name || clientName || "",
+              serverId: matchedCfg.serverId || serverId,
+              subLink: matchedCfg.subLink || subLink,
+              planName: matchedCfg.planName || "اشتراک اختصاصی",
+              status: matchedCfg.status || "active",
+              disabled: matchedCfg.disabled || false,
+            };
+            if (!Array.isArray(db.subscription_keys)) db.subscription_keys = [];
+            db.subscription_keys.push(keyToToggle);
+            break;
+          }
+        }
       }
     }
 
-    keyToToggle.status = newStatus;
+    const newStatus = status === "active" ? "active" : "suspended";
+    const targetUuid = keyToToggle?.clientUuid || clientUuid || (id && String(id).includes("-") ? id : undefined);
+    const targetServerId = keyToToggle?.serverId || serverId;
+    const targetSubLink = keyToToggle?.subLink || subLink;
+    const clientIdentifier = keyToToggle?.clientName || keyToToggle?.clientEmail || clientName || keyToToggle?.planName || "";
+
+    const vpnResult = await toggleVpnClientApi(
+      clientIdentifier,
+      newStatus === "active",
+      targetUuid,
+      targetServerId,
+      targetSubLink
+    );
+    if (!vpnResult.success) {
+      console.warn(
+        "[XUI Toggle] Failed to sync status with panel:",
+        vpnResult.error,
+      );
+    }
+
+    if (keyToToggle) {
+      keyToToggle.status = newStatus;
+      keyToToggle.disabled = newStatus !== "active";
+    }
 
     // Update user active plans count and configs list
-    const user = (db.users || []).find((u: any) => Number(u.userId) === Number(keyToToggle.userId));
+    const userIdToFind = keyToToggle?.userId;
+    const user = (db.users || []).find((u: any) =>
+      (userIdToFind && Number(u.userId) === Number(userIdToFind)) ||
+      (Array.isArray(u.configs) && u.configs.some((cfg: any) => String(cfg.id) === String(id) || String(cfg.uuid) === String(targetUuid)))
+    );
     if (user) {
       user.activePlansCount = (db.subscription_keys || []).filter(
-        (k: any) => Number(k.userId) === Number(user.userId) && k.status === "active",
+        (k: any) => Number(k.userId) === Number(user.userId) && k.status === "active" && !k.disabled,
       ).length;
       if (Array.isArray(user.configs)) {
-        const c = user.configs.find((cfg: any) => String(cfg.id) === String(keyToToggle.id) || String(cfg.uuid) === String(keyToToggle.clientUuid));
+        const c = user.configs.find((cfg: any) =>
+          String(cfg.id) === String(id) ||
+          String(cfg.uuid) === String(id) ||
+          (targetUuid && String(cfg.uuid) === String(targetUuid))
+        );
         if (c) {
           c.status = newStatus;
+          c.disabled = newStatus !== "active";
         }
       }
     }
