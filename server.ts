@@ -956,7 +956,8 @@ function getSystemSettings(db?: any) {
     !fs.existsSync(settings.sslPrivateKeyPath)
   ) {
     try {
-      const targetDom = (settings.domainName || "").trim();
+      const rawDom = (settings.domainName || "").trim();
+      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
       let autoPub = "";
       let autoPriv = "";
 
@@ -13511,7 +13512,9 @@ function getDynamicSecureContext(hostname: string) {
     
     // Auto-detect if not configured
     if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const targetDom = hostname || settings.domainName || "";
+      const rawDom = (hostname || settings.domainName || "").trim();
+      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
+      
       if (targetDom) {
         if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
           pubPath = `/root/cert/${targetDom}/fullchain.pem`;
@@ -13525,6 +13528,22 @@ function getDynamicSecureContext(hostname: string) {
         } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
           pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
           privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
+        }
+      }
+
+      // If still not found, check any available cert directory in /root/cert or /etc/letsencrypt/live
+      if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
+        if (fs.existsSync("/root/cert")) {
+          const dirs = fs.readdirSync("/root/cert");
+          for (const d of dirs) {
+            const p1 = path.join("/root/cert", d, "fullchain.pem");
+            const p2 = path.join("/root/cert", d, "privkey.pem");
+            if (fs.existsSync(p1) && fs.existsSync(p2)) {
+              pubPath = p1;
+              privPath = p2;
+              break;
+            }
+          }
         }
       }
     }
@@ -13664,7 +13683,8 @@ async function startServer() {
     
     // Auto-detect if not configured in DB at boot
     if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const targetDom = (settings.domainName || "").trim();
+      const rawDom = (settings.domainName || "").trim();
+      const targetDom = rawDom.replace(/^https?:\/\//i, "").split("/")[0].split(":")[0].trim().toLowerCase();
       if (targetDom) {
         if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
           pubPath = `/root/cert/${targetDom}/fullchain.pem`;
@@ -13678,6 +13698,21 @@ async function startServer() {
         } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
           pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
           privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
+        }
+      }
+
+      if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
+        if (fs.existsSync("/root/cert")) {
+          const dirs = fs.readdirSync("/root/cert");
+          for (const d of dirs) {
+            const p1 = path.join("/root/cert", d, "fullchain.pem");
+            const p2 = path.join("/root/cert", d, "privkey.pem");
+            if (fs.existsSync(p1) && fs.existsSync(p2)) {
+              pubPath = p1;
+              privPath = p2;
+              break;
+            }
+          }
         }
       }
     }
@@ -13738,8 +13773,8 @@ async function startServer() {
     try { if (socket) socket.destroy(); } catch (e) {}
   };
 
-  if (isProduction && isSslActive && sslOptions && sslOptions.cert !== "DUMMY") {
-    // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000) for production deployment
+  if (isSslActive && sslOptions && sslOptions.cert && sslOptions.cert !== "DUMMY") {
+    // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000)
     try {
       const httpServerMain = http.createServer(app);
       const httpsServerMain = https.createServer({
@@ -13772,7 +13807,7 @@ async function startServer() {
             socket.pause();
             
             // 0x16 (22) is TLS Handshake
-            const isTls = buffer[0] === 22;
+            const isTls = buffer && buffer.length > 0 && buffer[0] === 22;
             const targetServer = isTls ? httpsServerMain : httpServerMain;
             
             targetServer.emit('connection', socket);
