@@ -554,10 +554,17 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         if (data.pendingReceipt) {
           setRenewModalKey(null);
           setRenewCardReceiptImage("");
+          setActiveTab("wallet");
+          fetchMiniAppData();
           showThemedModal(
             "⌛ ثبت فیش تمدید",
             data.message || "رسید تمدید اشتراک شما با موفقیت ثبت شد و پس از بررسی و تایید مدیریت، سرویس شما تمدید و فعال می‌گردد.",
-            "info"
+            "info",
+            "مشاهده تراکنش‌ها",
+            () => {
+              setActiveTab("wallet");
+              fetchMiniAppData();
+            }
           );
           return;
         }
@@ -1263,12 +1270,25 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             submittedAt: Date.now(),
             prevSubIds: currentSubIds,
           });
+
+          // Reset all receipt & wizard states to prevent duplicate submission
+          setCardReceiptImage("");
+          setClientUsername("");
+          setAppliedPromo(null);
+          setPromoCodeInput("");
+          setPurchaseStep(1);
+
+          // Immediately switch active tab to wallet (transactions view)
+          setActiveTab("wallet");
+          fetchMiniAppData();
+
           showThemedModal(
             "رسید ثبت شد ⏳",
-            data.message || "رسید شما با موفقیت ثبت شد و اعلانی جهت تایید به مدیریت ارسال گردید. به محض تایید مدیریت، سرویس شما به طور خودکار و درجا روی صفحه ظاهر خواهد شد.",
+            data.message || "رسید شما با موفقیت ثبت شد و پس از بررسی و تایید مدیریت، سرویس شما فعال خواهد شد.",
             "success",
-            "متوجه شدم",
+            "مشاهده تراکنش‌های در انتظار",
             () => {
+              setActiveTab("wallet");
               fetchMiniAppData();
             }
           );
