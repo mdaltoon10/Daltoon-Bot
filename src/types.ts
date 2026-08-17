@@ -115,6 +115,7 @@ export interface PanelSettings {
   referralRewardCondition?: 'invite' | 'purchase' | 'both';
   referralBaseAmount?: number;
   referralMessage?: string;
+  deductReferralOnLeave?: boolean;
   dashboardUsername?: string;
   dashboardPassword?: string;
   hideSupport?: boolean;
@@ -411,6 +412,9 @@ export interface PromoCode {
   createdAt: string;
   durationDays?: number;
   allowedServerIds?: string[]; // Optional: if empty or undefined, applies to all
+  isActive?: boolean;
+  expireDate?: string;
+  status?: string;
 }
 
 

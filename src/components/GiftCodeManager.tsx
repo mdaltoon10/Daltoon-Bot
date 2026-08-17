@@ -11,8 +11,8 @@ interface GiftCodeManagerProps {
   onDeleteCode: (id: string) => void;
   onEditCode?: (id: string, code: string, amount: number, maxUsage: number, durationDays?: number) => void;
   promoCodes?: PromoCode[];
-  onAddPromoCode?: (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number) => void;
-  onEditPromoCode?: (id: string, code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number) => void;
+  onAddPromoCode?: (code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number, allowedServerIds?: string[], isActive?: boolean) => void;
+  onEditPromoCode?: (id: string, code: string, type: "percent" | "extend_days" | "fixed_amount", value: number, maxUsage: number, durationDays?: number, allowedServerIds?: string[], isActive?: boolean) => void;
   onDeletePromoCode?: (id: string) => void;
   settings?: PanelSettings;
   onSaveSettings?: (settings: PanelSettings) => void;
@@ -55,6 +55,7 @@ export default function GiftCodeManager({
   const [referralL4Percent, setReferralL4Percent] = useState<number | ''>(settings?.referralL4Percent ?? 0);
   const [referralRewardCondition, setReferralRewardCondition] = useState<'invite' | 'purchase' | 'both'>(settings?.referralRewardCondition || 'invite');
   const [calculationAmount, setCalculationAmount] = useState<number | ''>(settings?.referralBaseAmount ?? 100000);
+  const [deductReferralOnLeave, setDeductReferralOnLeave] = useState<boolean>(settings?.deductReferralOnLeave !== false);
   const [referralMessage, setReferralMessage] = useState(settings?.referralMessage || 
     "برای کسب موجودی هدیه، دوستان و آشنایان خودتون رو با لینک پایین به ربات دعوت کنید 👥\n\n" + 
     "در ضمن کد معرف اختصاصی شما {uid} می باشد.\n\n" + 
@@ -72,6 +73,7 @@ export default function GiftCodeManager({
   const [promoValue, setPromoValue] = useState("");
   const [promoMaxUsage, setPromoMaxUsage] = useState("50");
   const [promoDurationDays, setPromoDurationDays] = useState("30");
+  const [promoIsActive, setPromoIsActive] = useState(true);
   const [promoSuccess, setPromoSuccess] = useState(false);
   const [calcBasePrice, setCalcBasePrice] = useState<string>("100,000".replace(/,/g, ""));
 
@@ -122,6 +124,7 @@ export default function GiftCodeManager({
         referralL4Percent: referralL4Percent === '' ? 0 : referralL4Percent,
         referralRewardCondition,
         referralBaseAmount: calculationAmount === '' ? 0 : calculationAmount,
+        deductReferralOnLeave,
         referralMessage
       });
       setSavedSettings(true);
@@ -139,7 +142,9 @@ export default function GiftCodeManager({
         promoType,
         parseFloat(promoValue),
         parseInt(promoMaxUsage, 10),
-        promoDurationDays ? parseInt(promoDurationDays, 10) : undefined
+        promoDurationDays ? parseInt(promoDurationDays, 10) : undefined,
+        undefined,
+        promoIsActive
       );
     }
 
@@ -147,6 +152,7 @@ export default function GiftCodeManager({
     setPromoValue("");
     setPromoMaxUsage("50");
     setPromoDurationDays("30");
+    setPromoIsActive(true);
 
     setPromoSuccess(true);
     setTimeout(() => setPromoSuccess(false), 3000);
@@ -503,8 +509,35 @@ export default function GiftCodeManager({
                   className="w-full bg-[#161c2a] border border-gray-700/50 rounded-xl p-3 text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-center font-semibold"
                 />
                 <p className="text-[10px] text-gray-500 mt-1">
-                  {translateText("e.g. 1 day. Expire after 1 day from creation.", "مثلاً ۱ روز؛ پس از گذشت ۱ روز از ساخت، کد تخفیف منقضی و غیرقابل استفاده می‌شود.", lang)}
+                  {translateText("e.g. 1 day. Automatically expires exactly 24 hours after creation.", "مثلاً ۱ روز؛ دقیقاً ۲۴ ساعت پس از ساخت، کد به صورت خودکار منقضی و غیرقابل استفاده می‌شود.", lang)}
                 </p>
+              </div>
+
+              {/* Active / Inactive Status Switch */}
+              <div className="bg-[#121824] border border-gray-800 rounded-xl p-3 flex items-center justify-between">
+                <div>
+                  <span className="text-xs text-gray-300 font-semibold block">
+                    {translateText("Initial Status", "وضعیت اولیه کد تخفیف", lang)}
+                  </span>
+                  <span className="text-[10px] text-gray-500 block mt-0.5">
+                    {promoIsActive 
+                      ? translateText("Code is active and ready to use", "کد فعال و آماده استفاده در ربات و مینی‌اپ است", lang)
+                      : translateText("Code is disabled upon creation", "کد به صورت غیرفعال ساخته می‌شود", lang)}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPromoIsActive(!promoIsActive)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                    promoIsActive ? 'bg-emerald-600' : 'bg-gray-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      promoIsActive ? (isFa ? '-translate-x-6' : 'translate-x-6') : (isFa ? '-translate-x-1' : 'translate-x-1')
+                    }`}
+                  />
+                </button>
               </div>
 
               <div className="pt-2">
@@ -529,80 +562,176 @@ export default function GiftCodeManager({
           <div className="lg:col-span-2 bg-slate-800/50 backdrop-blur-md rounded-2xl p-6 border border-slate-700/50 flex flex-col h-fit">
             <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 border-b border-gray-700 pb-3">
               <Tag className="w-4 h-4 text-indigo-400" />
-              {translateText("Active Promo Codes", "لیست کدهای تخفیف و تمدید فعال", lang)}
+              {translateText("Active Promo Codes", "لیست کدهای تخفیف و تمدید", lang)}
             </h3>
 
             {!promoCodes || promoCodes.length === 0 ? (
               <div className="text-center py-12 text-gray-500 text-xs">
-                {translateText("No promo codes active.", "هیچ کد تخفیف یا تمدیدی در سیستم ثبت نشده است.", lang)}
+                {translateText("No promo codes registered.", "هیچ کد تخفیف یا تمدیدی در سیستم ثبت نشده است.", lang)}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {promoCodes.map((pc) => (
-                  <div
-                    key={pc.id}
-                    className="bg-[#121824] border border-gray-800 rounded-xl p-4 flex flex-col justify-between hover:border-gray-700 transition"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="inline-block bg-indigo-600/20 text-indigo-300 font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg tracking-wider">
-                          {pc.code}
-                        </span>
-                        <div className="mt-2.5 flex items-center gap-1.5 text-xs text-gray-300">
-                          {pc.type === "percent" ? (
-                            <>
-                              <Percent className="w-3.5 h-3.5 text-amber-500" />
-                              <span>{`${pc.value}` + translateText("% Discount", "٪ تخفیف", lang)}</span>
-                            </>
-                          ) : pc.type === "fixed_amount" ? (
-                            <>
-                              <Tag className="w-3.5 h-3.5 text-blue-400" />
-                              <span>{`${pc.value.toLocaleString()} ${currency} ` + translateText("Discount", "تخفیف", lang)}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>
-                                {`${pc.value} ` + translateText("days extension", "روز تمدید رایگان", lang)}
+                {promoCodes.map((pc) => {
+                  const createdTime = pc.createdAt ? new Date(pc.createdAt).getTime() : NaN;
+                  const isDurationExpired = !isNaN(createdTime) && pc.durationDays && pc.durationDays > 0 
+                    ? (Date.now() > createdTime + pc.durationDays * 86400000) 
+                    : false;
+                  const isDateExpired = pc.expireDate ? new Date(pc.expireDate).getTime() < Date.now() : false;
+                  const isExpired = isDurationExpired || isDateExpired;
+                  const isActive = pc.isActive !== false;
+                  const isCapacityFull = pc.totalUsage >= pc.maxUsage;
+
+                  let timeRemainingText = "";
+                  if (pc.durationDays && pc.durationDays > 0 && !isNaN(createdTime)) {
+                    const expireAtMs = createdTime + pc.durationDays * 86400000;
+                    const diffMs = expireAtMs - Date.now();
+                    if (diffMs <= 0) {
+                      timeRemainingText = translateText("Expired", "منقضی شده", lang);
+                    } else {
+                      const hours = Math.floor(diffMs / 3600000);
+                      const days = Math.floor(hours / 24);
+                      if (days >= 1) {
+                        timeRemainingText = `${days} ` + translateText("days left", "روز مانده", lang);
+                      } else if (hours >= 1) {
+                        timeRemainingText = `${hours} ` + translateText("hours left", "ساعت مانده", lang);
+                      } else {
+                        const mins = Math.max(1, Math.floor(diffMs / 60000));
+                        timeRemainingText = `${mins} ` + translateText("mins left", "دقیقه مانده", lang);
+                      }
+                    }
+                  } else {
+                    timeRemainingText = translateText("No Expiry", "بدون انقضا", lang);
+                  }
+
+                  return (
+                    <div
+                      key={pc.id}
+                      className={`bg-[#121824] border rounded-xl p-4 flex flex-col justify-between transition ${
+                        !isActive 
+                          ? 'border-red-900/40 opacity-75' 
+                          : isExpired 
+                            ? 'border-amber-900/40 opacity-80' 
+                            : 'border-gray-800 hover:border-gray-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-block bg-indigo-600/20 text-indigo-300 font-mono font-extrabold text-sm px-2.5 py-1 rounded-lg tracking-wider">
+                              {pc.code}
+                            </span>
+                            
+                            {/* Status Badge */}
+                            {!isActive ? (
+                              <span className="text-[10px] bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                {translateText("Inactive", "غیرفعال", lang)}
                               </span>
-                            </>
-                          )}
+                            ) : isExpired ? (
+                              <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                {translateText("Expired", "منقضی شده", lang)}
+                              </span>
+                            ) : isCapacityFull ? (
+                              <span className="text-[10px] bg-orange-500/15 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                                {translateText("Capacity Full", "تکمیل ظرفیت", lang)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                {translateText("Active", "فعال", lang)}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="mt-2.5 flex items-center gap-1.5 text-xs text-gray-300">
+                            {pc.type === "percent" ? (
+                              <>
+                                <Percent className="w-3.5 h-3.5 text-amber-500" />
+                                <span>{`${pc.value}` + translateText("% Discount", "٪ تخفیف", lang)}</span>
+                              </>
+                            ) : pc.type === "fixed_amount" ? (
+                              <>
+                                <Tag className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{`${pc.value.toLocaleString()} ${currency} ` + translateText("Discount", "تخفیف", lang)}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>
+                                  {`${pc.value} ` + translateText("days extension", "روز تمدید رایگان", lang)}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Actions: Toggle Active Switch & Delete */}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title={isActive ? translateText("Deactivate Promo Code", "غیرفعال کردن کد", lang) : translateText("Activate Promo Code", "فعال کردن کد", lang)}
+                            onClick={() => {
+                              if (onEditPromoCode) {
+                                onEditPromoCode(
+                                  pc.id,
+                                  pc.code,
+                                  pc.type,
+                                  pc.value,
+                                  pc.maxUsage,
+                                  pc.durationDays,
+                                  pc.allowedServerIds,
+                                  !isActive
+                                );
+                              }
+                            }}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none cursor-pointer ${
+                              isActive ? 'bg-emerald-600' : 'bg-gray-700'
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                                isActive ? (isFa ? '-translate-x-4' : 'translate-x-4') : (isFa ? '-translate-x-1' : 'translate-x-1')
+                              }`}
+                            />
+                          </button>
+
+                          <button
+                            onClick={() => onDeletePromoCode && setDeleteConfirmConfig({
+                              isOpen: true,
+                              action: () => onDeletePromoCode(pc.id),
+                              message: translateText("Are you sure you want to delete this promo code?", "آیا از حذف این تخفیف اطمینان دارید؟", lang)
+                            })}
+                            className="p-1 px-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white transition duration-150 cursor-pointer border border-red-500/20"
+                            title={translateText("Delete", "حذف", lang)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => onDeletePromoCode && setDeleteConfirmConfig({
-                          isOpen: true,
-                          action: () => onDeletePromoCode(pc.id),
-                          message: translateText("Are you sure you want to delete this promo code?", "آیا از حذف این تخفیف اطمینان دارید؟", lang)
-                        })}
-                        className="p-1 px-2 rounded-lg bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white transition duration-150 cursor-pointer border border-red-500/20"
-                        title={translateText("Delete", "حذف", lang)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
-                      <div>
-                        {translateText("Used:", "دفعات استفاده:", lang)}{" "}
-                        <span className="font-semibold text-white font-mono">
-                          {pc.totalUsage}
-                        </span>{" "}
-                        / <span className="text-gray-400">{pc.maxUsage}</span>
-                        <div className="text-[10px] text-amber-500 mt-1">
-                          {translateText("Validity:", "اعتبار منقضی:", lang)} {pc.durationDays ? `${pc.durationDays} روز` : 'بدون انقضا'}
+                      <div className="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] text-gray-400">
+                        <div>
+                          {translateText("Used:", "دفعات استفاده:", lang)}{" "}
+                          <span className="font-semibold text-white font-mono">
+                            {pc.totalUsage}
+                          </span>{" "}
+                          / <span className="text-gray-400">{pc.maxUsage}</span>
+                          <div className={`text-[10px] mt-1 font-medium ${isExpired ? 'text-rose-400 font-bold' : 'text-amber-400'}`}>
+                            {translateText("Validity:", "اعتبار:", lang)} {pc.durationDays ? `${pc.durationDays} روز (${timeRemainingText})` : translateText("Unlimited", "نامحدود", lang)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-right">
+                          <Calendar className="w-3.5 h-3.5 text-gray-500" />
+                          <span className="font-mono text-gray-500 text-[10px]">
+                            {formatDateTime(pc.createdAt, { timeZone: settings?.timeZone, calendarSystem: settings?.calendarSystem, includeTime: false })}
+                          </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-gray-500" />
-                        <span className="font-mono text-gray-500">
-                          {formatDateTime(pc.createdAt, { timeZone: settings?.timeZone, calendarSystem: settings?.calendarSystem, includeTime: false })}
-                        </span>
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -778,6 +907,40 @@ export default function GiftCodeManager({
               <div className="text-xs text-gray-400 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700/60 font-mono">
                 {Number(calculationAmount || 0).toLocaleString()} × {Number(referralRewardPercent || 0)}%
               </div>
+            </div>
+
+            {/* Deduct Referral Bonus On Bot Leave / Block */}
+            <div className="bg-slate-900/60 border border-slate-700/70 rounded-xl p-4 flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-white">
+                    {translateText('Deduct Reward on Bot Leave/Block', 'کسر پاداش در صورت لفت یا بلاک کردن ربات توسط زیرمجموعه', lang)}
+                  </span>
+                  <span className="text-[10px] bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full font-medium">
+                    {translateText('Anti-Abuse', 'ضد تقلب', lang)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  {translateText(
+                    'If a referred user stops or blocks the bot, the referral invite reward will be automatically deducted from the referrer\'s wallet and a notification will be sent.',
+                    'اگر کاربری که از طریق لینک زیرمجموعه‌گیری وارد شده ربات را متوقف یا بلاک کند، مبلغ پاداش دعوت به صورت خودکار از کیف پول معرف کسر شده و پیام اطلاع‌رسانی برای وی ارسال می‌گردد.',
+                    lang
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDeductReferralOnLeave(!deductReferralOnLeave)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  deductReferralOnLeave ? 'bg-indigo-600' : 'bg-slate-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    deductReferralOnLeave ? (isFa ? '-translate-x-5' : 'translate-x-5') : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
 
             <div className="space-y-2">

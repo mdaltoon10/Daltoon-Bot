@@ -5432,6 +5432,7 @@ def register_tg_user(tg_id, username, referral_id=None):
                 except:
                     settings = {}
                 
+                bonuses_given = []
                 condition = settings.get("referralRewardCondition", "invite")
                 if condition in ["invite", "both"]:
                     percent = settings.get("referralRewardPercent", 5)
@@ -5441,6 +5442,8 @@ def register_tg_user(tg_id, username, referral_id=None):
                     if reward > 0:
                         referrer["walletBalance"] = float(referrer.get("walletBalance", 0.0)) + float(reward)
                         referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + reward
+                        ref_uid = int(referral_id) if str(referral_id).isdigit() else referral_id
+                        bonuses_given.append({"userId": ref_uid, "amount": reward, "level": 1, "type": "invite"})
                         if is_bot_notification_enabled("notifyUserReferralReward", True):
                             try:
                                 bot.send_message(int(referral_id), f"🎉 <b>تبریک!</b>\nیک نفر با لینک شما وارد ربات شد و <b>{reward:,}</b> تومان به کیف پول شما اضافه شد.", parse_mode="HTML")
@@ -5456,6 +5459,8 @@ def register_tg_user(tg_id, username, referral_id=None):
                                 l2_reward = max(0, round((amount * l2_percent) / 100))
                                 l2_referrer["walletBalance"] = float(l2_referrer.get("walletBalance", 0.0)) + float(l2_reward)
                                 l2_referrer["referralRewardTotal"] = int(l2_referrer.get("referralRewardTotal", 0)) + l2_reward
+                                l2_uid = int(l2_referrer_id) if str(l2_referrer_id).isdigit() else l2_referrer_id
+                                bonuses_given.append({"userId": l2_uid, "amount": l2_reward, "level": 2, "type": "invite"})
                                 if is_bot_notification_enabled("notifyUserReferralReward", True):
                                     try:
                                         bot.send_message(l2_referrer_id, f"🎊 <b>پاداش تیمی لایه 2!</b>\nیکی از زیرمجموعه‌های شما یک نفر را دعوت کرد و مبلغ <b>{l2_reward:,}</b> تومان به شما رسید.", parse_mode="HTML")
@@ -5471,6 +5476,8 @@ def register_tg_user(tg_id, username, referral_id=None):
                                         l3_reward = max(0, round((amount * l3_percent) / 100))
                                         l3_referrer["walletBalance"] = float(l3_referrer.get("walletBalance", 0.0)) + float(l3_reward)
                                         l3_referrer["referralRewardTotal"] = int(l3_referrer.get("referralRewardTotal", 0)) + l3_reward
+                                        l3_uid = int(l3_referrer_id) if str(l3_referrer_id).isdigit() else l3_referrer_id
+                                        bonuses_given.append({"userId": l3_uid, "amount": l3_reward, "level": 3, "type": "invite"})
                                         if is_bot_notification_enabled("notifyUserReferralReward", True):
                                             try:
                                                 bot.send_message(l3_referrer_id, f"🎊 <b>پاداش تیمی لایه 3!</b>\nزیرمجموعه لایه سوم شما عضو جدیدی آورد و مبلغ <b>{l3_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
@@ -5486,11 +5493,15 @@ def register_tg_user(tg_id, username, referral_id=None):
                                                 l4_reward = max(0, round((amount * l4_percent) / 100))
                                                 l4_referrer["walletBalance"] = float(l4_referrer.get("walletBalance", 0.0)) + float(l4_reward)
                                                 l4_referrer["referralRewardTotal"] = int(l4_referrer.get("referralRewardTotal", 0)) + l4_reward
+                                                l4_uid = int(l4_referrer_id) if str(l4_referrer_id).isdigit() else l4_referrer_id
+                                                bonuses_given.append({"userId": l4_uid, "amount": l4_reward, "level": 4, "type": "invite"})
                                                 if is_bot_notification_enabled("notifyUserReferralReward", True):
                                                     try:
                                                         bot.send_message(l4_referrer_id, f"🎊 <b>پاداش تیمی لایه 4!</b>\nزیرمجموعه لایه چهارم شما عضو جدیدی آورد و مبلغ <b>{l4_reward:,}</b> تومان دریافت کردید.", parse_mode="HTML")
                                                     except:
                                                         pass
+                if bonuses_given:
+                    new_user["referralBonusesGiven"] = bonuses_given
 
         db["users"].append(new_user)
         write_sqlite_db(db)
@@ -5671,6 +5682,83 @@ def log_action(tg_id, username, action, details):
         db["logs"] = db["logs"][-1000:]
     db["logs"].append(log)
     write_sqlite_db(db)
+
+def check_promo_code_validity(promo, tg_id=None, server_id=None):
+    """
+    Comprehensive validation for promo codes in Telegram bot.
+    Returns (is_valid: bool, error_message: str)
+    """
+    if not promo or not isinstance(promo, dict):
+        return False, "❌ کد تخفیف وارد شده یافت نشد یا معتبر نیست."
+    
+    # 1. Check active/inactive status
+    if promo.get("isActive") is False or str(promo.get("status", "")).lower() in ["inactive", "disabled", "deactivated"]:
+        return False, "❌ <b>این کد تخفیف در حال حاضر غیرفعال شده است.</b>"
+
+    # 2. Check direct expiry date (expireDate or expiresAt)
+    exp_str = promo.get("expireDate") or promo.get("expiresAt")
+    if exp_str:
+        try:
+            from datetime import datetime
+            clean_exp = str(exp_str).replace("Z", "").split(".")[0].split("+")[0]
+            if "T" in clean_exp:
+                exp_dt = datetime.strptime(clean_exp, "%Y-%m-%dT%H:%M:%S")
+            else:
+                exp_dt = datetime.strptime(clean_exp, "%Y-%m-%d")
+            if datetime.utcnow() > exp_dt:
+                return False, "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>"
+        except Exception as ex:
+            print(f"[Promo Code ExpireDate Parse Error]: {ex}")
+
+    # 3. Check validity duration in days (durationDays from createdAt)
+    duration_days = promo.get("durationDays")
+    created_at_str = promo.get("createdAt")
+    if duration_days is not None:
+        try:
+            dur_float = float(duration_days)
+            if dur_float > 0 and created_at_str:
+                from datetime import datetime
+                clean_cat = str(created_at_str).replace("Z", "").split(".")[0].split("+")[0]
+                if "T" in clean_cat:
+                    created_dt = datetime.strptime(clean_cat, "%Y-%m-%dT%H:%M:%S")
+                else:
+                    created_dt = datetime.strptime(clean_cat, "%Y-%m-%d")
+                now_dt = datetime.utcnow()
+                elapsed_sec = (now_dt - created_dt).total_seconds()
+                allowed_sec = dur_float * 86400.0
+                if elapsed_sec >= allowed_sec:
+                    return False, "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>"
+        except Exception as ex:
+            print(f"[Promo Code Duration Check Error]: {ex}")
+
+    # 4. Check server restrictions
+    if server_id is not None:
+        allowed_servers = promo.get("allowedServerIds", [])
+        if allowed_servers and isinstance(allowed_servers, list):
+            curr_srv = str(server_id)
+            if curr_srv and curr_srv not in [str(x) for x in allowed_servers]:
+                return False, "❌ <b>این کد تخفیف برای سرور انتخاب شده معتبر نیست.</b>"
+
+    # 5. Check if user already used this promo code
+    if tg_id is not None:
+        used_by_list = promo.get("usedBy", []) or promo.get("used_by", []) or []
+        try:
+            tg_id_int = int(tg_id)
+            if tg_id_int in [int(x) for x in used_by_list if str(x).isdigit()]:
+                return False, "❌ <b>شما قبلاً از این کد تخفیف استفاده کرده‌اید!</b>\nهر کاربر تنها یک‌بار مجاز به استفاده از این کد تخفیف می‌باشد."
+        except Exception:
+            pass
+
+    # 6. Check total usage capacity
+    try:
+        max_usage = int(promo.get("maxUsage", 9999))
+        total_usage = int(promo.get("totalUsage", 0))
+        if total_usage >= max_usage:
+            return False, "❌ متاسفانه ظرفیت استفاده از این کد تخفیف به پایان رسیده است."
+    except Exception:
+        pass
+
+    return True, ""
 
 def record_promo_code_usage(code_text, tg_id):
     if not code_text or str(code_text).strip().lower() in ["none", ""]:
@@ -6751,9 +6839,20 @@ def process_successful_payment(message):
 def my_chat_member_event(update):
     try:
         user = update.from_user
-        old_status = update.old_chat_member.status
-        new_status = update.new_chat_member.status
+        old_status = update.old_chat_member.status if update.old_chat_member else None
+        new_status = update.new_chat_member.status if update.new_chat_member else None
         
+        db = read_sqlite_db()
+        import json
+        try:
+            s_str = db.get("settings", {}).get("panel_config", "{}")
+            settings = json.loads(s_str)
+        except:
+            settings = {}
+
+        deduct_on_leave = settings.get("deductReferralOnLeave", True)
+        db_user = next((u for u in db.get("users", []) if str(u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")) == str(user.id)), None)
+
         if new_status in ['kicked', 'left']:
             notify_admins_of_event(
                 "🔴",
@@ -6761,6 +6860,82 @@ def my_chat_member_event(update):
                 f"کاربر ربات را متوقف یا بلاک کرد.",
                 user_info={"userId": user.id, "username": user.username}
             )
+
+            if db_user:
+                db_user["status"] = "blocked"
+                
+                # Check if referral bonus should be deducted from referrer(s)
+                if deduct_on_leave and not db_user.get("referralRewardDeducted"):
+                    bonuses_to_deduct = db_user.get("referralBonusesGiven")
+                    
+                    # Fallback if referralBonusesGiven was not stored yet but user was referred by someone
+                    if not bonuses_to_deduct and db_user.get("referredBy"):
+                        condition = settings.get("referralRewardCondition", "invite")
+                        if condition in ["invite", "both"]:
+                            percent = settings.get("referralRewardPercent", 5)
+                            amount = settings.get("referralBaseAmount", 100000)
+                            calc_reward = max(0, round((amount * percent) / 100))
+                            if calc_reward > 0:
+                                bonuses_to_deduct = [{"userId": db_user.get("referredBy"), "amount": calc_reward, "level": 1, "type": "invite"}]
+
+                    if bonuses_to_deduct and isinstance(bonuses_to_deduct, list):
+                        total_deducted = 0
+                        for bonus in bonuses_to_deduct:
+                            b_uid = bonus.get("userId")
+                            b_amt = float(bonus.get("amount", 0))
+                            b_lvl = bonus.get("level", 1)
+                            
+                            if b_uid and b_amt > 0:
+                                referrer = next((u for u in db.get("users", []) if str(u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")) == str(b_uid)), None)
+                                if referrer:
+                                    current_bal = float(referrer.get("walletBalance") or referrer.get("wallet_balance") or referrer.get("balance") or referrer.get("credit") or 0.0)
+                                    # Deduct exact amount even if it drops below zero (allow negative balance)
+                                    new_bal = current_bal - b_amt
+                                    referrer["walletBalance"] = new_bal
+                                    referrer["wallet_balance"] = new_bal
+                                    referrer["balance"] = new_bal
+                                    referrer["credit"] = new_bal
+                                    referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) - int(b_amt)
+                                    if b_lvl == 1:
+                                        referrer["referralCount"] = max(0, int(referrer.get("referralCount", 0)) - 1)
+                                    
+                                    total_deducted += b_amt
+                                    
+                                    # Send notification message to referrer
+                                    if is_bot_notification_enabled("notifyUserReferralReward", True):
+                                        try:
+                                            u_display = f"@{user.username}" if user.username else f"کاربر {user.id}"
+                                            level_note = f" (لایه {b_lvl})" if b_lvl > 1 else ""
+                                            if new_bal < 0:
+                                                bal_display_str = f"<b>{int(new_bal):,}</b> تومان (منفی ⚠️)"
+                                            else:
+                                                bal_display_str = f"<b>{int(new_bal):,}</b> تومان"
+                                                
+                                            deduct_msg = (
+                                                f"⚠️ <b>کسر پاداش زیرمجموعه‌گیری{level_note}</b>\n\n"
+                                                f"کاربر <b>{u_display}</b> که از زیرمجموعه‌های شما بود، ربات را متوقف/بلاک کرد.\n"
+                                                f"به همین دلیل مبلغ <b>{int(b_amt):,}</b> تومان پاداش دعوت از کیف پول شما کسر شد.\n\n"
+                                                f"💰 <b>موجودی جدید کیف پول:</b> {bal_display_str}"
+                                            )
+                                            bot.send_message(int(b_uid), deduct_msg, parse_mode="HTML")
+                                        except Exception as notify_err:
+                                            print(f"[Referral Deduction Notify Error] {notify_err}")
+                        
+                        db_user["referralRewardDeducted"] = True
+                        if total_deducted > 0:
+                            try:
+                                log_action(user.id, user.username or f"user_{user.id}", "کسر پاداش زیرمجموعه", f"کاربر ربات را بلاک کرد و مبلغ {int(total_deducted):,} تومان از پاداش معرف کسر شد.")
+                            except:
+                                pass
+                            notify_admins_of_event(
+                                "📉",
+                                "کسر پاداش زیرمجموعه (لفت/بلاک)",
+                                f"کاربر ربات را بلاک کرد و مجموعاً مبلغ {int(total_deducted):,} تومان از پاداش معرف(ها) کسر گردید.",
+                                user_info={"userId": user.id, "username": user.username}
+                            )
+
+                write_sqlite_db(db)
+
         elif new_status in ['member', 'administrator']:
             notify_admins_of_event(
                 "🟢",
@@ -6768,6 +6943,71 @@ def my_chat_member_event(update):
                 f"کاربر ربات را مجدداً آن‌بلاک یا فعال کرد.",
                 user_info={"userId": user.id, "username": user.username}
             )
+
+            if db_user:
+                db_user["status"] = "active"
+                
+                # If reward was previously deducted on leave, restore it when they come back
+                if db_user.get("referralRewardDeducted"):
+                    bonuses_to_restore = db_user.get("referralBonusesGiven")
+                    if not bonuses_to_restore and db_user.get("referredBy"):
+                        condition = settings.get("referralRewardCondition", "invite")
+                        if condition in ["invite", "both"]:
+                            percent = settings.get("referralRewardPercent", 5)
+                            amount = settings.get("referralBaseAmount", 100000)
+                            calc_reward = max(0, round((amount * percent) / 100))
+                            if calc_reward > 0:
+                                bonuses_to_restore = [{"userId": db_user.get("referredBy"), "amount": calc_reward, "level": 1, "type": "invite"}]
+                    
+                    if bonuses_to_restore and isinstance(bonuses_to_restore, list):
+                        total_restored = 0
+                        for bonus in bonuses_to_restore:
+                            b_uid = bonus.get("userId")
+                            b_amt = float(bonus.get("amount", 0))
+                            b_lvl = bonus.get("level", 1)
+                            
+                            if b_uid and b_amt > 0:
+                                referrer = next((u for u in db.get("users", []) if str(u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")) == str(b_uid)), None)
+                                if referrer:
+                                    current_bal = float(referrer.get("walletBalance", 0.0))
+                                    new_bal = current_bal + b_amt
+                                    referrer["walletBalance"] = new_bal
+                                    referrer["wallet_balance"] = new_bal
+                                    referrer["balance"] = new_bal
+                                    referrer["referralRewardTotal"] = int(referrer.get("referralRewardTotal", 0)) + int(b_amt)
+                                    if b_lvl == 1:
+                                        referrer["referralCount"] = int(referrer.get("referralCount", 0)) + 1
+                                    
+                                    total_restored += b_amt
+                                    
+                                    if is_bot_notification_enabled("notifyUserReferralReward", True):
+                                        try:
+                                            u_display = f"@{user.username}" if user.username else f"کاربر {user.id}"
+                                            level_note = f" (لایه {b_lvl})" if b_lvl > 1 else ""
+                                            restore_msg = (
+                                                f"🎉 <b>بازگشت پاداش زیرمجموعه‌گیری{level_note}</b>\n\n"
+                                                f"کاربر <b>{u_display}</b> مجدداً ربات را فعال کرد.\n"
+                                                f"مبلغ <b>{int(b_amt):,}</b> تومان پاداش دعوت به کیف پول شما برگشت داده شد.\n\n"
+                                                f"💰 <b>موجودی جدید کیف پول:</b> <b>{int(new_bal):,}</b> تومان"
+                                            )
+                                            bot.send_message(int(b_uid), restore_msg, parse_mode="HTML")
+                                        except Exception as notify_err:
+                                            print(f"[Referral Restore Notify Error] {notify_err}")
+
+                        db_user["referralRewardDeducted"] = False
+                        if total_restored > 0:
+                            try:
+                                log_action(user.id, user.username or f"user_{user.id}", "بازگشت پاداش زیرمجموعه", f"کاربر مجدداً ربات را فعال کرد و مبلغ {int(total_restored):,} تومان به کیف پول معرف بازگشت داده شد.")
+                            except:
+                                pass
+                            notify_admins_of_event(
+                                "📈",
+                                "بازگشت پاداش زیرمجموعه (آن‌بلاک)",
+                                f"کاربر مجدداً ربات را فعال کرد و مبلغ {int(total_restored):,} تومان به کیف پول معرف(ها) بازگشت داده شد.",
+                                user_info={"userId": user.id, "username": user.username}
+                            )
+
+                write_sqlite_db(db)
     except Exception as e:
         print(f"[my_chat_member_event Error] {e}")
 
@@ -7842,45 +8082,17 @@ def handle_buy_pay(call):
     if promo_code != "none":
         promo_codes = db.get("promo_codes", [])
         promo = next((p for p in promo_codes if p["code"].upper() == promo_code), None)
-        promo_valid = True
         if promo:
-            # Check user usage limit (Each user can only use a promo code ONCE)
-            used_by_list = promo.get("usedBy", []) or promo.get("used_by", []) or []
-            if int(tg_id) in [int(x) for x in used_by_list]:
-                promo_valid = False
-
-            # Check max usage limit
-            if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
-                promo_valid = False
-
-            dur = promo.get("durationDays")
-            cat = promo.get("createdAt")
-            if dur and cat:
-                from datetime import datetime
-                try:
-                    c_str = cat.replace("Z", "")
-                    if "." in c_str:
-                        c_str = c_str.split(".")[0]
-                    c_dt = datetime.strptime(c_str, "%Y-%m-%dT%H:%M:%S")
-                    n_dt = datetime.utcnow()
-                    if (n_dt - c_dt).days >= dur:
-                        promo_valid = False
-                except Exception:
-                    pass
-            # Server check
-            allowed_servers = promo.get("allowedServerIds", [])
-            if allowed_servers and isinstance(allowed_servers, list):
-                if pending_server_id and str(pending_server_id) not in [str(x) for x in allowed_servers]:
-                    promo_valid = False
-        if promo and promo_valid:
-            if promo["type"] == "percent":
-                discount_amount = int(spec["price"] * (promo["value"] / 100))
-            elif promo["type"] == "fixed_amount":
-                discount_amount = int(promo["value"])
-            else:
-                discount_amount = 0
-            spec["price"] = max(0, spec["price"] - discount_amount)
-            spec["applied_promo"] = promo_code
+            promo_valid, _ = check_promo_code_validity(promo, tg_id=tg_id, server_id=pending_server_id)
+            if promo_valid:
+                if promo["type"] == "percent":
+                    discount_amount = int(spec["price"] * (promo["value"] / 100))
+                elif promo["type"] == "fixed_amount":
+                    discount_amount = int(promo["value"])
+                else:
+                    discount_amount = 0
+                spec["price"] = max(0, spec["price"] - discount_amount)
+                spec["applied_promo"] = promo_code
 
     if method == "card":
         if is_privileged:
@@ -8124,63 +8336,18 @@ def process_promo_code_input(message, plan_id, username_input, spec):
         bot.register_next_step_handler(msg, process_promo_code_input, plan_id, username_input, spec)
         return
 
-    # Check server restriction
-    allowed_servers = promo.get("allowedServerIds", [])
-    if allowed_servers and isinstance(allowed_servers, list):
-        current_server = str(spec.get("server_id", ""))
-        if current_server and current_server not in [str(x) for x in allowed_servers]:
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hasdisc:no:{plan_id}:{username_input}"))
-            bot.send_message(
-                message.chat.id, 
-                "❌ <b>این کد تخفیف برای سرور انتخاب شده معتبر نیست.</b>", 
-                parse_mode="HTML",
-                reply_markup=markup
-            )
-            return
-
-    # Check if promo code is expired based on durationDays
-    duration_days = promo.get("durationDays")
-    created_at_str = promo.get("createdAt")
-    if duration_days and created_at_str:
-        from datetime import datetime
-        try:
-            clean_str = created_at_str.replace("Z", "")
-            if "." in clean_str:
-                clean_str = clean_str.split(".")[0]
-            created_dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
-            now_dt = datetime.utcnow()
-            delta = now_dt - created_dt
-            if delta.days >= duration_days:
-                markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hasdisc:no:{plan_id}:{username_input}"))
-                bot.send_message(
-                    message.chat.id, 
-                    "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>", 
-                    parse_mode="HTML",
-                    reply_markup=markup
-                )
-                return
-        except Exception as ex:
-            print(f"[Promo code parse date error]: {ex}")
-
-    # Check if user has already used this promo code (Each user can only use a promo code ONCE)
-    used_by_list = promo.get("usedBy", []) or promo.get("used_by", []) or []
-    if int(tg_id) in [int(x) for x in used_by_list]:
+    # Validate promo code using centralized check_promo_code_validity
+    server_id = spec.get("server_id")
+    is_valid, err_msg = check_promo_code_validity(promo, tg_id=tg_id, server_id=server_id)
+    if not is_valid:
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hasdisc:no:{plan_id}:{username_input}"))
         bot.send_message(
             message.chat.id, 
-            "❌ <b>شما قبلاً از این کد تخفیف استفاده کرده‌اید!</b>\nهر کاربر تنها یک‌بار مجاز به استفاده از این کد تخفیف می‌باشد.", 
+            err_msg or "❌ کد تخفیف وارد شده معتبر نیست.", 
             parse_mode="HTML",
             reply_markup=markup
         )
-        return
-
-    # Check usage limits
-    if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
-        bot.send_message(message.chat.id, "❌ متاسفانه ظرفیت استفاده از این کد تخفیف به پایان رسیده است.")
-        send_final_purchase_message(message, plan_id, username_input, spec)
         return
 
     # Apply discount
@@ -13064,63 +13231,17 @@ def process_custom_vol_promo_input(message, server_id, username_input, gb, days)
         bot.register_next_step_handler(msg, process_custom_vol_promo_input, server_id, username_input, gb, days)
         return
 
-    # Check server restriction
-    allowed_servers = promo.get("allowedServerIds", [])
-    if allowed_servers and isinstance(allowed_servers, list):
-        current_server = str(server_id)
-        if current_server and current_server not in [str(x) for x in allowed_servers]:
-            markup = types.InlineKeyboardMarkup()
-            markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}"))
-            bot.send_message(
-                message.chat.id, 
-                "❌ <b>این کد تخفیف برای سرور انتخاب شده معتبر نیست.</b>", 
-                parse_mode="HTML",
-                reply_markup=markup
-            )
-            return
-
-    # Check if promo code is expired
-    duration_days = promo.get("durationDays")
-    created_at_str = promo.get("createdAt")
-    if duration_days and created_at_str:
-        from datetime import datetime
-        try:
-            clean_str = created_at_str.replace("Z", "")
-            if "." in clean_str:
-                clean_str = clean_str.split(".")[0]
-            created_dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
-            now_dt = datetime.utcnow()
-            delta = now_dt - created_dt
-            if delta.days >= duration_days:
-                markup = types.InlineKeyboardMarkup()
-                markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}"))
-                bot.send_message(
-                    message.chat.id, 
-                    "❌ <b>مهلت زمانی و انقضای استفاده از این کد تخفیف به پایان رسیده است!</b>", 
-                    parse_mode="HTML",
-                    reply_markup=markup
-                )
-                return
-        except Exception as ex:
-            print(f"[Promo code parse date error]: {ex}")
-
-    # Check if user has already used this promo code (Each user can only use a promo code ONCE)
-    used_by_list = promo.get("usedBy", []) or promo.get("used_by", []) or []
-    if int(tg_id) in [int(x) for x in used_by_list]:
+    # Validate promo code using centralized check_promo_code_validity
+    is_valid, err_msg = check_promo_code_validity(promo, tg_id=tg_id, server_id=server_id)
+    if not is_valid:
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton("⏩ ادامه بدون کد تخفیف", callback_data=f"hascustdisc:no:{server_id}:{username_input}:{gb}:{days}"))
         bot.send_message(
             message.chat.id, 
-            "❌ <b>شما قبلاً از این کد تخفیف استفاده کرده‌اید!</b>\nهر کاربر تنها یک‌بار مجاز به استفاده از این کد تخفیف می‌باشد.", 
+            err_msg or "❌ کد تخفیف وارد شده معتبر نیست.", 
             parse_mode="HTML",
             reply_markup=markup
         )
-        return
-
-    # Check usage limits
-    if promo.get("totalUsage", 0) >= promo.get("maxUsage", 9999):
-        bot.send_message(message.chat.id, "❌ متاسفانه ظرفیت استفاده از این کد تخفیف به پایان رسیده است.")
-        send_final_custom_purchase_message(message, server_id, username_input, gb, days)
         return
 
     # Calculate price to apply discount
@@ -13423,8 +13544,13 @@ if __name__ == "__main__":
                     else:
                         print(f"[Daltoon Bot Setup Error] {setup_err}")
             
-            # Start real-time polling (interval=0 for maximum responsiveness)
-            bot.polling(none_stop=True, interval=0, timeout=30)
+            # Start real-time polling with explicit allowed_updates (including my_chat_member for leave/block events)
+            bot.polling(
+                none_stop=True,
+                interval=0,
+                timeout=30,
+                allowed_updates=["message", "edited_message", "callback_query", "my_chat_member", "chat_member", "inline_query", "chat_join_request"]
+            )
             
         except Exception as e:
             err_str = str(e)

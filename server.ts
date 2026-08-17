@@ -10364,9 +10364,27 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
       return res.status(404).json({ success: false, error: "کد تخفیف وارد شده معتبر نیست یا منقضی شده است." });
     }
 
+    // Check active status
+    if (promo.isActive === false || promo.status === "inactive" || promo.status === "disabled") {
+      return res.status(400).json({ success: false, error: "این کد تخفیف در حال حاضر غیرفعال می‌باشد." });
+    }
+
     // Check expiry
+    let isExpired = false;
     if (promo.expireDate && new Date(promo.expireDate).getTime() < Date.now()) {
-      return res.status(400).json({ success: false, error: "مهلت استفاده از این کد تخفیف به پایان رسیده است." });
+      isExpired = true;
+    }
+    if (promo.expiresAt && new Date(promo.expiresAt).getTime() < Date.now()) {
+      isExpired = true;
+    }
+    if (promo.durationDays && Number(promo.durationDays) > 0 && promo.createdAt) {
+      const createdTime = new Date(promo.createdAt).getTime();
+      if (!isNaN(createdTime) && Date.now() > (createdTime + Number(promo.durationDays) * 24 * 60 * 60 * 1000)) {
+        isExpired = true;
+      }
+    }
+    if (isExpired) {
+      return res.status(400).json({ success: false, error: "مهلت زمانی استفاده از این کد تخفیف به پایان رسیده است." });
     }
 
     // Check max usage
@@ -10527,20 +10545,46 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       const pCode = String(promoCode).trim().toUpperCase();
       const promo = (db.promo_codes || []).find((p: any) => (p.code || "").trim().toUpperCase() === pCode);
       if (promo) {
-        appliedPromoObj = promo;
-        const pVal = Number(promo.value ?? promo.discountPercent ?? promo.percent ?? promo.discountAmount ?? promo.amount ?? 0);
-        if (promo.type === "percent" || promo.discountPercent !== undefined || promo.percent !== undefined) {
-          discountAmount = Math.floor((originalPrice * pVal) / 100);
-        } else if (promo.type === "fixed_amount" || promo.discountAmount !== undefined || promo.amount !== undefined) {
-          discountAmount = pVal;
-        } else {
-          if (pVal > 0 && pVal <= 100) {
-            discountAmount = Math.floor((originalPrice * pVal) / 100);
-          } else {
-            discountAmount = pVal;
+        let isPromoValid = true;
+        if (promo.isActive === false || promo.status === "inactive" || promo.status === "disabled") {
+          isPromoValid = false;
+        }
+        if (promo.expireDate && new Date(promo.expireDate).getTime() < Date.now()) {
+          isPromoValid = false;
+        }
+        if (promo.expiresAt && new Date(promo.expiresAt).getTime() < Date.now()) {
+          isPromoValid = false;
+        }
+        if (promo.durationDays && Number(promo.durationDays) > 0 && promo.createdAt) {
+          const createdTime = new Date(promo.createdAt).getTime();
+          if (!isNaN(createdTime) && Date.now() > (createdTime + Number(promo.durationDays) * 24 * 60 * 60 * 1000)) {
+            isPromoValid = false;
           }
         }
-        discountAmount = Math.min(originalPrice, Math.max(0, discountAmount));
+        const usedBy = Array.isArray(promo.usedBy) ? promo.usedBy : (promo.used_by || []);
+        if (promo.maxUsage && usedBy.length >= Number(promo.maxUsage)) {
+          isPromoValid = false;
+        }
+        if (tgId && usedBy.some((uid: any) => Number(uid) === Number(tgId))) {
+          isPromoValid = false;
+        }
+
+        if (isPromoValid) {
+          appliedPromoObj = promo;
+          const pVal = Number(promo.value ?? promo.discountPercent ?? promo.percent ?? promo.discountAmount ?? promo.amount ?? 0);
+          if (promo.type === "percent" || promo.discountPercent !== undefined || promo.percent !== undefined) {
+            discountAmount = Math.floor((originalPrice * pVal) / 100);
+          } else if (promo.type === "fixed_amount" || promo.discountAmount !== undefined || promo.amount !== undefined) {
+            discountAmount = pVal;
+          } else {
+            if (pVal > 0 && pVal <= 100) {
+              discountAmount = Math.floor((originalPrice * pVal) / 100);
+            } else {
+              discountAmount = pVal;
+            }
+          }
+          discountAmount = Math.min(originalPrice, Math.max(0, discountAmount));
+        }
       }
     }
 

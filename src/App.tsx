@@ -1262,7 +1262,8 @@ export default function App() {
     value: number,
     maxUsage: number,
     durationDays?: number,
-    allowedServerIds?: string[]
+    allowedServerIds?: string[],
+    isActive: boolean = true
   ) => {
     const nextCode = {
       id: Math.random().toString(36).substring(2, 9),
@@ -1275,6 +1276,7 @@ export default function App() {
       createdAt: new Date().toISOString(),
       durationDays,
       allowedServerIds,
+      isActive: isActive !== false,
     };
     setPromoCodes((prev) => [nextCode, ...prev]);
 
@@ -1294,9 +1296,10 @@ export default function App() {
     value: number,
     maxUsage: number,
     durationDays?: number,
-    allowedServerIds?: string[]
+    allowedServerIds?: string[],
+    isActive?: boolean
   ) => {
-    const nextCode = {
+    const nextCode: any = {
       id,
       code,
       type,
@@ -1305,6 +1308,9 @@ export default function App() {
       durationDays,
       allowedServerIds,
     };
+    if (isActive !== undefined) {
+      nextCode.isActive = isActive;
+    }
     
     setPromoCodes((prev) => prev.map(p => {
       if (p.id === id) {
