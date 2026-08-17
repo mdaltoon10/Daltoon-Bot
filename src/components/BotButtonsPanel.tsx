@@ -1,5 +1,6 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
+import { CustomSelect } from "./CustomSelect";
 import { PanelSettings, CustomButton } from "../types";
 import ConfirmationModal from "./ConfirmationModal";
 import {
@@ -27,6 +28,10 @@ import {
   Palette,
   Globe,
   Smartphone,
+  Sliders,
+  Grid2X2,
+  Layers,
+  Eye,
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
@@ -169,8 +174,32 @@ export default function BotButtonsPanel({
   const [useMiniAppMode, setUseMiniAppMode] = useState(
     !!settings.useMiniAppMode,
   );
+  const [startCommandMode, setStartCommandMode] = useState<
+    "buttons" | "miniapp" | "dual_choice"
+  >(
+    settings.startCommandMode ||
+      (settings.useMiniAppMode ? "miniapp" : "buttons"),
+  );
   const [btnTextMiniApp, setBtnTextMiniApp] = useState(
     settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند",
+  );
+  const [btnTextDashSimple, setBtnTextDashSimple] = useState(
+    settings.btnTextDashSimple || "📱 داشبورد ساده",
+  );
+  const [btnTextDashPro, setBtnTextDashPro] = useState(
+    settings.btnTextDashPro || settings.btnTextMiniApp || "🚀 داشبورد حرفه‌ای",
+  );
+  const [dashButtonsLayout, setDashButtonsLayout] = useState<"single" | "double">(
+    settings.dashButtonsLayout || "single",
+  );
+  const [dashButtonsOrder, setDashButtonsOrder] = useState<"simple_first" | "pro_first">(
+    settings.dashButtonsOrder || "simple_first",
+  );
+  const [hideBtnDashSimple, setHideBtnDashSimple] = useState(
+    !!settings.hideBtnDashSimple,
+  );
+  const [hideBtnDashPro, setHideBtnDashPro] = useState(
+    !!settings.hideBtnDashPro,
   );
   const [miniAppUrl, setMiniAppUrl] = useState(
     settings.miniAppUrl || "",
@@ -245,7 +274,18 @@ export default function BotButtonsPanel({
     if (settings.btnTextSearchConfig !== undefined) setBtnTextSearchConfig(settings.btnTextSearchConfig || "🔍 سرچ کانفیگ (مدیریت)");
     if (settings.hideBtnSearchConfig !== undefined) setHideBtnSearchConfig(!!settings.hideBtnSearchConfig);
     if (settings.useMiniAppMode !== undefined) setUseMiniAppMode(!!settings.useMiniAppMode);
+    if (settings.startCommandMode) {
+      setStartCommandMode(settings.startCommandMode);
+    } else if (settings.useMiniAppMode !== undefined) {
+      setStartCommandMode(settings.useMiniAppMode ? "miniapp" : "buttons");
+    }
     if (settings.btnTextMiniApp !== undefined) setBtnTextMiniApp(settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند");
+    if (settings.btnTextDashSimple !== undefined) setBtnTextDashSimple(settings.btnTextDashSimple || "📱 داشبورد ساده");
+    if (settings.btnTextDashPro !== undefined) setBtnTextDashPro(settings.btnTextDashPro || "🚀 داشبورد حرفه‌ای");
+    if (settings.dashButtonsLayout !== undefined) setDashButtonsLayout(settings.dashButtonsLayout || "single");
+    if (settings.dashButtonsOrder !== undefined) setDashButtonsOrder(settings.dashButtonsOrder || "simple_first");
+    if (settings.hideBtnDashSimple !== undefined) setHideBtnDashSimple(!!settings.hideBtnDashSimple);
+    if (settings.hideBtnDashPro !== undefined) setHideBtnDashPro(!!settings.hideBtnDashPro);
     if (settings.miniAppUrl !== undefined) setMiniAppUrl(settings.miniAppUrl || "");
     if (settings.hideBtnMiniApp !== undefined) setHideBtnMiniApp(!!settings.hideBtnMiniApp);
     if (settings.keyboardLayout !== undefined) setKeyboardLayout(settings.keyboardLayout || "stepped");
@@ -608,7 +648,7 @@ export default function BotButtonsPanel({
       }
     });
     
-    const primaryBtns = { btnBuyNew: btnTextBuyNew, btnMySubs: btnTextMySubs, btnAddConfig: btnTextAddConfig, btnConfigDetails: btnTextConfigDetails, btnSearchConfig: btnTextSearchConfig, btnGuides: btnTextGuides, btnProfile: btnTextProfile, btnSupport: btnTextSupport, btnTicketSupport: btnTextTicketSupport, btnFreeTest: btnTextFreeTest, btnInstantSupport: btnTextInstantSupport, btnFeedback: btnTextFeedback, btnReferral: btnTextReferral, btnWallet: btnTextWallet, btnColleagues: btnTextColleagues, btnAiChat: btnTextAiChat, btnAi: btnTextAi, btnMiniApp: btnTextMiniApp };
+    const primaryBtns = { btnBuyNew: btnTextBuyNew, btnMySubs: btnTextMySubs, btnAddConfig: btnTextAddConfig, btnConfigDetails: btnTextConfigDetails, btnSearchConfig: btnTextSearchConfig, btnGuides: btnTextGuides, btnProfile: btnTextProfile, btnSupport: btnTextSupport, btnTicketSupport: btnTextTicketSupport, btnFreeTest: btnTextFreeTest, btnInstantSupport: btnTextInstantSupport, btnFeedback: btnTextFeedback, btnReferral: btnTextReferral, btnWallet: btnTextWallet, btnColleagues: btnTextColleagues, btnAiChat: btnTextAiChat, btnAi: btnTextAi, btnMiniApp: btnTextMiniApp, btnDashSimple: btnTextDashSimple, btnDashPro: btnTextDashPro };
     Object.entries(primaryBtns).forEach(([key, val]) => {
       const col = primaryButtonColors[key];
       if (col && col !== 'none') {
@@ -652,8 +692,15 @@ export default function BotButtonsPanel({
       btnTextAddConfig,
       btnTextConfigDetails,
       btnTextSearchConfig,
-      useMiniAppMode,
-      btnTextMiniApp,
+      useMiniAppMode: startCommandMode !== "buttons",
+      startCommandMode,
+      btnTextMiniApp: btnTextDashPro || btnTextMiniApp,
+      btnTextDashSimple,
+      btnTextDashPro,
+      dashButtonsLayout,
+      dashButtonsOrder,
+      hideBtnDashSimple,
+      hideBtnDashPro,
       miniAppUrl,
       hideBtnMiniApp,
       hideBtnBuyNew,
@@ -830,7 +877,7 @@ export default function BotButtonsPanel({
             </div>
           </div>
 
-          {/* Telegram WebApp / Mini App Mode Card */}
+          {/* Telegram WebApp / Start Command Mode Card */}
           <div className="bg-[#0a0e17] p-4 border border-indigo-500/30 rounded-xl space-y-4 shadow-lg shadow-indigo-950/20">
             <div className="flex items-center justify-between pb-3 border-b border-gray-800/80">
               <div className="flex items-center gap-3">
@@ -839,13 +886,13 @@ export default function BotButtonsPanel({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>{translateText("Telegram WebApp / Mini App Mode", "تنظیمات Telegram Web / Mini App", lang)}</span>
+                    <span>{translateText("Telegram WebApp / Mini App Mode", "تنظیمات مینی‌اپ (Telegram WebApp Mode)", lang)}</span>
                     <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-medium">
-                      {translateText("New", "جدید", lang)}
+                      {useMiniAppMode ? translateText("Active", "فعال", lang) : translateText("Disabled", "خاموش", lang)}
                     </span>
                   </h4>
                   <p className="text-[11px] text-gray-400 mt-0.5">
-                    {translateText("Hide standard inline buttons and display a single modern Mini App button", "با فعال شدن این گزینه، تمام دکمه‌های شیشه‌ای کیبورد ناپدید شده و دکمه ورود به مینی‌اپ جایگزین می‌شود", lang)}
+                    {translateText("Enable MiniApp functionality and select behavior on /start", "فعالسازی قابلیت مینی‌اپ و انتخاب رفتار ربات هنگام ارسال استارت (/start)", lang)}
                   </p>
                 </div>
               </div>
@@ -853,70 +900,490 @@ export default function BotButtonsPanel({
                 <input
                   type="checkbox"
                   checked={useMiniAppMode}
-                  onChange={(e) => setUseMiniAppMode(e.target.checked)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setUseMiniAppMode(checked);
+                    if (!checked) {
+                      setStartCommandMode("buttons");
+                    } else {
+                      setStartCommandMode("miniapp");
+                    }
+                  }}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
               </label>
             </div>
 
-            {useMiniAppMode && (
-              <div className="space-y-3 pt-1 animate-fadeIn">
+            {useMiniAppMode ? (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-300 block">
+                    {translateText("Select MiniApp Behavior on /start", "انتخاب رفتار مینی‌اپ هنگام استارت (/start):", lang)}
+                  </label>
+
+                  {/* 2 Sub-options when MiniApp is ON */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Option 1: Direct Mini App */}
+                    <button
+                      type="button"
+                      onClick={() => setStartCommandMode("miniapp")}
+                      className={`p-3.5 rounded-xl border text-right transition-all flex flex-col justify-between space-y-2 relative overflow-hidden ${
+                        startCommandMode === "miniapp"
+                          ? "bg-indigo-950/40 border-indigo-500 text-white shadow-md shadow-indigo-950/50 ring-1 ring-indigo-500"
+                          : "bg-[#111827]/80 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                          <Globe className="w-4 h-4" />
+                        </div>
+                        {startCommandMode === "miniapp" && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-white">
+                          {translateText("1. Mini App Direct", "۱. ورود مستقیم به مینی‌اپ", lang)}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                          {translateText("Open Smart WebApp button is sent directly on /start.", "با ارسال استارت، مستقیماً دکمه ورود به برنامه هوشمند (مینی‌اپ) ارسال می‌شود.", lang)}
+                        </p>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Dual Choice Question */}
+                    <button
+                      type="button"
+                      onClick={() => setStartCommandMode("dual_choice")}
+                      className={`p-3.5 rounded-xl border text-right transition-all flex flex-col justify-between space-y-2 relative overflow-hidden ${
+                        startCommandMode === "dual_choice"
+                          ? "bg-emerald-950/40 border-emerald-500 text-white shadow-md shadow-emerald-950/50 ring-1 ring-emerald-500"
+                          : "bg-[#111827]/80 border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                          <Sliders className="w-4 h-4" />
+                        </div>
+                        {startCommandMode === "dual_choice" && (
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-bold text-white">
+                          {translateText("2. Dual Dashboard Choice Question", "۲. پرسش و انتخاب دوگانه (ساده و حرفه‌ای)", lang)}
+                        </h5>
+                        <p className="text-[10px] text-gray-400 mt-1 leading-relaxed">
+                          {translateText("Greeting message asks user to choose between Simple & Pro dashboards. Clicking Pro directly opens MiniApp.", "ربات ابتدا سوال می‌پرسد و ۲ دکمه می‌فرستد. با کلیک روی «داشبورد حرفه‌ای»، مینی‌اپ مستقیماً باز می‌شود.", lang)}
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-300 flex items-center gap-2.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
                   <span className="leading-relaxed">
+                    {startCommandMode === "miniapp"
+                      ? translateText(
+                          "Direct MiniApp Mode Active: On /start, users directly receive the MiniApp button.",
+                          "حالت ورود مستقیم مینی‌اپ فعال است: کاربر با ارسال /start مستقیماً دکمه مینی‌اپ را دریافت می‌کند.",
+                          lang
+                        )
+                      : translateText(
+                          "Dual Dashboard Choice Active: On /start, users choose between Simple Dashboard and Professional Dashboard. Tapping 'Professional Dashboard' directly opens the WebApp popup without extra steps.",
+                          "حالت سوال دوگانه فعال است: با ارسال /start دو گزینه پیشنهاد می‌شود. کاربر با زدن روی «داشبورد حرفه‌ای» بدون هیچ مرحله اضافی مستقیماً وارد مینی‌اپ می‌شود.",
+                          lang
+                        )}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              /* When MiniApp switch is OFF */
+              <div className="p-3.5 bg-[#111827]/90 border border-gray-800 rounded-xl text-xs text-gray-300 flex items-center gap-3">
+                <div className="p-2 bg-blue-500/20 text-blue-400 rounded-lg shrink-0">
+                  <Smartphone className="w-4 h-4" />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-white block">
+                    {translateText("Mode 1: Classic Buttons Direct (MiniApp Off)", "حالت ۱: نمایش مستقیم دکمه‌های عادی (مینی‌اپ خاموش)", lang)}
+                  </span>
+                  <span className="text-[11px] text-gray-400 block leading-relaxed">
                     {translateText(
-                      "Mini App Mode is ACTIVE: All main keyboard inline buttons are replaced by a single WebApp button in the Telegram bot.",
-                      "حالت مینی‌اپ فعال است: تمامی دکمه‌های شیشه‌ای کیبورد اصلی ناپدید شده و تنها یک دکمه برای هدایت کاربر به مینی‌اپ نمایش داده می‌شود.",
+                      "When disabled, standard glass bot buttons appear directly on /start without asking.",
+                      "در این حالت، با ارسال /start توسط کاربر، دکمه‌های اصلی و شیشه‌ای ربات مستقیماً و بدون پرسش سوال نمایش داده می‌شوند.",
                       lang
                     )}
                   </span>
                 </div>
+              </div>
+            )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                  {/* Button Title Input & Color Selector */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-300 flex items-center justify-between">
-                      <span>{translateText("Mini App Button Title", "عنوان دکمه مینی‌اپ", lang)}</span>
-                      <span className="text-[11px] text-indigo-400 font-normal">{translateText("Select Color", "انتخاب رنگ دکمه", lang)}</span>
-                    </label>
-                    <div className="flex gap-2">
+            {useMiniAppMode && (
+              <div className="space-y-4 pt-1 animate-fadeIn">
+                {startCommandMode === "miniapp" ? (
+                  /* Mode 1: Direct Mini App Settings (Classic WebApp button configuration) */
+                  <div className="p-4 bg-[#0f172a]/90 border border-indigo-500/30 rounded-xl space-y-4 relative overflow-hidden shadow-md">
+                    <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                          <Globe className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-bold text-white">
+                            {translateText("Direct Mini App WebApp Button Settings", "تنظیمات دکمه ورود مستقیم به مینی‌اپ", lang)}
+                          </h5>
+                          <p className="text-[10px] text-gray-400 mt-0.5">
+                            {translateText("Configure title, color, and WebApp URL sent directly on /start", "تنظیم اسم دکمه، رنگ و آدرس وب‌اپ که با ارسال استارت مستقیماً ارسال می‌شود", lang)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Button Title */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-gray-300 block">
+                          {translateText("Button Title & Emoji", "اسم و شکلک دکمه مینی‌اپ", lang)}
+                        </label>
+                        <input
+                          type="text"
+                          className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                          value={btnTextMiniApp}
+                          onChange={(e) => {
+                            setBtnTextMiniApp(e.target.value);
+                            setBtnTextDashPro(e.target.value);
+                          }}
+                          placeholder="🚀 ورود به برنامه هوشمند"
+                        />
+                      </div>
+
+                      {/* Button Color */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-gray-300 block">
+                          {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                        </label>
+                        <CustomSelect
+                          value={primaryButtonColors["btnMiniApp"] || primaryButtonColors["btnDashPro"] || "none"}
+                          onChange={(val) =>
+                            setPrimaryButtonColors({
+                              ...primaryButtonColors,
+                              btnMiniApp: val,
+                              btnDashPro: val,
+                            })
+                          }
+                          options={[
+                            { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                            { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                            { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                            { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                          ]}
+                          title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                          dir={lang === "fa" ? "rtl" : "ltr"}
+                        />
+                      </div>
+                    </div>
+
+                    {/* WebApp URL */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-medium text-gray-300 block">
+                        {translateText("Mini App Web URL", "آدرس مینی‌اپ (Telegram WebApp URL)", lang)}
+                      </label>
                       <input
                         type="text"
-                        className="flex-1 bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
-                        value={btnTextMiniApp}
-                        onChange={(e) => setBtnTextMiniApp(e.target.value)}
-                        placeholder={translateText("e.g. 🚀 Open Smart WebApp", "مثلا: 🚀 ورود به برنامه هوشمند", lang)}
+                        className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                        value={miniAppUrl}
+                        onChange={(e) => setMiniAppUrl(e.target.value)}
+                        placeholder={translateText("https://your-domain.com/miniapp (Empty = auto-detect)", "مثلا https://domain.com/miniapp (خالی بگذارید تا از آدرس پنل استفاده شود)", lang)}
                       />
-                      <select
-                        className="bg-[#111827] border border-gray-700/80 rounded-lg px-2.5 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer min-w-[105px] font-medium"
-                        value={primaryButtonColors["btnMiniApp"] || "none"}
-                        onChange={(e) => setPrimaryButtonColors({ ...primaryButtonColors, btnMiniApp: e.target.value })}
-                        dir={lang === "fa" ? "rtl" : "ltr"}
-                        title={translateText("Select button color", "انتخاب رنگ دکمه", lang)}
-                      >
-                        <option value="none">{translateText("No Color", "بدون رنگ", lang)}</option>
-                        <option value="success">{translateText("Green", "🟢 سبز", lang)}</option>
-                        <option value="danger">{translateText("Red", "🔴 قرمز", lang)}</option>
-                        <option value="primary">{translateText("Blue", "🔵 آبی", lang)}</option>
-                      </select>
+                    </div>
+
+                    {/* Live Preview for Direct MiniApp */}
+                    <div className="p-3 bg-[#0b1329] border border-indigo-500/20 rounded-xl space-y-2 mt-2">
+                      <div className="flex items-center justify-between text-[11px] text-gray-400">
+                        <span className="font-semibold text-gray-300 flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                          {translateText("Live Telegram Preview", "پیش‌نمایش زنده دکمه مینی‌اپ در تلگرام", lang)}
+                        </span>
+                      </div>
+
+                      <div className="p-3 bg-[#17212b] rounded-lg border border-gray-800 text-xs font-medium space-y-2 shadow-inner">
+                        <p className="text-[11px] text-gray-300 leading-relaxed border-b border-gray-700/50 pb-2">
+                          👋 سلام کاربر گرامی! برای ورود به برنامه روی دکمه زیر کلیک کنید:
+                        </p>
+                        <div
+                          className={`w-full py-2.5 px-3 rounded-md text-center border font-semibold transition-all shadow-sm ${
+                            (primaryButtonColors["btnMiniApp"] || primaryButtonColors["btnDashPro"]) === "success"
+                              ? "bg-emerald-600/30 border-emerald-500/60 text-emerald-300"
+                              : (primaryButtonColors["btnMiniApp"] || primaryButtonColors["btnDashPro"]) === "danger"
+                              ? "bg-rose-600/30 border-rose-500/60 text-rose-300"
+                              : (primaryButtonColors["btnMiniApp"] || primaryButtonColors["btnDashPro"]) === "primary"
+                              ? "bg-blue-600/30 border-blue-500/60 text-blue-300"
+                              : "bg-[#242f3d] border-gray-600 text-cyan-300"
+                          }`}
+                        >
+                          {btnTextMiniApp || "🚀 ورود به برنامه هوشمند"}
+                        </div>
+                      </div>
                     </div>
                   </div>
+                ) : (
+                  /* Mode 2: Dual Choice Question Settings & Cards */
+                  <>
+                    {/* Grid for Button 1 (Simple) & Button 2 (Pro) */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Card 1: Simple Dashboard Button */}
+                      <div className="p-3.5 bg-[#0f172a]/90 border border-emerald-500/30 rounded-xl space-y-3 relative overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-emerald-500/20 pb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-lg">
+                              <Smartphone className="w-4 h-4" />
+                            </div>
+                            <h5 className="text-xs font-bold text-white">
+                              {translateText("Button 1: Simple Dashboard", "دکمه ۱: داشبورد ساده", lang)}
+                            </h5>
+                          </div>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={!hideBtnDashSimple}
+                              onChange={(e) => setHideBtnDashSimple(!e.target.checked)}
+                              className="rounded border-gray-700 bg-gray-900 text-emerald-500 focus:ring-emerald-500/40 w-3.5 h-3.5"
+                            />
+                            <span>{translateText("Show Button", "نمایش دکمه", lang)}</span>
+                          </label>
+                        </div>
 
-                  {/* Mini App Web URL */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-gray-300 block">
-                      {translateText("Mini App Web URL", "آدرس مینی‌اپ (Telegram WebApp URL)", lang)}
-                    </label>
-                    <input
-                      type="text"
-                      className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
-                      value={miniAppUrl}
-                      onChange={(e) => setMiniAppUrl(e.target.value)}
-                      placeholder={translateText("https://your-domain.com/miniapp (Empty = auto-detect)", "مثلا https://domain.com/miniapp (خالی بگذارید تا از آدرس پنل استفاده شود)", lang)}
-                    />
-                  </div>
-                </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Title & Emoji", "اسم و شکلک دکمه", lang)}
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-emerald-500 font-medium"
+                            value={btnTextDashSimple}
+                            onChange={(e) => setBtnTextDashSimple(e.target.value)}
+                            placeholder="📱 داشبورد ساده"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                          </label>
+                          <CustomSelect
+                            value={primaryButtonColors["btnDashSimple"] || "none"}
+                            onChange={(val) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashSimple: val })}
+                            options={[
+                              { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                              { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                              { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                              { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                            ]}
+                            title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Card 2: Pro Dashboard Button */}
+                      <div className="p-3.5 bg-[#0f172a]/90 border border-indigo-500/30 rounded-xl space-y-3 relative overflow-hidden">
+                        <div className="flex items-center justify-between border-b border-indigo-500/20 pb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-indigo-500/20 text-indigo-400 rounded-lg">
+                              <Globe className="w-4 h-4" />
+                            </div>
+                            <h5 className="text-xs font-bold text-white">
+                              {translateText("Button 2: Professional Dashboard (Mini App)", "دکمه ۲: داشبورد حرفه‌ای (مینی‌اپ)", lang)}
+                            </h5>
+                          </div>
+                          <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-gray-300">
+                            <input
+                              type="checkbox"
+                              checked={!hideBtnDashPro}
+                              onChange={(e) => setHideBtnDashPro(!e.target.checked)}
+                              className="rounded border-gray-700 bg-gray-900 text-indigo-500 focus:ring-indigo-500/40 w-3.5 h-3.5"
+                            />
+                            <span>{translateText("Show Button", "نمایش دکمه", lang)}</span>
+                          </label>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Title & Emoji", "اسم و شکلک دکمه", lang)}
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-medium"
+                            value={btnTextDashPro}
+                            onChange={(e) => {
+                              setBtnTextDashPro(e.target.value);
+                              setBtnTextMiniApp(e.target.value);
+                            }}
+                            placeholder="🚀 داشبورد حرفه‌ای"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                          </label>
+                          <CustomSelect
+                            value={primaryButtonColors["btnDashPro"] || primaryButtonColors["btnMiniApp"] || "none"}
+                            onChange={(val) => setPrimaryButtonColors({ ...primaryButtonColors, btnDashPro: val, btnMiniApp: val })}
+                            options={[
+                              { value: "none", label: translateText("No Color (Default)", "بدون رنگ (عادی)", lang) },
+                              { value: "primary", label: translateText("Blue (Primary)", "🔵 آبی (اصلی)", lang) },
+                              { value: "success", label: translateText("Green (Success)", "🟢 سبز (موفقیت)", lang) },
+                              { value: "danger", label: translateText("Red (Warning/Danger)", "🔴 قرمز (هشدار)", lang) },
+                            ]}
+                            title={translateText("Button Color Style", "رنگ و استایل دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Mini App Web URL", "آدرس مینی‌اپ (Telegram WebApp URL)", lang)}
+                          </label>
+                          <input
+                            type="text"
+                            className="w-full bg-[#111827] border border-gray-700/80 rounded-lg px-3 py-2 text-xs text-white focus:ring-1 focus:ring-indigo-500 font-mono"
+                            value={miniAppUrl}
+                            onChange={(e) => setMiniAppUrl(e.target.value)}
+                            placeholder={translateText("https://your-domain.com/miniapp (Empty = auto-detect)", "مثلا https://domain.com/miniapp (خالی بگذارید تا از آدرس پنل استفاده شود)", lang)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Layout Mode (Single vs Double) & Position/Order Controls */}
+                    <div className="p-3.5 bg-[#0a0e17] border border-gray-800 rounded-xl space-y-3">
+                      <h5 className="text-xs font-bold text-gray-200 flex items-center gap-2">
+                        <Sliders className="w-4 h-4 text-indigo-400" />
+                        <span>{translateText("Layout Mode & Button Placement Position", "تنظیمات چیدمان و جایگاه دکمه‌ها", lang)}</span>
+                      </h5>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Single vs Double Row Choice */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Button Row Layout Mode", "چیدمان دکمه‌ها (تکی یا دوتایی)", lang)}
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDashButtonsLayout("single")}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                                dashButtonsLayout === "single"
+                                  ? "bg-indigo-600/30 border-indigo-500 text-indigo-200 shadow-sm shadow-indigo-950"
+                                  : "bg-[#111827] border-gray-800 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>{translateText("Single (2 Rows)", "📱 تکی (۲ ردیف)", lang)}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDashButtonsLayout("double")}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                                dashButtonsLayout === "double"
+                                  ? "bg-indigo-600/30 border-indigo-500 text-indigo-200 shadow-sm shadow-indigo-950"
+                                  : "bg-[#111827] border-gray-800 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              <Grid2X2 className="w-3.5 h-3.5" />
+                              <span>{translateText("Double (1 Row)", "📱 دوتایی (۱ ردیف)", lang)}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Order Choice */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-medium text-gray-300 block">
+                            {translateText("Button Position Priority", "جایگاه / اولویت نمایش دکمه‌ها", lang)}
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setDashButtonsOrder("simple_first")}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                                dashButtonsOrder === "simple_first"
+                                  ? "bg-emerald-600/30 border-emerald-500 text-emerald-200 shadow-sm shadow-emerald-950"
+                                  : "bg-[#111827] border-gray-800 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              <span>{translateText("Simple First", "⬅️ ساده اول", lang)}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDashButtonsOrder("pro_first")}
+                              className={`px-3 py-2 rounded-lg text-xs font-medium border flex items-center justify-center gap-1.5 transition-all ${
+                                dashButtonsOrder === "pro_first"
+                                  ? "bg-indigo-600/30 border-indigo-500 text-indigo-200 shadow-sm shadow-indigo-950"
+                                  : "bg-[#111827] border-gray-800 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              <span>{translateText("Pro First", "➡️ حرفه‌ای اول", lang)}</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Live Interactive Telegram Button Preview */}
+                    <div className="p-3.5 bg-[#0b1329] border border-indigo-500/20 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-[11px] text-gray-400">
+                        <span className="font-semibold text-gray-300 flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                          {translateText("Live Telegram Preview", "پیش‌نمایش زنده چیدمان دکمه‌ها در تلگرام", lang)}
+                        </span>
+                        <span className="text-[10px] text-indigo-300 bg-indigo-950/60 border border-indigo-500/30 px-2 py-0.5 rounded-md">
+                          {dashButtonsLayout === "double" ? "۱ ردیف (دوتایی)" : "۲ ردیف (تکی)"} • {dashButtonsOrder === "simple_first" ? "اول ساده" : "اول حرفه‌ای"}
+                        </span>
+                      </div>
+
+                      <div className="p-3 bg-[#17212b] rounded-lg border border-gray-800 text-xs font-medium space-y-2 shadow-inner">
+                        <p className="text-[11px] text-gray-300 leading-relaxed border-b border-gray-700/50 pb-2">
+                          👋 سلام کاربر گرامی! لطفاً نوع داشبورد خود را انتخاب کنید:
+                        </p>
+
+                        <div className={dashButtonsLayout === "double" ? "grid grid-cols-2 gap-2" : "space-y-2"}>
+                          {(dashButtonsOrder === "simple_first"
+                            ? [
+                                { key: "simple", text: btnTextDashSimple, hide: hideBtnDashSimple, color: primaryButtonColors["btnDashSimple"] },
+                                { key: "pro", text: btnTextDashPro, hide: hideBtnDashPro, color: primaryButtonColors["btnDashPro"] || primaryButtonColors["btnMiniApp"] }
+                              ]
+                            : [
+                                { key: "pro", text: btnTextDashPro, hide: hideBtnDashPro, color: primaryButtonColors["btnDashPro"] || primaryButtonColors["btnMiniApp"] },
+                                { key: "simple", text: btnTextDashSimple, hide: hideBtnDashSimple, color: primaryButtonColors["btnDashSimple"] }
+                              ]
+                          ).map((b) => {
+                            if (b.hide) return null;
+                            const colorClass =
+                              b.color === "success"
+                                ? "bg-emerald-600/30 border-emerald-500/60 text-emerald-300"
+                                : b.color === "danger"
+                                ? "bg-rose-600/30 border-rose-500/60 text-rose-300"
+                                : b.color === "primary"
+                                ? "bg-blue-600/30 border-blue-500/60 text-blue-300"
+                                : "bg-[#242f3d] border-gray-600 text-cyan-300";
+
+                            return (
+                              <div
+                                key={b.key}
+                                className={`w-full py-2 px-3 rounded-md text-center border font-medium transition-all shadow-sm ${colorClass}`}
+                              >
+                                {b.text || (b.key === "simple" ? "📱 داشبورد ساده" : "🚀 داشبورد حرفه‌ای")}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1133,37 +1600,41 @@ export default function BotButtonsPanel({
                         </button>
 
                         {/* Single vs Paired select */}
-                        <select
-                          className="bg-[#1b2230] border border-gray-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer flex-1 min-w-[110px]"
-                          value={singleButtons.includes(key) ? "single" : "pair"}
-                          onChange={(e) => {
-                            const isSingle = e.target.value === "single";
-                            setSingleButtons((prev) => {
-                              if (isSingle && !prev.includes(key)) return [...prev, key];
-                              if (!isSingle && prev.includes(key)) return prev.filter((k) => k !== key);
-                              return prev;
-                            });
-                          }}
-                          dir={lang === "fa" ? "rtl" : "ltr"}
-                          title={translateText("Button layout format", "چیدمان تکی یا دوتایی دکمه", lang)}
-                        >
-                          <option value="pair">{translateText("Paired", "👥 دوتایی", lang)}</option>
-                          <option value="single">{translateText("Single", "👤 تکی", lang)}</option>
-                        </select>
+                        <div className="flex-1 min-w-[110px]">
+                          <CustomSelect
+                            value={singleButtons.includes(key) ? "single" : "pair"}
+                            onChange={(val) => {
+                              const isSingle = val === "single";
+                              setSingleButtons((prev) => {
+                                if (isSingle && !prev.includes(key)) return [...prev, key];
+                                if (!isSingle && prev.includes(key)) return prev.filter((k) => k !== key);
+                                return prev;
+                              });
+                            }}
+                            options={[
+                              { value: "pair", label: translateText("Paired", "👥 دوتایی", lang) },
+                              { value: "single", label: translateText("Single", "👤 تکی", lang) },
+                            ]}
+                            title={translateText("Button layout format", "چیدمان تکی یا دوتایی دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
 
                         {/* Color selection dropdown */}
-                        <select
-                          className="bg-[#1b2230] border border-gray-700/80 rounded-lg px-2.5 py-1.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer flex-1 min-w-[110px]"
-                          value={primaryButtonColors[key] || "none"}
-                          onChange={(e) => setPrimaryButtonColors({...primaryButtonColors, [key]: e.target.value})}
-                          dir={lang === "fa" ? "rtl" : "ltr"}
-                          title={translateText("Select button color", "انتخاب رنگ دکمه", lang)}
-                        >
-                          <option value="none">{translateText("No Color", "بدون رنگ", lang)}</option>
-                          <option value="success">{translateText("Green", "🟢 سبز", lang)}</option>
-                          <option value="danger">{translateText("Red", "🔴 قرمز", lang)}</option>
-                          <option value="primary">{translateText("Blue", "🔵 آبی", lang)}</option>
-                        </select>
+                        <div className="flex-1 min-w-[110px]">
+                          <CustomSelect
+                            value={primaryButtonColors[key] || "none"}
+                            onChange={(val) => setPrimaryButtonColors({...primaryButtonColors, [key]: val})}
+                            options={[
+                              { value: "none", label: translateText("No Color", "بدون رنگ", lang) },
+                              { value: "success", label: translateText("Green", "🟢 سبز", lang) },
+                              { value: "danger", label: translateText("Red", "🔴 قرمز", lang) },
+                              { value: "primary", label: translateText("Blue", "🔵 آبی", lang) },
+                            ]}
+                            title={translateText("Select button color", "انتخاب رنگ دکمه", lang)}
+                            dir={lang === "fa" ? "rtl" : "ltr"}
+                          />
+                        </div>
 
                         {/* Edit wallet amounts if applicable */}
                         {key === "btnWallet" && (
@@ -1232,21 +1703,24 @@ export default function BotButtonsPanel({
                         setExtraButtonColors(newList);
                       }}
                     />
-                    <select
-                      className="bg-[#1b2230] border border-gray-700/80 rounded-lg p-2.5 text-xs text-white focus:ring-1 focus:ring-indigo-500 cursor-pointer w-[90px] shrink-0"
-                      value={item.color}
-                      onChange={(e) => {
-                        const newList = [...extraButtonColors];
-                        newList[idx].color = e.target.value;
-                        setExtraButtonColors(newList);
-                      }}
-                      dir={lang === "fa" ? "rtl" : "ltr"}
-                    >
-                      <option value="none">{translateText("None", "بدون رنگ", lang)}</option>
-                      <option value="success">{translateText("Green", "سبز", lang)}</option>
-                      <option value="danger">{translateText("Red", "قرمز", lang)}</option>
-                      <option value="primary">{translateText("Blue", "آبی", lang)}</option>
-                    </select>
+                    <div className="w-[105px] shrink-0">
+                      <CustomSelect
+                        value={item.color}
+                        onChange={(val) => {
+                          const newList = [...extraButtonColors];
+                          newList[idx].color = val;
+                          setExtraButtonColors(newList);
+                        }}
+                        options={[
+                          { value: "none", label: translateText("None", "بدون رنگ", lang) },
+                          { value: "success", label: translateText("Green", "سبز", lang) },
+                          { value: "danger", label: translateText("Red", "قرمز", lang) },
+                          { value: "primary", label: translateText("Blue", "آبی", lang) },
+                        ]}
+                        title={translateText("Color", "رنگ", lang)}
+                        dir={lang === "fa" ? "rtl" : "ltr"}
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
