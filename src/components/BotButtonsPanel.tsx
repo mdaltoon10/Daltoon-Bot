@@ -169,9 +169,6 @@ export default function BotButtonsPanel({
   const [useMiniAppMode, setUseMiniAppMode] = useState(
     !!settings.useMiniAppMode,
   );
-  const [startCommandMode, setStartCommandMode] = useState<"buttons" | "miniapp" | "dual_choice">(
-    settings.startCommandMode || (settings.useMiniAppMode ? "miniapp" : "buttons")
-  );
   const [btnTextMiniApp, setBtnTextMiniApp] = useState(
     settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند",
   );
@@ -247,13 +244,7 @@ export default function BotButtonsPanel({
     if (settings.hideBtnConfigDetails !== undefined) setHideBtnConfigDetails(!!settings.hideBtnConfigDetails);
     if (settings.btnTextSearchConfig !== undefined) setBtnTextSearchConfig(settings.btnTextSearchConfig || "🔍 سرچ کانفیگ (مدیریت)");
     if (settings.hideBtnSearchConfig !== undefined) setHideBtnSearchConfig(!!settings.hideBtnSearchConfig);
-    if (settings.startCommandMode !== undefined) {
-      setStartCommandMode(settings.startCommandMode);
-      setUseMiniAppMode(settings.startCommandMode !== "buttons");
-    } else if (settings.useMiniAppMode !== undefined) {
-      setUseMiniAppMode(!!settings.useMiniAppMode);
-      setStartCommandMode(settings.useMiniAppMode ? "miniapp" : "buttons");
-    }
+    if (settings.useMiniAppMode !== undefined) setUseMiniAppMode(!!settings.useMiniAppMode);
     if (settings.btnTextMiniApp !== undefined) setBtnTextMiniApp(settings.btnTextMiniApp || "🚀 ورود به برنامه هوشمند");
     if (settings.miniAppUrl !== undefined) setMiniAppUrl(settings.miniAppUrl || "");
     if (settings.hideBtnMiniApp !== undefined) setHideBtnMiniApp(!!settings.hideBtnMiniApp);
@@ -661,8 +652,7 @@ export default function BotButtonsPanel({
       btnTextAddConfig,
       btnTextConfigDetails,
       btnTextSearchConfig,
-      useMiniAppMode: startCommandMode !== "buttons",
-      startCommandMode,
+      useMiniAppMode,
       btnTextMiniApp,
       miniAppUrl,
       hideBtnMiniApp,
@@ -840,131 +830,49 @@ export default function BotButtonsPanel({
             </div>
           </div>
 
-          {/* Telegram WebApp / Mini App Mode Card (3-State Mode) */}
+          {/* Telegram WebApp / Mini App Mode Card */}
           <div className="bg-[#0a0e17] p-4 border border-indigo-500/30 rounded-xl space-y-4 shadow-lg shadow-indigo-950/20">
-            <div className="flex items-center gap-3 pb-3 border-b border-gray-800/80">
-              <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
-                <Globe className="w-5 h-5" />
+            <div className="flex items-center justify-between pb-3 border-b border-gray-800/80">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/30">
+                  <Globe className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>{translateText("Telegram WebApp / Mini App Mode", "تنظیمات Telegram Web / Mini App", lang)}</span>
+                    <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-medium">
+                      {translateText("New", "جدید", lang)}
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    {translateText("Hide standard inline buttons and display a single modern Mini App button", "با فعال شدن این گزینه، تمام دکمه‌های شیشه‌ای کیبورد ناپدید شده و دکمه ورود به مینی‌اپ جایگزین می‌شود", lang)}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                  <span>{translateText("Telegram WebApp / Mini App Mode", "تنظیمات Telegram Web / Mini App", lang)}</span>
-                  <span className="text-[10px] bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 px-2 py-0.5 rounded-full font-medium">
-                    {translateText("3-State", "۳ حالته", lang)}
-                  </span>
-                </h4>
-                <p className="text-[11px] text-gray-400 mt-0.5">
-                  {translateText("Select how the Mini App and main bot keyboard buttons should be presented to users", "نحوه نمایش مینی‌اپ و دکمه‌های شیشه‌ای کیبورد ربات را انتخاب کنید", lang)}
-                </p>
-              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useMiniAppMode}
+                  onChange={(e) => setUseMiniAppMode(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-700 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
             </div>
 
-            {/* 3-State Radio Selector Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-              {/* Mode 1: Standard Buttons Only */}
-              <button
-                type="button"
-                onClick={() => {
-                  setStartCommandMode("buttons");
-                  setUseMiniAppMode(false);
-                }}
-                className={`p-3.5 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
-                  startCommandMode === "buttons"
-                    ? "bg-slate-800/90 border-slate-500 text-white shadow-md ring-1 ring-slate-500/50"
-                    : "bg-[#111827] border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                    📱 {translateText("Standard Keyboard", "غیرفعال (دکمه‌های شیشه‌ای)", lang)}
+            {useMiniAppMode && (
+              <div className="space-y-3 pt-1 animate-fadeIn">
+                <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-300 flex items-center gap-2.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                  <span className="leading-relaxed">
+                    {translateText(
+                      "Mini App Mode is ACTIVE: All main keyboard inline buttons are replaced by a single WebApp button in the Telegram bot.",
+                      "حالت مینی‌اپ فعال است: تمامی دکمه‌های شیشه‌ای کیبورد اصلی ناپدید شده و تنها یک دکمه برای هدایت کاربر به مینی‌اپ نمایش داده می‌شود.",
+                      lang
+                    )}
                   </span>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${startCommandMode === "buttons" ? "border-indigo-400 bg-indigo-600" : "border-gray-600"}`}>
-                    {startCommandMode === "buttons" && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
-                  </div>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                  {translateText("Display classic inline keyboard buttons without Mini App", "نمایش دکمه‌های شیشه‌ای معمولی ربات بدون مینی‌اپ", lang)}
-                </p>
-              </button>
 
-              {/* Mode 2: Exclusive MiniApp */}
-              <button
-                type="button"
-                onClick={() => {
-                  setStartCommandMode("miniapp");
-                  setUseMiniAppMode(true);
-                }}
-                className={`p-3.5 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
-                  startCommandMode === "miniapp"
-                    ? "bg-indigo-950/70 border-indigo-500 text-white shadow-md ring-1 ring-indigo-500/50"
-                    : "bg-[#111827] border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                    🚀 {translateText("Exclusive Mini App", "مینی‌اپ اختصاصی", lang)}
-                  </span>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${startCommandMode === "miniapp" ? "border-indigo-400 bg-indigo-600" : "border-gray-600"}`}>
-                    {startCommandMode === "miniapp" && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                  {translateText("Hide standard buttons and show only single Mini App button", "حذف دکمه‌های شیشه‌ای و جایگزینی با تک‌دکمه مینی‌اپ", lang)}
-                </p>
-              </button>
-
-              {/* Mode 3: Dual Mode */}
-              <button
-                type="button"
-                onClick={() => {
-                  setStartCommandMode("dual_choice");
-                  setUseMiniAppMode(true);
-                }}
-                className={`p-3.5 rounded-xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
-                  startCommandMode === "dual_choice"
-                    ? "bg-purple-950/70 border-purple-500 text-white shadow-md ring-1 ring-purple-500/50"
-                    : "bg-[#111827] border-gray-800 text-gray-400 hover:border-gray-700 hover:text-gray-200"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                    🔄 {translateText("Dual Mode", "حالت دوگانه (ترکیبی)", lang)}
-                  </span>
-                  <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${startCommandMode === "dual_choice" ? "border-purple-400 bg-purple-600" : "border-gray-600"}`}>
-                    {startCommandMode === "dual_choice" && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
-                  </div>
-                </div>
-                <p className="text-[11px] text-gray-400 mt-2 leading-relaxed">
-                  {translateText("Show both Mini App button and standard keyboard buttons", "نمایش همزمان دکمه مینی‌اپ و دکمه‌های شیشه‌ای", lang)}
-                </p>
-              </button>
-            </div>
-
-            {/* Status explanation notice */}
-            {startCommandMode === "buttons" && (
-              <div className="p-3 bg-slate-900/60 border border-slate-700/50 rounded-xl text-xs text-gray-300 flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-gray-400 shrink-0"></span>
-                <span>{translateText("Mini App disabled: Standard inline keyboard buttons will be sent in Telegram.", "مینی‌اپ غیرفعال است: تمامی دکمه‌های شیشه‌ای کیبورد اصلی ربات نمایش داده می‌شوند.", lang)}</span>
-              </div>
-            )}
-
-            {startCommandMode === "miniapp" && (
-              <div className="p-3 bg-indigo-950/50 border border-indigo-500/40 rounded-xl text-xs text-indigo-200 flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-400 animate-pulse shrink-0"></span>
-                <span>{translateText("Exclusive Mini App ACTIVE: Standard inline buttons hidden, replaced by single Mini App button.", "حالت مینی‌اپ اختصاصی فعال است: تمامی دکمه‌های شیشه‌ای کیبورد اصلی ناپدید شده و تنها یک دکمه برای هدایت کاربر به مینی‌اپ نمایش داده می‌شود.", lang)}</span>
-              </div>
-            )}
-
-            {startCommandMode === "dual_choice" && (
-              <div className="p-3 bg-purple-950/50 border border-purple-500/40 rounded-xl text-xs text-purple-200 flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-400 animate-pulse shrink-0"></span>
-                <span>{translateText("Dual Mode ACTIVE: Mini App button will be displayed alongside standard inline buttons.", "حالت دوگانه فعال است: دکمه ورود به مینی‌اپ در کنار دکمه‌های شیشه‌ای کیبورد اصلی ربات به کاربر نمایش داده می‌شود.", lang)}</span>
-              </div>
-            )}
-
-            {/* Config inputs for MiniApp (Title, Color, URL) if MiniApp enabled */}
-            {startCommandMode !== "buttons" && (
-              <div className="space-y-3 pt-2 animate-fadeIn border-t border-gray-800/80">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                   {/* Button Title Input & Color Selector */}
                   <div className="space-y-1.5">
