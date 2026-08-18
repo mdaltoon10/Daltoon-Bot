@@ -5428,15 +5428,24 @@ def register_tg_user(tg_id, username, referral_id=None):
                 import json
                 try:
                     s_str = db.get("settings", {}).get("panel_config", "{}")
-                    settings = json.loads(s_str)
+                    if isinstance(s_str, dict):
+                        settings = s_str
+                    else:
+                        settings = json.loads(s_str)
                 except:
                     settings = {}
                 
                 bonuses_given = []
                 condition = settings.get("referralRewardCondition", "invite")
                 if condition in ["invite", "both"]:
-                    percent = settings.get("referralRewardPercent", 5)
-                    amount = settings.get("referralBaseAmount", 100000)
+                    try:
+                        percent = int(float(settings.get("referralRewardPercent", 5)))
+                        amount = int(float(settings.get("referralBaseAmount", 100000)))
+                    except Exception as e:
+                        print("Error parsing referral reward config:", e)
+                        percent = 5
+                        amount = 100000
+                    
                     reward = max(0, round((amount * percent) / 100))
                     
                     if reward > 0:
@@ -5451,7 +5460,10 @@ def register_tg_user(tg_id, username, referral_id=None):
                                 print("Could not notify referrer:", e)
                             
                         # Level 2 Referral
-                        l2_percent = settings.get("referralL2Percent", 0)
+                        try:
+                            l2_percent = int(float(settings.get("referralL2Percent", 0)))
+                        except:
+                            l2_percent = 0
                         if l2_percent > 0 and referrer.get("referredBy"):
                             l2_referrer_id = referrer.get("referredBy")
                             l2_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l2_referrer_id)), None)
@@ -5468,7 +5480,10 @@ def register_tg_user(tg_id, username, referral_id=None):
                                         pass
 
                                 # Level 3 Referral
-                                l3_percent = settings.get("referralL3Percent", 0)
+                                try:
+                                    l3_percent = int(float(settings.get("referralL3Percent", 0)))
+                                except:
+                                    l3_percent = 0
                                 if l3_percent > 0 and l2_referrer.get("referredBy"):
                                     l3_referrer_id = l2_referrer.get("referredBy")
                                     l3_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l3_referrer_id)), None)
@@ -5485,7 +5500,10 @@ def register_tg_user(tg_id, username, referral_id=None):
                                                 pass
 
                                         # Level 4 Referral
-                                        l4_percent = settings.get("referralL4Percent", 0)
+                                        try:
+                                            l4_percent = int(float(settings.get("referralL4Percent", 0)))
+                                        except:
+                                            l4_percent = 0
                                         if l4_percent > 0 and l3_referrer.get("referredBy"):
                                             l4_referrer_id = l3_referrer.get("referredBy")
                                             l4_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l4_referrer_id)), None)
@@ -5558,8 +5576,12 @@ def process_referral_on_purchase(user, amount_spent):
     if not referrer:
         return
         
-    percent = settings.get("referralRewardPercent", 5)
-    calc_amount = settings.get("referralBaseAmount", 100000)
+    try:
+        percent = int(float(settings.get("referralRewardPercent", 5)))
+        calc_amount = int(float(settings.get("referralBaseAmount", 100000)))
+    except:
+        percent = 5
+        calc_amount = 100000
     reward = max(0, round((calc_amount * percent) / 100))
     
     if reward > 0:
@@ -5572,7 +5594,10 @@ def process_referral_on_purchase(user, amount_spent):
                 pass
             
         # L2 logic
-        l2_percent = settings.get("referralL2Percent", 0)
+        try:
+            l2_percent = int(float(settings.get("referralL2Percent", 0)))
+        except:
+            l2_percent = 0
         if l2_percent > 0 and referrer.get("referredBy"):
             l2_referrer_id = referrer.get("referredBy")
             l2_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l2_referrer_id)), None)
@@ -5587,7 +5612,10 @@ def process_referral_on_purchase(user, amount_spent):
                         pass
 
                 # L3 logic
-                l3_percent = settings.get("referralL3Percent", 0)
+                try:
+                    l3_percent = int(float(settings.get("referralL3Percent", 0)))
+                except:
+                    l3_percent = 0
                 if l3_percent > 0 and l2_referrer.get("referredBy"):
                     l3_referrer_id = l2_referrer.get("referredBy")
                     l3_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l3_referrer_id)), None)
@@ -5602,7 +5630,10 @@ def process_referral_on_purchase(user, amount_spent):
                                 pass
 
                         # L4 logic
-                        l4_percent = settings.get("referralL4Percent", 0)
+                        try:
+                            l4_percent = int(float(settings.get("referralL4Percent", 0)))
+                        except:
+                            l4_percent = 0
                         if l4_percent > 0 and l3_referrer.get("referredBy"):
                             l4_referrer_id = l3_referrer.get("referredBy")
                             l4_referrer = next((u for u in db["users"] if str(u.get("userId")) == str(l4_referrer_id)), None)
@@ -6872,8 +6903,12 @@ def my_chat_member_event(update):
                     if not bonuses_to_deduct and db_user.get("referredBy"):
                         condition = settings.get("referralRewardCondition", "invite")
                         if condition in ["invite", "both"]:
-                            percent = settings.get("referralRewardPercent", 5)
-                            amount = settings.get("referralBaseAmount", 100000)
+                            try:
+                                percent = int(float(settings.get("referralRewardPercent", 5)))
+                                amount = int(float(settings.get("referralBaseAmount", 100000)))
+                            except:
+                                percent = 5
+                                amount = 100000
                             calc_reward = max(0, round((amount * percent) / 100))
                             if calc_reward > 0:
                                 bonuses_to_deduct = [{"userId": db_user.get("referredBy"), "amount": calc_reward, "level": 1, "type": "invite"}]
@@ -6953,8 +6988,12 @@ def my_chat_member_event(update):
                     if not bonuses_to_restore and db_user.get("referredBy"):
                         condition = settings.get("referralRewardCondition", "invite")
                         if condition in ["invite", "both"]:
-                            percent = settings.get("referralRewardPercent", 5)
-                            amount = settings.get("referralBaseAmount", 100000)
+                            try:
+                                percent = int(float(settings.get("referralRewardPercent", 5)))
+                                amount = int(float(settings.get("referralBaseAmount", 100000)))
+                            except:
+                                percent = 5
+                                amount = 100000
                             calc_reward = max(0, round((amount * percent) / 100))
                             if calc_reward > 0:
                                 bonuses_to_restore = [{"userId": db_user.get("referredBy"), "amount": calc_reward, "level": 1, "type": "invite"}]
@@ -7915,8 +7954,12 @@ def handle_main_menu_callback(call):
                 bot_username = "your_bot_id"
         
         bot_username = bot_username.replace("@", "")
-        percent = settings.get("referralRewardPercent", 5)
-        amount = settings.get("referralBaseAmount", 100000)
+        try:
+            percent = int(float(settings.get("referralRewardPercent", 5)))
+            amount = int(float(settings.get("referralBaseAmount", 100000)))
+        except:
+            percent = 5
+            amount = 100000
         calculated_reward = max(0, round((amount * percent) / 100))
         uid = str(tg_id)
         link = f"https://t.me/{bot_username}?start={uid}"

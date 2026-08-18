@@ -124,6 +124,7 @@ export default function ColleaguesManagement({
   const [pTitle, setPTitle] = useState("");
   const [pPrice, setPPrice] = useState("");
   const [pTraffic, setPTraffic] = useState("");
+  const [pDurationDays, setPDurationDays] = useState("30");
   const [pMinCreateGb, setPMinCreateGb] = useState("");
   const [pCategory, setPCategory] = useState("");
   const [pDesc, setPDesc] = useState("");
@@ -144,6 +145,7 @@ export default function ColleaguesManagement({
     setPTitle("");
     setPPrice("");
     setPTraffic("");
+    setPDurationDays("30");
     setPMinCreateGb("");
     setPCategory("");
     setPDesc("");
@@ -285,6 +287,7 @@ export default function ColleaguesManagement({
           title: pTitle,
           price: Number(pPrice),
           trafficGb: Number(pTraffic),
+          durationDays: pDurationDays ? Number(pDurationDays) : 30,
           category: pCategory,
           description: pDesc,
           minCreateGb: pMinCreateGb ? Number(pMinCreateGb) : 1,
@@ -754,6 +757,18 @@ export default function ColleaguesManagement({
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-400 mb-1">
+                    {translateText("Duration (Days)", "مدت اعتبار (روز)", lang)}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="30"
+                    value={pDurationDays}
+                    onChange={(e) => setPDurationDays(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 mb-1">
                     {translateText("Min GB per Client", "حداقل حجم ساخت کلاینت", lang)}
                   </label>
                   <input
@@ -887,6 +902,7 @@ export default function ColleaguesManagement({
                             setPTitle(p.title);
                             setPPrice(String(p.price));
                             setPTraffic(String(p.trafficGb));
+                            setPDurationDays(String(p.durationDays || 30));
                             setPMinCreateGb(
                               p.minCreateGb ? String(p.minCreateGb) : "",
                             );
@@ -918,6 +934,9 @@ export default function ColleaguesManagement({
                       </span>
                       <span className="whitespace-nowrap">
                         🗄️ {p.trafficGb} گیگابایت
+                      </span>
+                      <span className="text-emerald-400 whitespace-nowrap">
+                        ⏱️ {p.durationDays || 30} روز
                       </span>
                       <span className="text-amber-400 font-bold whitespace-nowrap">
                         ⚠️ حداقل حجم ساخت: {p.minCreateGb || 1} گیگابایت

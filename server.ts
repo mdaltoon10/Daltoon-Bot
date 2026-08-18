@@ -1551,32 +1551,28 @@ app.post("/api/gift-codes/delete", (req, res) => {
 app.post("/api/colleague-packages/save", (req, res) => {
   const db = readSqliteDb();
   if (!db.colleague_packages) db.colleague_packages = [];
-  const { id, title, price, trafficGb, category, description, minCreateGb } = req.body;
+  const { id, title, price, trafficGb, category, description, minCreateGb, durationDays, serverId } = req.body;
   if (!id || !title || price === undefined || trafficGb === undefined) {
     return res.status(400).json({ error: "Missing fields" });
   }
 
+  const packageObj = {
+    id,
+    title,
+    price: Number(price),
+    trafficGb: Number(trafficGb),
+    durationDays: durationDays !== undefined && !isNaN(Number(durationDays)) ? Number(durationDays) : 30,
+    category: category || "",
+    description: description || "",
+    minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
+    serverId: serverId || "",
+  };
+
   const existingIdx = db.colleague_packages.findIndex((p) => p.id === id);
   if (existingIdx !== -1) {
-    db.colleague_packages[existingIdx] = {
-      id,
-      title,
-      price: Number(price),
-      trafficGb: Number(trafficGb),
-      category,
-      description,
-      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
-    };
+    db.colleague_packages[existingIdx] = packageObj;
   } else {
-    db.colleague_packages.push({
-      id,
-      title,
-      price: Number(price),
-      trafficGb: Number(trafficGb),
-      category,
-      description,
-      minCreateGb: minCreateGb ? Number(minCreateGb) : 1,
-    });
+    db.colleague_packages.push(packageObj);
   }
   writeSqliteDb(db);
   res.json({ success: true, colleaguePackages: db.colleague_packages });
@@ -9542,57 +9538,21 @@ app.get("/api/miniapp/data", async (req, res) => {
     const colleagueServers = colleagueServersRaw.map((s: any) => mapServerFormat(s, true));
 
     // Colleague Packages & User Accounts
-    let dbColleaguePackages = db.colleague_packages;
-    if (!Array.isArray(dbColleaguePackages) || dbColleaguePackages.length === 0) {
-      dbColleaguePackages = [
-        {
-          id: "col-pkg-50",
-          title: "بسته ۵۰ گیگابایت همکاران",
-          trafficGb: 50,
-          price: 150000,
-          durationDays: 30,
-          description: "بسته اقتصادی ویژه همکاران و نمایندگان با امکان ساخت نامحدود کانفیگ",
-        },
-        {
-          id: "col-pkg-100",
-          title: "بسته ۱۰۰ گیگابایت همکاران",
-          trafficGb: 100,
-          price: 280000,
-          durationDays: 30,
-          description: "بسته نقره‌ای پرفروش با پینگ عالی و بدون محدودیت تعداد کاربر",
-        },
-        {
-          id: "col-pkg-200",
-          title: "بسته ۲۰۰ گیگابایت همکاران",
-          trafficGb: 200,
-          price: 520000,
-          durationDays: 30,
-          description: "بسته طلایی ویژه نمایندگان با پهنای باند اختصاصی",
-        },
-        {
-          id: "col-pkg-500",
-          title: "بسته ۵۰۰ گیگابایت همکاران VIP",
-          trafficGb: 500,
-          price: 1200000,
-          durationDays: 30,
-          description: "بسته فوق حرفه‌ای با اولویت اتصال بالا و پشتیبانی ۲۴ ساعته",
-        },
-      ];
-      db.colleague_packages = dbColleaguePackages;
-      writeSqliteDb(db);
-    }
+    const rawColleaguePackages = Array.isArray(db.colleague_packages) ? db.colleague_packages : [];
 
-    const colleaguePackages = dbColleaguePackages.map((p: any) => {
+    const colleaguePackages = rawColleaguePackages.map((p: any) => {
       const srv = rawServers.find((s: any) => String(s.id) === String(p.serverId));
       return {
         id: p.id,
-        title: p.title || p.name || `بسته همکار ${p.trafficGb} گیگ`,
-        trafficGb: Number(p.trafficGb || p.traffic_gb || 50),
+        title: p.title || p.name || `بسته همکار ${p.trafficGb || 0} گیگ`,
+        trafficGb: Number(p.trafficGb || p.traffic_gb || 0),
         price: Number(p.price || 0),
         serverId: p.serverId || "",
-        serverName: srv ? (srv.name || srv.remark || "سرور همکاران") : "سرور اختصاصی همکاران",
-        durationDays: Number(p.durationDays || p.duration_days || 30),
-        description: p.description || `بسته پرسرعت ویژه همکاران (${p.trafficGb} گیگابایت)`
+        serverName: srv ? (srv.name || srv.remark || "سرور همکاران") : "",
+        durationDays: p.durationDays !== undefined && !isNaN(Number(p.durationDays)) ? Number(p.durationDays) : Number(p.duration_days || 30),
+        category: p.category || "",
+        minCreateGb: Number(p.minCreateGb || p.min_create_gb || 1),
+        description: p.description || ""
       };
     });
 
@@ -12630,6 +12590,12 @@ app.post("/api/system/update", async (req, res) => {
         let updateSuccess = false;
 
         writeLog(`[Step 1/5] Pulling latest changes from origin/main branch or release tag (${targetTag})...`);
+        
+        // CRITICAL DATA PRESERVATION: Backup databases before destructive git/tar commands
+        const backupDir = path.join(os.tmpdir(), `daltoon_update_backup_${Date.now()}`);
+        await runCommandAsync(`mkdir -p ${backupDir}`);
+        await runCommandAsync(`cp -r Daltoon_Bot* database.json db.json .env* ${backupDir}/ 2>/dev/null || true`);
+        
         let gitResult = { success: false, stdout: "", stderr: "" };
         if (isGit) {
           // Fetch main & tags, then reset to origin/main or target tag
@@ -12650,6 +12616,10 @@ app.post("/api/system/update", async (req, res) => {
         } else {
           updateSuccess = true;
         }
+        
+        // RESTORE BACKUP IF FILES WERE DELETED BY GIT CLEAN / TAR
+        await runCommandAsync(`cp -r -n ${backupDir}/* . 2>/dev/null || true`);
+        await runCommandAsync(`rm -rf ${backupDir}`);
         
         if (!updateSuccess) {
            writeLog(`CRITICAL: Step 1 failed to update source code. Proceeding with caution.`);

@@ -366,9 +366,11 @@ export interface ColleaguePackage {
   title: string;
   price: number;
   trafficGb: number;
+  durationDays?: number;
   description: string;
   category?: string;
   minCreateGb?: number;
+  serverId?: string;
 }
 
 export interface ColleagueAccount {

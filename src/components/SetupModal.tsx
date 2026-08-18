@@ -340,8 +340,8 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-      <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in animate-duration-300">
-        <div className="bg-gradient-to-r from-indigo-500/10 to-transparent p-6 border-b border-[#1e293b]">
+      <div className="bg-[#0f172a] border border-[#1e293b] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in animate-duration-300 max-h-[95vh] flex flex-col">
+        <div className="bg-gradient-to-r from-indigo-500/10 to-transparent p-6 border-b border-[#1e293b] shrink-0">
           <div className="flex items-center gap-3">
             <div className="bg-indigo-500/20 p-3 rounded-xl border border-indigo-500/30">
               <UserCog className="w-6 h-6 text-indigo-400" />
@@ -357,7 +357,7 @@ export default function SetupModal({ lang, onComplete }: SetupModalProps) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/20 text-rose-400 px-4 py-3 rounded-xl text-xs md:text-sm font-medium leading-relaxed font-sans">
               {error}

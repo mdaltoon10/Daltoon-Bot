@@ -3962,37 +3962,47 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                       {/* Colleague Packages List */}
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-300">انتخاب پکیج همکار:</label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                          {colleaguePackages.map((pkg) => {
-                            const isSelected = selectedColleaguePkg?.id === pkg.id;
-                            return (
-                              <div
-                                key={pkg.id}
-                                onClick={() => setSelectedColleaguePkg(pkg)}
-                                className={`p-3.5 rounded-2xl cursor-pointer border transition-all relative ${
-                                  isSelected
-                                    ? "bg-purple-950/60 border-purple-500 shadow-md shadow-purple-500/20"
-                                    : "bg-slate-950 border-slate-800 hover:border-slate-700"
-                                }`}
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div>
-                                    <div className="font-bold text-xs text-white">{pkg.title}</div>
-                                    <div className="text-[10px] text-purple-300 mt-0.5">
-                                      حجم: {pkg.trafficGb} گیگ • مدت: {pkg.durationDays} روز
+                        {colleaguePackages.length === 0 ? (
+                          <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800 text-center text-xs text-slate-400">
+                            در حال حاضر هیچ بسته همکاری تعریف نشده است. لطفاً از طریق پشتیبانی با مدیریت در ارتباط باشید.
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {colleaguePackages.map((pkg) => {
+                              const isSelected = selectedColleaguePkg?.id === pkg.id;
+                              return (
+                                <div
+                                  key={pkg.id}
+                                  onClick={() => setSelectedColleaguePkg(pkg)}
+                                  className={`p-3.5 rounded-2xl cursor-pointer border transition-all relative ${
+                                    isSelected
+                                      ? "bg-purple-950/60 border-purple-500 shadow-md shadow-purple-500/20"
+                                      : "bg-slate-950 border-slate-800 hover:border-slate-700"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div>
+                                      <div className="font-bold text-xs text-white">{pkg.title}</div>
+                                      <div className="text-[10px] text-purple-300 mt-0.5 flex flex-wrap gap-1">
+                                        <span>حجم: {pkg.trafficGb} گیگ</span>
+                                        <span>• مدت: {pkg.durationDays || pkg.days || 30} روز</span>
+                                        {pkg.category ? <span>• {pkg.category}</span> : null}
+                                      </div>
+                                    </div>
+                                    <div className="text-right font-mono font-extrabold text-amber-400 text-xs">
+                                      {Number(pkg.price || 0).toLocaleString("fa-IR")} ت
                                     </div>
                                   </div>
-                                  <div className="text-right font-mono font-extrabold text-amber-400 text-xs">
-                                    {Number(pkg.price || 0).toLocaleString("fa-IR")} ت
-                                  </div>
+                                  {pkg.description ? (
+                                    <p className="text-[10px] text-slate-400 mt-2 line-clamp-2">
+                                      {pkg.description}
+                                    </p>
+                                  ) : null}
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-2 line-clamp-2">
-                                  {pkg.description}
-                                </p>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
 
                       {/* Account Settings: Prefix & Recovery Token */}
@@ -6021,7 +6031,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                           </span>
                         </div>
                         <div className="text-[10px] text-slate-400">
-                          {pkg.days ? `${pkg.days} روزه` : "نامحدود"} • حداقل ساخت: {pkg.minCreateGb || 5} GB
+                          {pkg.durationDays || pkg.days || 30} روزه • حداقل ساخت: {pkg.minCreateGb || 1} GB
                         </div>
                       </div>
                       <div className="text-left font-extrabold font-mono text-purple-300 text-xs">
