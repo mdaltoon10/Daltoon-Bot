@@ -658,6 +658,9 @@ export default function SettingsPanel({
   const [miniAppSplashLogo, setMiniAppSplashLogo] = useState(
     settings.miniAppSplashLogo || ""
   );
+  const [miniAppSplashEnabled, setMiniAppSplashEnabled] = useState(
+    settings.miniAppSplashEnabled !== false
+  );
   const [primaryButtonColors, setPrimaryButtonColors] = useState<Record<string, string>>(
     settings.primaryButtonColors || {}
   );
@@ -757,12 +760,14 @@ export default function SettingsPanel({
       miniAppUrl,
       hideBtnMiniApp,
       miniAppSplashLogo,
+      miniAppSplashEnabled,
       primaryButtonColors,
       ...notificationToggles,
     });
     if (typeof localStorage !== "undefined") {
       try {
         localStorage.setItem("daltoon_mini_app_splash_logo", miniAppSplashLogo || "");
+        localStorage.setItem("daltoon_mini_app_splash_enabled", String(miniAppSplashEnabled));
       } catch (e) {}
     }
     setSaved(true);

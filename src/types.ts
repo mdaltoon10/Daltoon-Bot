@@ -107,6 +107,7 @@ export interface PanelSettings {
   miniAppUrl?: string;
   hideBtnMiniApp?: boolean;
   miniAppSplashLogo?: string;
+  miniAppSplashEnabled?: boolean;
   botTelegramHandle?: string;
   referralRewardAmount?: number;
   referralRewardPercent?: number; // Kept as invite percent

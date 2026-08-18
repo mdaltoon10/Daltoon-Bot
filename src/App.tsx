@@ -97,7 +97,12 @@ export default function App() {
   const isMiniApp = typeof window !== "undefined" && (
     window.location.pathname.startsWith('/miniapp') ||
     window.location.hash.includes('miniapp') ||
-    window.location.search.includes('miniapp')
+    window.location.search.includes('miniapp') ||
+    window.location.search.includes('tgWebApp') ||
+    window.location.hash.includes('tgWebApp') ||
+    window.location.search.includes('tgWebAppData') ||
+    window.location.hash.includes('tgWebAppData') ||
+    Boolean((window as any).Telegram?.WebApp?.initData)
   );
   if (isMiniApp) {
     return <TelegramMiniApp />;

@@ -369,6 +369,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   const [colleagueNewDays, setColleagueNewDays] = useState<string>("30");
   const [colleagueCreatingClient, setColleagueCreatingClient] = useState<boolean>(false);
 
+  // Colleague Plan Renewal Modal/State
+  const [isColleaguePlanRenewOpen, setIsColleaguePlanRenewOpen] = useState<boolean>(false);
+  const [renewColleagueSelectedPkg, setRenewColleagueSelectedPkg] = useState<any>(null);
+  const [renewColleaguePaymentMethod, setRenewColleaguePaymentMethod] = useState<"wallet" | "card_to_card" | "admin_free">("wallet");
+  const [renewColleagueReceiptImage, setRenewColleagueReceiptImage] = useState<string>("");
+  const [renewingColleaguePlan, setRenewingColleaguePlan] = useState<boolean>(false);
+
   // Colleague Search/Sort & Profile Refresh States
   const [colleagueSearch, setColleagueSearch] = useState<string>("");
   const [colleagueSort, setColleagueSort] = useState<"newest" | "oldest">("newest");
@@ -550,10 +557,18 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const addDays = Math.max(1, Number(renewModalDays) || 30);
     const effUserId = tgUser?.id || userData?.id || userData?.userId;
 
-    const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
-    const finalMethod = isFree ? "admin_free" : renewPaymentMethod;
+    const isColleagueKey = Boolean(
+      renewModalKey?.colleagueAccountId ||
+      (colleagueAccount && (
+        renewModalKey?.colleagueAccountId === colleagueAccount.id ||
+        (Array.isArray(colleagueClients) && colleagueClients.some(c => c.id === renewModalKey?.id || c.clientUuid === renewModalKey?.clientUuid))
+      ))
+    );
 
-    if (!isFree && finalMethod === "card_to_card" && !renewCardReceiptImage.trim()) {
+    const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
+    const finalMethod = isColleagueKey ? "colleague_quota" : (isFree ? "admin_free" : renewPaymentMethod);
+
+    if (!isColleagueKey && !isFree && finalMethod === "card_to_card" && !renewCardReceiptImage.trim()) {
       showThemedModal("رسید واریز الزامی است", "لطفاً تصویر یا فیش واریز کارت به کارت را پیوست فرمایید.", "warning");
       return;
     }
@@ -568,6 +583,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           addGb,
           addDays,
           userId: effUserId,
+          isColleague: isColleagueKey,
+          colleagueAccountId: colleagueAccount?.id || renewModalKey?.colleagueAccountId,
           paymentMethod: finalMethod,
           receiptImage: renewCardReceiptImage,
         }),
@@ -594,6 +611,16 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
         if (data.userBalance !== undefined) {
           setUserData((prev: any) => prev ? { ...prev, balance: data.userBalance, walletBalance: data.userBalance } : prev);
+        }
+
+        if (data.colleagueAccount) {
+          setColleagueAccount(data.colleagueAccount);
+        } else if (data.remainingTrafficGb !== undefined) {
+          setColleagueAccount((prev: any) => prev ? {
+            ...prev,
+            remainingTrafficGb: data.remainingTrafficGb,
+            usedTrafficGb: Number(((prev.usedTrafficGb || 0) + addGb).toFixed(2))
+          } : prev);
         }
 
         setSubscriptions((prev) =>
@@ -625,12 +652,21 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
         setRenewModalKey(null);
         setRenewCardReceiptImage("");
-        const costStr = data.cost && data.cost > 0 ? ` به مبلغ ${Number(data.cost).toLocaleString()} تومان از کیف پول کسر و` : "";
-        showThemedModal(
-          "🎉 تمدید موفقیت‌آمیز اشتراک",
-          `اشتراک شما با موفقیت${costStr} به میزان +${addGb} گیگابایت حجم و +${addDays} روز تمدید شد و وضعیت آن در پنل سرور و ربات فعال گردید.`,
-          "success"
-        );
+
+        if (isColleagueKey || data.isColleagueRenew) {
+          showThemedModal(
+            "🎉 تمدید موفقیت‌آمیز اشتراک همکار",
+            data.message || `کانفیگ همکار با موفقیت تمدید شد و ${addGb} گیگابایت از سهمیه بسته همکاری کسر گردید.`,
+            "success"
+          );
+        } else {
+          const costStr = data.cost && data.cost > 0 ? ` به مبلغ ${Number(data.cost).toLocaleString()} تومان از کیف پول کسر و` : "";
+          showThemedModal(
+            "🎉 تمدید موفقیت‌آمیز اشتراک",
+            `اشتراک شما با موفقیت${costStr} به میزان +${addGb} گیگابایت حجم و +${addDays} روز تمدید شد و وضعیت آن در پنل سرور و ربات فعال گردید.`,
+            "success"
+          );
+        }
       } else {
         showThemedModal("خطا در تمدید", data.error || "عملیات تمدید اشتراک با خطا مواجه شد.", "error");
       }
@@ -638,6 +674,69 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       showThemedModal("خطای ارتباط", err?.message || "خطا در برقراری ارتباط با سرور جهت تمدید.", "error");
     } finally {
       setRenewSubmitting(false);
+    }
+  };
+
+  const handleRenewColleaguePlan = async () => {
+    if (!renewColleagueSelectedPkg || renewingColleaguePlan || !colleagueAccount) return;
+    const effUserId = tgUser?.id || userData?.id || userData?.userId;
+    const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
+    const finalMethod = isFree ? "admin_free" : renewColleaguePaymentMethod;
+
+    if (!isFree && finalMethod === "card_to_card" && !renewColleagueReceiptImage.trim()) {
+      showThemedModal("رسید واریز الزامی است", "لطفاً تصویر یا فیش واریز کارت به کارت را پیوست فرمایید.", "warning");
+      return;
+    }
+
+    setRenewingColleaguePlan(true);
+    try {
+      const res = await fetch("/api/miniapp/colleague/renew-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: effUserId,
+          username: tgUser?.username || userData?.username,
+          accountId: colleagueAccount.id,
+          packageId: renewColleagueSelectedPkg.id,
+          paymentMethod: finalMethod,
+          receiptImage: renewColleagueReceiptImage,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.pendingApproval) {
+          setIsColleaguePlanRenewOpen(false);
+          setRenewColleagueReceiptImage("");
+          showThemedModal(
+            "⌛ ثبت فیش تمدید پلن",
+            data.message || "رسید تمدید پلن همکاری شما ثبت شد و پس از تایید مدیریت، سهمیه به حسابتان اضافه خواهد شد.",
+            "info"
+          );
+          return;
+        }
+
+        if (data.walletBalance !== undefined) {
+          setUserData((prev: any) => prev ? { ...prev, balance: data.walletBalance, walletBalance: data.walletBalance } : prev);
+        }
+        if (data.colleagueAccount) {
+          setColleagueAccount(data.colleagueAccount);
+        }
+
+        setIsColleaguePlanRenewOpen(false);
+        setRenewColleagueReceiptImage("");
+        showThemedModal(
+          "🎉 تمدید موفقیت‌آمیز پلن همکاری",
+          data.message || `پلن همکاری با موفقیت تمدید شد و سهمیه جدید به حسابتان اضافه گردید.`,
+          "success"
+        );
+        fetchMiniAppData();
+      } else {
+        showThemedModal("خطا در تمدید پلن", data.error || "عملیات با خطا مواجه شد.", "error");
+      }
+    } catch (err: any) {
+      showThemedModal("خطای ارتباط", err?.message || "خطا در ارتباط با سرور.", "error");
+    } finally {
+      setRenewingColleaguePlan(false);
     }
   };
 
@@ -698,7 +797,22 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
   const handleMiniAppDeleteSubmit = async () => {
     if (!confirmDeleteKey || deletingKeyId) return;
-    const subId = confirmDeleteKey.id || confirmDeleteKey.clientUuid;
+    const targetKey = confirmDeleteKey;
+    const subId = targetKey.id || targetKey.clientUuid;
+
+    // Optimistic Instant UI Update for immediate feedback
+    setConfirmDeleteKey(null);
+    setSubscriptions((prev) =>
+      prev.filter((item) => item.id !== targetKey.id && item.clientUuid !== targetKey.clientUuid)
+    );
+    setColleagueClients((prev) =>
+      prev.filter((item) => item.id !== targetKey.id && item.clientUuid !== targetKey.clientUuid)
+    );
+    showThemedModal(
+      "🗑️ کانفیگ حذف شد",
+      "کانفیگ مورد نظر با موفقیت حذف گردید.",
+      "success"
+    );
 
     setDeletingKeyId(subId);
     try {
@@ -708,29 +822,21 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         body: JSON.stringify({
           id: subId,
           userId: tgUser?.id || userData?.id,
-          clientName: confirmDeleteKey.clientName || confirmDeleteKey.email,
-          clientUuid: confirmDeleteKey.clientUuid || confirmDeleteKey.uuid,
-          serverId: confirmDeleteKey.serverId,
+          clientName: targetKey.clientName || targetKey.email,
+          clientUuid: targetKey.clientUuid || targetKey.uuid,
+          serverId: targetKey.serverId,
         }),
       });
       const data = await res.json();
-      if (data.success) {
-        setSubscriptions((prev) =>
-          prev.filter((item) => item.id !== confirmDeleteKey.id && item.clientUuid !== confirmDeleteKey.clientUuid)
-        );
-        setColleagueClients((prev) =>
-          prev.filter((item) => item.id !== confirmDeleteKey.id && item.clientUuid !== confirmDeleteKey.clientUuid)
-        );
-        setConfirmDeleteKey(null);
-        showThemedModal(
-          "🗑️ کانفیگ حذف شد",
-          "کانفیگ مورد نظر با موفقیت از پنل سرور، دیتابیس و لیست اشتراک‌های شما حذف گردید.",
-          "success"
-        );
-      } else {
+      if (!data.success) {
+        // Rollback on server error
+        setSubscriptions((prev) => [targetKey, ...prev]);
+        setColleagueClients((prev) => [targetKey, ...prev]);
         showThemedModal("خطا در حذف کانفیگ", data.error || "حذف کانفیگ با خطا مواجه شد.", "error");
       }
     } catch (err: any) {
+      setSubscriptions((prev) => [targetKey, ...prev]);
+      setColleagueClients((prev) => [targetKey, ...prev]);
       showThemedModal("خطای ارتباط", err?.message || "خطا در برقراری ارتباط با سرور جهت حذف.", "error");
     } finally {
       setDeletingKeyId(null);
@@ -738,7 +844,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   };
 
   useEffect(() => {
-    if (customModal.isOpen || isColleagueCreateOpen || activeQrModal || renewModalKey || confirmDeleteKey) {
+    if (customModal.isOpen || isColleagueCreateOpen || isColleaguePlanRenewOpen || activeQrModal || renewModalKey || confirmDeleteKey) {
       window.scrollTo({ top: 0, behavior: "instant" });
       document.body.style.overflow = "hidden";
     } else {
@@ -747,10 +853,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [customModal.isOpen, isColleagueCreateOpen, activeQrModal, renewModalKey, confirmDeleteKey]);
+  }, [customModal.isOpen, isColleagueCreateOpen, isColleaguePlanRenewOpen, activeQrModal, renewModalKey, confirmDeleteKey]);
 
   // Initialize Telegram User & Fetch Data
   useEffect(() => {
+    const initEl = document.getElementById("initial-splash");
+    if (initEl) {
+      initEl.remove();
+    }
     let detectedUser: any = null;
 
     if (typeof window !== "undefined") {
@@ -830,12 +940,70 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
   };
 
+  const applyMiniAppData = (data: any) => {
+    if (!data || !data.success) return;
+    setUserData(data.user);
+    const adminFlag = !!data.isAdmin || !!data.user?.isAdmin || !!data.isOwner || !!data.user?.isOwner;
+    const ownerFlag = !!data.isOwner || !!data.user?.isOwner || !!data.isSuperAdmin || !!data.user?.isSuperAdmin || data.user?.role === "super_admin" || data.user?.role === "owner";
+    const superAdminFlag = ownerFlag || !!data.isSuperAdmin || !!data.user?.isSuperAdmin;
+
+    setIsAdmin(adminFlag);
+    setIsOwner(ownerFlag);
+    setIsSuperAdmin(superAdminFlag);
+    setUserRole(data.role || data.user?.role || (ownerFlag ? "super_admin" : (adminFlag ? "admin" : "user")));
+    setUserRoleTitle(data.roleTitle || data.user?.roleTitle || (ownerFlag ? "مالک و سوپر ادمین" : (adminFlag ? "مدیر کل" : "کاربر فعال")));
+
+    setServers(data.servers || []);
+    setColleagueServers(data.colleagueServers || []);
+    setPlanCategories(data.planCategories || []);
+    setVpnPlans(data.vpnPlans || []);
+    setCustomPricing(data.customPricing || {
+      enabled: true,
+      boxes: [],
+      defaultPricePerGb: 3000,
+      defaultPricePerDay: 2000,
+    });
+    setTestAccountSettings(data.testAccount || {
+      enabled: false,
+      trafficGb: 1,
+      durationHours: 24,
+      hasUsed: false,
+    });
+    setSystemSettings(data.settings || {});
+    setSubscriptions(data.subscriptions || []);
+    setTickets(data.tickets || []);
+    setTransactions(data.transactions || []);
+    setColleaguePackages(data.colleaguePackages || []);
+    setUserColleagueAccounts(data.userColleagueAccounts || []);
+    if (data.colleaguePackages && data.colleaguePackages.length > 0 && !selectedColleaguePkg) {
+      setSelectedColleaguePkg(data.colleaguePackages[0]);
+    }
+
+    // Auto-select first server if available
+    if (data.servers && data.servers.length > 0 && !selectedServer) {
+      setSelectedServer(data.servers[0]);
+    }
+  };
+
   const fetchMiniAppData = async (userObj?: any) => {
     const user = userObj || tgUser;
     if (!user?.id) return;
 
+    // Instant Hydration from local cache
     try {
-      setLoading(true);
+      const cacheKey = `daltoon_miniapp_cache_${user.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.success) {
+          applyMiniAppData(parsed);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
+    try {
+      if (!userData) setLoading(true);
       setErrorMessage(null);
 
       const params = new URLSearchParams({
@@ -847,53 +1015,20 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
       const { ok, data, error } = await safeFetchJson(`/api/miniapp/data?${params.toString()}`);
       if (ok && data?.success) {
-        setUserData(data.user);
-        const adminFlag = !!data.isAdmin || !!data.user?.isAdmin || !!data.isOwner || !!data.user?.isOwner;
-        const ownerFlag = !!data.isOwner || !!data.user?.isOwner || !!data.isSuperAdmin || !!data.user?.isSuperAdmin || data.user?.role === "super_admin" || data.user?.role === "owner";
-        const superAdminFlag = ownerFlag || !!data.isSuperAdmin || !!data.user?.isSuperAdmin;
-
-        setIsAdmin(adminFlag);
-        setIsOwner(ownerFlag);
-        setIsSuperAdmin(superAdminFlag);
-        setUserRole(data.role || data.user?.role || (ownerFlag ? "super_admin" : (adminFlag ? "admin" : "user")));
-        setUserRoleTitle(data.roleTitle || data.user?.roleTitle || (ownerFlag ? "مالک و سوپر ادمین" : (adminFlag ? "مدیر کل" : "کاربر فعال")));
-
-        setServers(data.servers || []);
-        setColleagueServers(data.colleagueServers || []);
-        setPlanCategories(data.planCategories || []);
-        setVpnPlans(data.vpnPlans || []);
-        setCustomPricing(data.customPricing || {
-          enabled: true,
-          boxes: [],
-          defaultPricePerGb: 3000,
-          defaultPricePerDay: 2000,
-        });
-        setTestAccountSettings(data.testAccount || {
-          enabled: false,
-          trafficGb: 1,
-          durationHours: 24,
-          hasUsed: false,
-        });
-        setSystemSettings(data.settings || {});
-        setSubscriptions(data.subscriptions || []);
-        setTickets(data.tickets || []);
-        setTransactions(data.transactions || []);
-        setColleaguePackages(data.colleaguePackages || []);
-        setUserColleagueAccounts(data.userColleagueAccounts || []);
-        if (data.colleaguePackages && data.colleaguePackages.length > 0 && !selectedColleaguePkg) {
-          setSelectedColleaguePkg(data.colleaguePackages[0]);
-        }
-
-        // Auto-select first server if available
-        if (data.servers && data.servers.length > 0 && !selectedServer) {
-          setSelectedServer(data.servers[0]);
-        }
+        applyMiniAppData(data);
+        try {
+          localStorage.setItem(`daltoon_miniapp_cache_${user.id}`, JSON.stringify(data));
+        } catch (e) {}
       } else {
-        setErrorMessage(error || data?.error || "خطای نامشخص در دریافت اطلاعات");
+        if (!userData) {
+          setErrorMessage(error || data?.error || "خطای نامشخص در دریافت اطلاعات");
+        }
       }
     } catch (err: any) {
       console.error("MiniApp fetch error:", err);
-      setErrorMessage(err.message || "خطا در ارتباط با سرور");
+      if (!userData) {
+        setErrorMessage(err.message || "خطا در ارتباط با سرور");
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -918,18 +1053,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
       const { ok, data } = await safeFetchJson(`/api/miniapp/data?${params.toString()}`);
       if (ok && data?.success) {
-        setUserData(data.user);
-        setIsAdmin(!!data.isAdmin || !!data.user?.isAdmin);
-        setServers(data.servers || []);
-        setColleagueServers(data.colleagueServers || []);
-        setPlanCategories(data.planCategories || []);
-        setVpnPlans(data.vpnPlans || []);
-        if (data.testAccount) setTestAccountSettings(data.testAccount);
-        if (data.settings) setSystemSettings(data.settings);
-        if (data.tickets) setTickets(data.tickets);
-        if (data.transactions) setTransactions(data.transactions);
-        if (data.colleaguePackages) setColleaguePackages(data.colleaguePackages);
-        if (data.userColleagueAccounts) setUserColleagueAccounts(data.userColleagueAccounts);
+        applyMiniAppData(data);
 
         const newSubs = data.subscriptions || [];
 
@@ -956,8 +1080,6 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             }
           }
         }
-
-        setSubscriptions(newSubs);
       }
     } catch (e) {
       // Silent error handling for background poller
@@ -1895,8 +2017,12 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       <main ref={mainScrollRef} className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-8 overflow-y-auto overscroll-contain relative z-10">
         {/* Loading State */}
         {loading && (() => {
-          const customLogoUrl = (systemSettings?.miniAppSplashLogo?.trim() || (typeof localStorage !== "undefined" ? localStorage.getItem("daltoon_mini_app_splash_logo")?.trim() : "")) || "";
-          const hasCustomLogo = !!customLogoUrl;
+          const isSplashEnabled = systemSettings?.miniAppSplashEnabled !== false &&
+            (typeof localStorage !== "undefined" ? localStorage.getItem("daltoon_mini_app_splash_enabled") !== "false" : true);
+          const customLogoUrl = isSplashEnabled
+            ? (systemSettings?.miniAppSplashLogo?.trim() || (typeof localStorage !== "undefined" ? localStorage.getItem("daltoon_mini_app_splash_logo")?.trim() : "")) || ""
+            : "";
+          const hasCustomLogo = Boolean(isSplashEnabled && customLogoUrl);
           return (
             <div className="flex flex-col items-center justify-center py-16 space-y-5 animate-fadeIn">
               <div className="relative group">
@@ -1914,7 +2040,9 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
               </div>
               <div className="text-center space-y-1">
                 <h2 className="text-base font-bold text-white tracking-wider font-mono uppercase">
-                  {systemSettings?.botNickname || "Telegram Daltoon Bot"}
+                  {hasCustomLogo
+                    ? (systemSettings?.botNickname?.trim() || "دالتون")
+                    : "Telegram Daltoon Bot"}
                 </h2>
                 <p className="text-xs text-gray-400 font-sans animate-pulse">
                   در حال دریافت آخرین اطلاعات سرورها و پکیج‌ها...
@@ -4341,24 +4469,40 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      const pkg = (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId);
-                      const minAllowedGb = Number(
-                        colleagueAccount?.minCreateGb ||
-                        pkg?.minCreateGb ||
-                        systemSettings?.colleagueMinCreateGb ||
-                        systemSettings?.minCreateGb ||
-                        0
-                      );
-                      setColleagueNewGb(String(minAllowedGb > 0 ? minAllowedGb : 10));
-                      setIsColleagueCreateOpen(true);
-                    }}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 py-3 rounded-2xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4 stroke-[3]" />
-                    <span>➕ ساخت کانفیگ جدید برای همکار (رایگان)</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <button
+                      onClick={() => {
+                        const pkg = (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId);
+                        const minAllowedGb = Number(
+                          colleagueAccount?.minCreateGb ||
+                          pkg?.minCreateGb ||
+                          systemSettings?.colleagueMinCreateGb ||
+                          systemSettings?.minCreateGb ||
+                          0
+                        );
+                        setColleagueNewGb(String(minAllowedGb > 0 ? minAllowedGb : 10));
+                        setIsColleagueCreateOpen(true);
+                      }}
+                      className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 py-3 rounded-2xl font-extrabold text-xs shadow-lg shadow-emerald-500/20 active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-4 h-4 stroke-[3]" />
+                      <span>➕ ساخت کانفیگ جدید (از سهمیه)</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const currentPkg = (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId) || colleaguePackages?.[0];
+                        setRenewColleagueSelectedPkg(currentPkg);
+                        setRenewColleagueReceiptImage("");
+                        setRenewColleaguePaymentMethod("wallet");
+                        setIsColleaguePlanRenewOpen(true);
+                      }}
+                      className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-3 rounded-2xl font-extrabold text-xs shadow-lg shadow-purple-600/20 active:scale-98 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      <span>🔄 تمدید / شارژ پلن همکاری</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Colleague Clients List */}
@@ -5559,6 +5703,45 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             {(() => {
               const gb = Math.max(0, Number(renewModalGb) || 0);
               const days = Math.max(0, Number(renewModalDays) || 0);
+
+              const isColleagueKey = Boolean(
+                renewModalKey?.colleagueAccountId ||
+                (colleagueAccount && (
+                  renewModalKey?.colleagueAccountId === colleagueAccount.id ||
+                  (Array.isArray(colleagueClients) && colleagueClients.some(c => c.id === renewModalKey?.id || c.clientUuid === renewModalKey?.clientUuid))
+                ))
+              );
+
+              if (isColleagueKey) {
+                const remaining = Number(colleagueAccount?.remainingTrafficGb || 0);
+                const isOverQuota = remaining < gb;
+
+                return (
+                  <div className="bg-purple-950/40 p-3.5 rounded-2xl border border-purple-800/60 space-y-2 text-xs">
+                    <div className="flex justify-between text-purple-300">
+                      <span className="font-bold">سهمیه باقیمانده حساب همکار:</span>
+                      <span className="font-bold font-mono">{remaining.toFixed(1)} GB</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>حجم کسر شونده:</span>
+                      <span className="font-bold text-amber-300 font-mono">-{gb} GB</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300 pt-1 border-t border-purple-900/60">
+                      <span>سهمیه پس از تمدید:</span>
+                      <span className={`font-bold font-mono ${isOverQuota ? "text-rose-400" : "text-emerald-400"}`}>
+                        {Math.max(0, remaining - gb).toFixed(1)} GB
+                      </span>
+                    </div>
+
+                    {isOverQuota && (
+                      <div className="bg-rose-500/20 border border-rose-500/40 rounded-xl p-2 text-rose-300 text-[11px] mt-1">
+                        ⚠️ سهمیه مجاز باقیمانده همکار ({remaining.toFixed(1)} GB) کمتر از حجم درخواستی ({gb} GB) است. لطفاً پلن همکاری خود را شارژ فرمایید.
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               let pricePerGb = 3000;
               let pricePerDay = 2000;
               const boxes = customPricing?.boxes || [];
@@ -5771,10 +5954,283 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
                   <>
                     <Check className="w-3.5 h-3.5" />
                     <span>
-                      {isAdmin || isOwner || userRole === "admin" || userRole === "owner"
+                      {Boolean(
+                        renewModalKey?.colleagueAccountId ||
+                        (colleagueAccount && (
+                          renewModalKey?.colleagueAccountId === colleagueAccount.id ||
+                          (Array.isArray(colleagueClients) && colleagueClients.some(c => c.id === renewModalKey?.id || c.clientUuid === renewModalKey?.clientUuid))
+                        ))
+                      )
+                        ? "تایید و کسر از سهمیه همکاری"
+                        : isAdmin || isOwner || userRole === "admin" || userRole === "owner"
                         ? "تمدید ویژه مدیر"
                         : renewPaymentMethod === "card_to_card"
                         ? "ارسال فیش و تمدید"
+                        : "پرداخت از کیف پول و تمدید"}
+                    </span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* COLLEAGUE PLAN RENEWAL MODAL                                              */}
+      {/* ========================================================================= */}
+      {isColleaguePlanRenewOpen && (
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-md w-full space-y-4 shadow-2xl text-right animate-fade-in my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                  <RefreshCw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">تمدید و شارژ پلن همکاری</h4>
+                  <span className="text-[10px] text-purple-300 font-mono">حساب: {colleagueAccount?.prefix || colleagueAccount?.username}</span>
+                </div>
+              </div>
+              <button onClick={() => { setIsColleaguePlanRenewOpen(false); setRenewColleagueReceiptImage(""); }} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Package Selector */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 block">انتخاب پکیج حجم جهت تمدید:</label>
+              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-0.5">
+                {(colleaguePackages || []).map((pkg: any) => {
+                  const isSelected = (renewColleagueSelectedPkg?.id || colleagueAccount?.packageId) === pkg.id;
+                  return (
+                    <div
+                      key={pkg.id}
+                      onClick={() => setRenewColleagueSelectedPkg(pkg)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex items-center justify-between ${
+                        isSelected
+                          ? "bg-purple-600/20 border-purple-500 shadow-md shadow-purple-950 text-white"
+                          : "bg-slate-950 border-slate-800 text-slate-300 hover:bg-slate-850"
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-xs flex items-center gap-1.5">
+                          <span>{pkg.title}</span>
+                          <span className="text-[10px] bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded-full border border-purple-800/40 font-mono">
+                            {pkg.trafficGb} GB
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                          {pkg.days ? `${pkg.days} روزه` : "نامحدود"} • حداقل ساخت: {pkg.minCreateGb || 5} GB
+                        </div>
+                      </div>
+                      <div className="text-left font-extrabold font-mono text-purple-300 text-xs">
+                        {Number(pkg.price || 0).toLocaleString()} ت
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Price & Balance Info */}
+            {(() => {
+              const activePkg = renewColleagueSelectedPkg || (colleaguePackages || []).find((p: any) => p.id === colleagueAccount?.packageId) || colleaguePackages?.[0];
+              const price = Number(activePkg?.price || 0);
+              const balance = Number(userData?.balance ?? userData?.walletBalance ?? 0);
+              const isFree = isAdmin || isOwner || userRole === "admin" || userRole === "owner";
+              const isInsufficient = !isFree && renewColleaguePaymentMethod === "wallet" && balance < price && price > 0;
+
+              return (
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800/80 space-y-2 text-xs">
+                  <div className="flex justify-between text-slate-400">
+                    <span>افزایش حجم سهمیه پکیج:</span>
+                    <span className="font-bold text-emerald-400 font-mono">+{activePkg?.trafficGb || 0} GB</span>
+                  </div>
+                  <div className="flex justify-between text-slate-300 pt-1 border-t border-slate-900">
+                    <span className="font-bold">مبلغ فاکتور تمدید پلن:</span>
+                    <span className="font-extrabold text-amber-400 text-sm font-mono">
+                      {isFree ? "رایگان (مدیر)" : `${price.toLocaleString()} تومان`}
+                    </span>
+                  </div>
+
+                  {/* Payment Method Selector */}
+                  {!isFree && (
+                    <div className="pt-2 border-t border-slate-900 space-y-2">
+                      <label className="text-[11px] font-bold text-slate-400 block">انتخاب روش پرداخت:</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setRenewColleaguePaymentMethod("wallet")}
+                          className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                            renewColleaguePaymentMethod === "wallet"
+                              ? "bg-purple-500/20 border-purple-500/60 text-purple-200 shadow-md shadow-purple-950"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+                          }`}
+                        >
+                          <Wallet className="w-4 h-4 text-purple-400" />
+                          <span className="text-xs font-bold">کیف پول</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{balance.toLocaleString()} ت</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRenewColleaguePaymentMethod("card_to_card")}
+                          className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                            renewColleaguePaymentMethod === "card_to_card"
+                              ? "bg-emerald-500/20 border-emerald-500/60 text-emerald-200 shadow-md shadow-emerald-950"
+                              : "bg-slate-900 border-slate-800 text-slate-400 hover:bg-slate-800"
+                          }`}
+                        >
+                          <CreditCard className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs font-bold">کارت به کارت</span>
+                          <span className="text-[10px] text-slate-400">ارسال فیش واریزی</span>
+                        </button>
+                      </div>
+
+                      {/* Wallet Balance Check */}
+                      {renewColleaguePaymentMethod === "wallet" && isInsufficient && (
+                        <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-2.5 text-rose-300 text-[11px] flex items-center justify-between mt-2">
+                          <span>⚠️ موجودی کیف پول کمتر از مبلغ پلن است</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsColleaguePlanRenewOpen(false);
+                              setActiveTab("wallet");
+                            }}
+                            className="bg-rose-600 hover:bg-rose-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow-md shadow-rose-600/30"
+                          >
+                            شارژ کیف پول
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Card-to-Card Info & Upload */}
+                      {renewColleaguePaymentMethod === "card_to_card" && (
+                        <div className="mt-2 space-y-2.5 bg-slate-900/90 border border-emerald-500/30 rounded-2xl p-3 shadow-lg">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                              <CreditCard className="w-4 h-4 text-emerald-400" />
+                              <span>اطلاعات کارت جهت واریز تمدید پلن:</span>
+                            </span>
+                          </div>
+
+                          {effectiveCards.length > 0 ? (
+                            <div className="space-y-2">
+                              {effectiveCards.map((c, idx) => (
+                                <div key={idx} className="bg-slate-950/90 p-3 rounded-xl border border-emerald-900/40 space-y-1.5 text-xs shadow-inner">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                                      <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                                      <span>{c.bank || "کارت بانکی مقصد"}</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(c.number.replace(/\s+/g, ""), `renew-plan-card-${idx}`)}
+                                      className="text-[10px] bg-emerald-950/80 hover:bg-emerald-900/80 text-emerald-300 px-2.5 py-1 rounded-lg border border-emerald-700/50 flex items-center gap-1 font-mono transition-all font-bold"
+                                    >
+                                      {copiedId === `renew-plan-card-${idx}` ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                          <span className="text-emerald-400">کپی شد</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3 text-emerald-400" />
+                                          <span>کپی شماره کارت</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                  <div className="flex justify-between items-center pt-0.5">
+                                    <span className="text-slate-400 text-[11px]">شماره کارت:</span>
+                                    <span className="font-mono text-emerald-300 font-bold text-sm tracking-widest" dir="ltr">
+                                      {c.number}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-slate-400 text-[11px]">به نام:</span>
+                                    <span className="text-slate-200 font-bold text-xs">{c.holder || "مدیریت سرور"}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-400 text-center py-2 bg-slate-950/60 rounded-xl">
+                              شماره کارتی در سیستم تنظیم نشده است. لطفاً با پشتیبانی در ارتباط باشید.
+                            </div>
+                          )}
+
+                          {/* Upload Receipt */}
+                          <div className="pt-1.5">
+                            <label className="text-[11px] font-bold text-slate-300 block mb-1">تصویر فیش یا رسید واریز:</label>
+                            {renewColleagueReceiptImage ? (
+                              <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 max-h-36 bg-black flex items-center justify-center">
+                                <img src={renewColleagueReceiptImage} alt="Receipt" className="object-contain max-h-36 w-full" />
+                                <button
+                                  type="button"
+                                  onClick={() => setRenewColleagueReceiptImage("")}
+                                  className="absolute top-1 left-1 bg-rose-600/90 text-white p-1 rounded-lg text-[10px] flex items-center gap-1 hover:bg-rose-500"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>حذف</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <label className="border-2 border-dashed border-slate-700 hover:border-emerald-500/60 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-slate-950/60 hover:bg-slate-950 transition-all">
+                                <Upload className="w-5 h-5 text-emerald-400" />
+                                <span className="text-[11px] text-slate-300 font-bold">انتخاب عکس فیش از گالری</span>
+                                <span className="text-[9px] text-slate-500">PNG, JPG یا JPEG تا ۱۵ مگابایت</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      processImageFile(file, (b64) => setRenewColleagueReceiptImage(b64));
+                                    }
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Submit & Cancel Buttons */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setIsColleaguePlanRenewOpen(false); setRenewColleagueReceiptImage(""); }}
+                disabled={renewingColleaguePlan}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl font-bold text-xs transition-colors"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleRenewColleaguePlan}
+                disabled={renewingColleaguePlan}
+                className="flex-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-purple-600/30 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {renewingColleaguePlan ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>در حال ثبت...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5" />
+                    <span>
+                      {isAdmin || isOwner || userRole === "admin" || userRole === "owner"
+                        ? "تمدید ویژه مدیر"
+                        : renewColleaguePaymentMethod === "card_to_card"
+                        ? "ارسال فیش و تمدید پلن"
                         : "پرداخت از کیف پول و تمدید"}
                     </span>
                   </>

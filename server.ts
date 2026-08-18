@@ -590,8 +590,15 @@ function normalizeDbRecords(db: any) {
   return db;
 }
 
+// In-memory cache for ultra-fast response times across MiniApp and Dashboard
+let memoryDbCache: DbSchema | null = null;
+let memoryDbCacheTimestamp = 0;
+
 // Function to read JSON Database, seeding with default templates if not found
-function readSqliteDb(): DbSchema {
+function readSqliteDb(forceFresh: boolean = false): DbSchema {
+  if (!forceFresh && memoryDbCache && (Date.now() - memoryDbCacheTimestamp < 1000)) {
+    return memoryDbCache;
+  }
   try {
     const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
     
@@ -719,6 +726,8 @@ function readSqliteDb(): DbSchema {
     }
 
     normalizeDbRecords(db);
+    memoryDbCache = db as DbSchema;
+    memoryDbCacheTimestamp = Date.now();
     return db as DbSchema;
   } catch (err) {
     console.error(
@@ -833,6 +842,8 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
   }
 
   try {
+    memoryDbCache = data;
+    memoryDbCacheTimestamp = Date.now();
     const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
     const transaction = sqliteDb.transaction((obj: any) => {
       if (isRestore) {
@@ -939,6 +950,7 @@ function getSystemSettings(db?: any) {
     miniAppUrl: "",
     hideBtnMiniApp: false,
     miniAppSplashLogo: "",
+    miniAppSplashEnabled: true,
     gatewayStarsStatus: false,
     autoWarningConfigBtn: false,
     autoWarningNoConnectionBtn: false,
@@ -8438,7 +8450,7 @@ app.post("/api/subscription-keys/delete-expired", async (req, res) => {
 
 app.post("/api/subscription-keys/renew", async (req, res) => {
   try {
-    const { id, addGb, addDays, userId, paymentMethod = "wallet", receiptImage = "" } = req.body;
+    const { id, addGb, addDays, userId, paymentMethod = "wallet", receiptImage = "", isColleague, colleagueAccountId } = req.body;
     const db = readSqliteDb();
 
     const key = (db.subscription_keys || []).find((k: any) => String(k.id) === String(id) || String(k.clientUuid) === String(id));
@@ -8456,11 +8468,134 @@ app.post("/api/subscription-keys/renew", async (req, res) => {
       return res.status(400).json({ success: false, error: "حجم یا مدت زمان تمدید باید مشخص شود." });
     }
 
+    const effectiveUserId = userId || key.userId;
+
+    // Check if this key belongs to a colleague account
+    let colAcc: any = null;
+    if (colleagueAccountId) {
+      colAcc = (db.colleague_accounts || []).find((a: any) => String(a.id) === String(colleagueAccountId));
+    }
+    if (!colAcc && key.colleagueAccountId) {
+      colAcc = (db.colleague_accounts || []).find((a: any) => String(a.id) === String(key.colleagueAccountId));
+    }
+    if (!colAcc) {
+      colAcc = (db.colleague_accounts || []).find((a: any) => isKeyForColleague(key, a));
+    }
+    if (!colAcc && isColleague && effectiveUserId) {
+      colAcc = (db.colleague_accounts || []).find((a: any) => Number(a.userId) === Number(effectiveUserId));
+    }
+
+    // =========================================================================
+    // 1. COLLEAGUE CONFIG RENEWAL (DEDUCT FROM COLLEAGUE TRAFFIC QUOTA DIRECTLY)
+    // =========================================================================
+    if (colAcc) {
+      const colKeys = (db.subscription_keys || []).filter((k: any) => isKeyForColleague(k, colAcc));
+      const totalPkgGb = Number(colAcc.trafficGb || 0);
+      const sumActiveLimits = colKeys.reduce((sum: number, k: any) => sum + Number(k.trafficLimitGb || 0), 0);
+      const allocatedGb = Number((sumActiveLimits + (colAcc.deletedTrafficGb || 0)).toFixed(2));
+      const remainingGb = Math.max(0, totalPkgGb - allocatedGb);
+
+      if (numGb > remainingGb) {
+        return res.status(400).json({
+          success: false,
+          error: `حجم درخواستی (${numGb} GB) بیشتر از سهمیه باقیمانده بسته همکاری شما (${remainingGb.toFixed(1)} GB) است. لطفاً ابتدا پلن همکاری خود را شارژ یا تمدید نمایید.`
+        });
+      }
+
+      // Calculate new expiration date
+      let expDt: Date;
+      try {
+        expDt = new Date(key.expireDate);
+        if (isNaN(expDt.getTime()) || expDt.getTime() < Date.now()) {
+          expDt = new Date();
+        }
+      } catch {
+        expDt = new Date();
+      }
+
+      expDt.setDate(expDt.getDate() + numDays);
+      const new_expire_date_str = expDt.toISOString().split("T")[0];
+      const new_limit_gb = Number(key.trafficLimitGb || 0) + numGb;
+
+      // Extend on VPN panel
+      const addResult = await extendVpnClientApi(
+        clientName,
+        numGb,
+        numDays,
+        key.clientUuid,
+        key.serverId,
+        key.subLink
+      );
+
+      if (!addResult.success) {
+        console.warn("[Colleague Renew API] Client not found on panel during extend, recreating client on panel:", addResult.error);
+        const vpnResult = await addVpnClientApi(
+          clientName,
+          numGb,
+          numDays,
+          settings,
+          undefined,
+          key.serverId
+        );
+        if (vpnResult.success && vpnResult.subLink) {
+          key.clientUuid = vpnResult.clientUuid || key.clientUuid;
+          key.subLink = vpnResult.subLink;
+          key.vlessConfigs = vpnResult.vlessConfigs || [];
+          key.vlessLinks = vpnResult.vlessLinks || [];
+          key.trafficLimitGb = numGb;
+          key.trafficUsedGb = 0;
+        }
+      }
+
+      // Update locally
+      key.expireDate = new_expire_date_str;
+      key.trafficLimitGb = new_limit_gb;
+      key.status = "active";
+      key.disabled = false;
+      key.colleagueAccountId = colAcc.id;
+
+      // Recalculate Colleague Account usedTrafficGb
+      const updatedColKeys = (db.subscription_keys || []).filter((k: any) => isKeyForColleague(k, colAcc));
+      const newSumActiveLimits = updatedColKeys.reduce((sum: number, k: any) => sum + Number(k.trafficLimitGb || 0), 0);
+      colAcc.usedTrafficGb = Number((newSumActiveLimits + (colAcc.deletedTrafficGb || 0)).toFixed(2));
+
+      writeSqliteDb(db);
+
+      const srvName = getServerRemark(key.serverId, settings, db, key.subLink);
+      const srvDisplay = `👥 ${srvName}`;
+      const shamsiExpDate = formatShamsiDate(expDt, false);
+
+      try {
+        const adminMsg =
+          `🔄 <b>[تمدید کانفیگ همکار - کسر از سهمیه]</b>\n\n` +
+          `👤 <b>همکار:</b> ${colAcc.prefix || colAcc.username}\n` +
+          `📦 <b>سرویس:</b> <code>${clientName}</code>\n` +
+          `🌐 <b>سرور:</b> ${srvDisplay}\n` +
+          `➕ <b>افزایش حجم:</b> +${numGb} GB (مجموع: ${new_limit_gb} GB)\n` +
+          `➕ <b>افزایش مدت:</b> +${numDays} روز\n` +
+          `📅 <b>تاریخ انقضای جدید:</b> ${shamsiExpDate}\n` +
+          `📊 <b>سهمیه باقیمانده همکار:</b> ${(remainingGb - numGb).toFixed(1)} GB\n` +
+          `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
+        sendAdminNotification(adminMsg, settings).catch(() => {});
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        isColleagueRenew: true,
+        remainingTrafficGb: Math.max(0, remainingGb - numGb),
+        message: `کانفیگ با موفقیت تمدید شد و ${numGb} گیگابایت از سهمیه بسته همکاری کسر گردید.`,
+        key,
+        colleagueAccount: colAcc,
+      });
+    }
+
+    // =========================================================================
+    // 2. REGULAR USER CONFIG RENEWAL (WALLET OR CARD-TO-CARD PAYMENT)
+    // =========================================================================
     // Calculate price using custom pricing configured in the bot/panel
     const pricing = calculateCustomPlanPrice(numGb, numDays, key.serverId, settings);
     const renewCost = pricing.price;
 
-    const effectiveUserId = userId || key.userId;
     const user = (db.users || []).find((u: any) => Number(u.userId) === Number(effectiveUserId) || Number(u.id) === Number(effectiveUserId));
 
     const ownerId = Number(settings.ownerId || settings.adminId || 0);
@@ -8790,99 +8925,6 @@ app.post("/api/subscription-keys/toggle", async (req, res) => {
 
     res.json({ success: true, status: newStatus, key: keyToToggle });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Delete subscription key permanently from panel and database
-app.post("/api/subscription-keys/delete", async (req, res) => {
-  try {
-    const { id, userId, clientName, clientUuid, serverId } = req.body;
-    const db = readSqliteDb();
-
-    if (!Array.isArray(db.subscription_keys)) {
-      db.subscription_keys = [];
-    }
-
-    const keyIndex = db.subscription_keys.findIndex(
-      (k: any) =>
-        String(k.id) === String(id) ||
-        (clientUuid && String(k.clientUuid) === String(clientUuid)) ||
-        (id && String(k.clientUuid) === String(id))
-    );
-
-    const targetKey = keyIndex >= 0 ? db.subscription_keys[keyIndex] : null;
-
-    const emailToDelete = clientName || targetKey?.clientName || targetKey?.clientEmail || targetKey?.planName || "";
-    const uuidToDelete = clientUuid || targetKey?.clientUuid || (typeof id === "string" && id.includes("-") ? id : undefined);
-    const targetServerId = serverId || targetKey?.serverId;
-
-    // Delete from VPN Panel
-    if (emailToDelete || uuidToDelete) {
-      try {
-        await deleteVpnClientApi(emailToDelete, uuidToDelete, targetServerId);
-      } catch (err: any) {
-        console.warn("[Delete VPN Client API Error]:", err?.message);
-      }
-    }
-
-    // Colleague account quota adjustment if applicable
-    if (targetKey) {
-      const colAccounts = db.colleague_accounts || [];
-      for (const colAcc of colAccounts) {
-        if (isKeyForColleague(targetKey, colAcc)) {
-          colAcc.deletedTrafficGb = Number(colAcc.deletedTrafficGb || 0) + Number(targetKey.trafficLimitGb || 0);
-          colAcc.deletedRealTrafficGb = Number(colAcc.deletedRealTrafficGb || 0) + Number(targetKey.trafficUsedGb || 0);
-        }
-      }
-    }
-
-    // Remove from subscription_keys
-    if (keyIndex >= 0) {
-      db.subscription_keys.splice(keyIndex, 1);
-    } else if (id || clientUuid) {
-      db.subscription_keys = db.subscription_keys.filter(
-        (k: any) => String(k.id) !== String(id) && String(k.clientUuid) !== String(clientUuid) && String(k.clientUuid) !== String(id)
-      );
-    }
-
-    // Update user active plans count and configs list
-    const effectiveUserId = userId || targetKey?.userId;
-    if (effectiveUserId) {
-      const user = (db.users || []).find((u: any) => Number(u.userId) === Number(effectiveUserId) || Number(u.id) === Number(effectiveUserId));
-      if (user) {
-        user.activePlansCount = db.subscription_keys.filter(
-          (k: any) => (Number(k.userId) === Number(effectiveUserId) || Number(k.user_id) === Number(effectiveUserId)) && k.status === "active"
-        ).length;
-        if (Array.isArray(user.configs)) {
-          user.configs = user.configs.filter(
-            (c: any) => String(c.id) !== String(id) && String(c.uuid) !== String(uuidToDelete)
-          );
-        }
-      }
-    }
-
-    try {
-      const settings = getSystemSettings(db);
-      const srvDisplay = getServerDisplayForNotification(targetServerId, settings, db, targetKey?.subLink);
-      const userInfoText = getUserDisplayInfo(effectiveUserId, emailToDelete, db);
-      const uuidText = uuidToDelete || "نامشخص";
-      const deleteMsg =
-        `🗑️ <b>[اعلان حذف کانفیگ]</b>\n\n` +
-        `${userInfoText}\n` +
-        `🌐 <b>سرور:</b> ${srvDisplay}\n` +
-        `🔑 <b>شناسه (UUID):</b> <code>${uuidText}</code>\n` +
-        `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
-      sendAdminNotification(deleteMsg, settings).catch(() => {});
-    } catch (e) {
-      console.error("[delete key notify error 2]", e);
-    }
-
-    writeSqliteDb(db);
-
-    res.json({ success: true, message: "اشتراک با موفقیت حذف گردید." });
-  } catch (error: any) {
-    console.error("[/api/subscription-keys/delete error]:", error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -9821,7 +9863,9 @@ app.get("/api/miniapp/data", async (req, res) => {
           cardNumbers: getEffectiveCardDetails(settings).cardNumbers,
           channelUsername: settings.channelUsername || "",
           supportUsername: settings.supportUsername || settings.channelUsername || "",
-          panelType: settings.panelType || "sanaei"
+          panelType: settings.panelType || "sanaei",
+          miniAppSplashLogo: settings.miniAppSplashLogo || "",
+          miniAppSplashEnabled: settings.miniAppSplashEnabled !== false
         },
         subscriptions: userSubs,
         tickets: userTickets,
@@ -10211,6 +10255,160 @@ app.post("/api/miniapp/colleague/buy-package", async (req, res) => {
     return res.status(400).json({ success: false, error: "روش پرداخت نامعتبر است." });
   } catch (err: any) {
     console.error("[Buy Colleague Package Error]", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Colleague Plan Renewal Endpoint (Invoice & Payment via Wallet or Card-to-Card)
+app.post("/api/miniapp/colleague/renew-plan", async (req, res) => {
+  try {
+    const {
+      userId,
+      username,
+      accountId,
+      packageId,
+      paymentMethod = "wallet",
+      receiptImage = ""
+    } = req.body;
+
+    if (!userId || Number(userId) <= 0) {
+      return res.status(400).json({ success: false, error: "شناسه کاربری تلگرام الزامی است." });
+    }
+    if (!packageId) {
+      return res.status(400).json({ success: false, error: "شناسه بسته همکار الزامی است." });
+    }
+
+    const tgId = Number(userId);
+    const db = readSqliteDb();
+    const settings = getSystemSettings(db);
+
+    const packages = db.colleague_packages || [];
+    const pkg = packages.find((p: any) => String(p.id) === String(packageId));
+    if (!pkg) {
+      return res.status(404).json({ success: false, error: "بسته همکار مورد نظر یافت نشد." });
+    }
+
+    let colAcc = (db.colleague_accounts || []).find(
+      (a: any) => String(a.id) === String(accountId) || (Number(a.userId) === tgId)
+    );
+    if (!colAcc) {
+      return res.status(404).json({ success: false, error: "حساب همکار یافت نشد." });
+    }
+
+    let user = (db.users || []).find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
+    if (!user) {
+      user = { id: tgId, userId: tgId, username: username || `user_${tgId}`, walletBalance: 0, status: "active" };
+      if (!Array.isArray(db.users)) db.users = [];
+      db.users.push(user);
+    }
+
+    const roleCheck = checkUserRoleAndAdmin(tgId, username, settings, db);
+    const isAdmin = roleCheck.isAdmin;
+    const isFreeAdmin = isAdmin && (paymentMethod === "admin_free" || paymentMethod === "wallet");
+    const finalPrice = isFreeAdmin ? 0 : Number(pkg.price || 0);
+
+    // ==========================================
+    // PAYMENT METHOD 1: WALLET / ADMIN FREE
+    // ==========================================
+    if (paymentMethod === "wallet" || isFreeAdmin || paymentMethod === "admin_free") {
+      const userBalance = Number(user.walletBalance || user.wallet_balance || user.balance || 0);
+      if (!isFreeAdmin && userBalance < finalPrice) {
+        return res.status(400).json({
+          success: false,
+          error: `موجودی کیف پول شما کافی نیست. موجودی: ${userBalance.toLocaleString("fa-IR")} تومان | هزینه تمدید پلن: ${finalPrice.toLocaleString("fa-IR")} تومان`
+        });
+      }
+
+      if (!isFreeAdmin) {
+        user.walletBalance = userBalance - finalPrice;
+        user.wallet_balance = user.walletBalance;
+        user.balance = user.walletBalance;
+      }
+
+      const addedGb = Number(pkg.trafficGb || pkg.traffic_gb || 0);
+      colAcc.trafficGb = Number(colAcc.trafficGb || 0) + addedGb;
+      colAcc.packageTitle = pkg.title || pkg.name || colAcc.packageTitle;
+
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx = {
+        id: "TX-COL-RENEW-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        status: "approved",
+        type: "colleague_package_renew",
+        planId: `COL_RENEW:${pkg.id}`,
+        clientName: colAcc.id,
+        date: new Date().toISOString(),
+        description: `تمدید / شارژ پلن همکاری (+${addedGb} GB) - ${colAcc.prefix || colAcc.username}`
+      };
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      try {
+        const renewMsg =
+          `🔄 <b>[تمدید پلن همکاری - پرداخت از کیف پول]</b>\n\n` +
+          `👤 <b>همکار:</b> ${colAcc.prefix || colAcc.username} (<code>${tgId}</code>)\n` +
+          `📦 <b>بسته خریداری شده:</b> ${pkg.title} (+${addedGb} GB)\n` +
+          `📊 <b>سهمیه کل جدید:</b> ${colAcc.trafficGb} GB\n` +
+          `💰 <b>مبلغ پرداختی:</b> ${finalPrice.toLocaleString("fa-IR")} تومان\n` +
+          `⏱ <b>زمان:</b> ${formatShamsiDate(new Date(), true)}`;
+        sendAdminNotification(renewMsg, settings).catch(() => {});
+      } catch (e) {}
+
+      return res.json({
+        success: true,
+        message: `پلن همکاری با موفقیت تمدید شد و ${addedGb} گیگابایت به حجم سهمیه شما اضافه گردید.`,
+        colleagueAccount: colAcc,
+        walletBalance: user.walletBalance
+      });
+    }
+
+    // ==========================================
+    // PAYMENT METHOD 2: CARD TO CARD RECEIPT
+    // ==========================================
+    if (paymentMethod === "card_to_card") {
+      if (!receiptImage || !String(receiptImage).trim()) {
+        return res.status(400).json({ success: false, error: "تصویر رسید واریز الزامی است." });
+      }
+
+      if (!Array.isArray(db.transactions)) db.transactions = [];
+      const newTx: any = {
+        id: "TX-COL-RENEW-" + Date.now() + "-" + Math.floor(Math.random() * 9000 + 1000),
+        userId: tgId,
+        username: user.username || username || `user_${tgId}`,
+        amount: finalPrice,
+        receiptImage: receiptImage || "",
+        status: "pending",
+        type: "PLAN_PURCHASE",
+        planId: `COL_RENEW:${pkg.id}`,
+        clientName: colAcc.id,
+        date: new Date().toISOString(),
+        description: `تمدید پلن همکاری ${pkg.title || pkg.name} (+${pkg.trafficGb} GB) - ${colAcc.prefix || colAcc.username}`,
+        pendingPurchase: {
+          planName: `تمدید پلن همکاری ${pkg.title || pkg.name}`,
+          packageId: pkg.id,
+          colleagueAccountId: colAcc.id,
+          finalPrice,
+          trafficGb: pkg.trafficGb
+        }
+      };
+      db.transactions.push(newTx);
+      writeSqliteDb(db);
+
+      notifyAdminsOnNewReceipt(newTx, db, settings).catch(() => {});
+
+      return res.json({
+        success: true,
+        pendingApproval: true,
+        transactionId: newTx.id,
+        message: "رسید تمدید پلن همکاری با موفقیت ثبت شد و پس از تایید مدیریت، سهمیه به حسابتان اضافه خواهد شد."
+      });
+    }
+
+    return res.status(400).json({ success: false, error: "روش پرداخت نامعتبر است." });
+  } catch (err: any) {
+    console.error("[Renew Colleague Plan Error]", err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

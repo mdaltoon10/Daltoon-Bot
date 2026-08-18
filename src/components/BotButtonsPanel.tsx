@@ -33,6 +33,8 @@ import {
   Layers,
   Eye,
   Upload,
+  ToggleLeft,
+  ToggleRight,
 } from "lucide-react";
 
 interface BotButtonsPanelProps {
@@ -211,6 +213,9 @@ export default function BotButtonsPanel({
   const [miniAppSplashLogo, setMiniAppSplashLogo] = useState(
     settings.miniAppSplashLogo || "",
   );
+  const [miniAppSplashEnabled, setMiniAppSplashEnabled] = useState(
+    settings.miniAppSplashEnabled !== false,
+  );
 
   const [keyboardLayout, setKeyboardLayout] = useState<
     "horizontal" | "vertical" | "stepped"
@@ -293,6 +298,7 @@ export default function BotButtonsPanel({
     if (settings.miniAppUrl !== undefined) setMiniAppUrl(settings.miniAppUrl || "");
     if (settings.hideBtnMiniApp !== undefined) setHideBtnMiniApp(!!settings.hideBtnMiniApp);
     if (settings.miniAppSplashLogo !== undefined) setMiniAppSplashLogo(settings.miniAppSplashLogo || "");
+    if (settings.miniAppSplashEnabled !== undefined) setMiniAppSplashEnabled(settings.miniAppSplashEnabled !== false);
     if (settings.keyboardLayout !== undefined) setKeyboardLayout(settings.keyboardLayout || "stepped");
     if (settings.guidesText !== undefined) setGuidesText(settings.guidesText || "");
     if (settings.guideVideoHapp !== undefined) setGuideVideoHapp(settings.guideVideoHapp || "");
@@ -709,6 +715,7 @@ export default function BotButtonsPanel({
       miniAppUrl,
       hideBtnMiniApp,
       miniAppSplashLogo,
+      miniAppSplashEnabled,
       hideBtnBuyNew,
       hideBtnMySubs,
       hideBtnGuides,
@@ -754,6 +761,7 @@ export default function BotButtonsPanel({
     if (typeof localStorage !== "undefined") {
       try {
         localStorage.setItem("daltoon_mini_app_splash_logo", miniAppSplashLogo || "");
+        localStorage.setItem("daltoon_mini_app_splash_enabled", String(miniAppSplashEnabled));
       } catch (e) {}
     }
     onSaveSettings(getPayload());
@@ -1397,79 +1405,150 @@ export default function BotButtonsPanel({
                 )}
 
                 {/* Splash Screen Logo Upload & Input for MiniApp */}
-                <div className="bg-[#0b101d] border border-purple-500/30 p-4 rounded-xl space-y-3 mt-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-semibold text-purple-300 flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4 text-purple-400" />
-                      <span>{translateText("Mini App Loading Splash Logo", "🖼️ تصویر / لوگوی صفحه لودینگ مینی اپ", lang)}</span>
-                    </label>
-                    {miniAppSplashLogo && (
-                      <button
-                        type="button"
-                        onClick={() => setMiniAppSplashLogo("")}
-                        className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition cursor-pointer"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                        <span>{translateText("Restore Default Logo", "حذف و بازگردانی به عکس پیش‌فرض", lang)}</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <p className="text-xs text-gray-400 leading-relaxed">
-                    {translateText(
-                      "Upload or paste an image URL to display during the initial loading screen of the Mini App. If left empty, the project default logo (/icon.svg) will be displayed.",
-                      "لینک تصویر یا لوگوی دلخواه خود را قرار دهید یا فایلی آپلود کنید تا هنگام لود شدن مینی اپ نمایش داده شود. در صورت خالی بودن، لوگوی پیش‌فرض پروژه (/icon.svg) نمایش داده می‌شود.",
-                      lang
-                    )}
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                    <div className="flex-1 w-full">
-                      <input
-                        type="text"
-                        placeholder="https://example.com/logo.png یا آپلود تصویر از کلید روبرو..."
-                        className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-purple-200 font-mono focus:ring-1 focus:ring-purple-500"
-                        value={miniAppSplashLogo}
-                        onChange={(e) => setMiniAppSplashLogo(e.target.value)}
-                      />
+                <div className="bg-[#0b101d] border border-purple-500/30 p-4 rounded-xl space-y-4 mt-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#111827]/70 p-3 rounded-xl border border-gray-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-400">
+                        <ImageIcon className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-white block">
+                          {translateText("Mini App Loading Splash Logo", "🖼️ عکس پیش‌نمایش / لودینگ مینی‌اپ", lang)}
+                        </label>
+                        <span className="text-[11px] text-gray-400 block mt-0.5">
+                          {miniAppSplashEnabled
+                            ? translateText("Custom splash image is active", "عکس اختصاصی مینی‌اپ فعال است", lang)
+                            : translateText("Default dashboard image is used", "عکس پیش‌فرض داشبورد نمایش داده می‌شود", lang)}
+                        </span>
+                      </div>
                     </div>
 
-                    <label className="px-3.5 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shrink-0">
-                      <Upload className="w-4 h-4" />
-                      <span>{translateText("Upload Image", "آپلود تصویر", lang)}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onload = (ev) => {
-                              if (ev.target?.result) {
-                                setMiniAppSplashLogo(String(ev.target.result));
-                              }
-                            };
-                            reader.readAsDataURL(file);
+                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                      {/* Switch Toggle Button */}
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={miniAppSplashEnabled}
+                        dir="ltr"
+                        onClick={() => {
+                          const nextVal = !miniAppSplashEnabled;
+                          setMiniAppSplashEnabled(nextVal);
+                          if (typeof localStorage !== "undefined") {
+                            try {
+                              localStorage.setItem("daltoon_mini_app_splash_enabled", String(nextVal));
+                            } catch (e) {}
                           }
                         }}
-                      />
-                    </label>
+                        className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          miniAppSplashEnabled
+                            ? "bg-emerald-500 shadow-md shadow-emerald-950/40"
+                            : "bg-gray-700 hover:bg-gray-650"
+                        }`}
+                      >
+                        <span className="sr-only">تغییر وضعیت عکس مینی اپ</span>
+                        <span
+                          className={`pointer-events-none inline-flex h-6 w-6 transform items-center justify-center rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            miniAppSplashEnabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        >
+                          {miniAppSplashEnabled ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                          ) : (
+                            <Power className="w-3 h-3 text-gray-400" />
+                          )}
+                        </span>
+                      </button>
+
+                      {miniAppSplashLogo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMiniAppSplashLogo("");
+                            setMiniAppSplashEnabled(false);
+                            if (typeof localStorage !== "undefined") {
+                              try {
+                                localStorage.setItem("daltoon_mini_app_splash_logo", "");
+                                localStorage.setItem("daltoon_mini_app_splash_enabled", "false");
+                              } catch (e) {}
+                            }
+                          }}
+                          className="text-[11px] text-rose-400 hover:text-rose-300 flex items-center gap-1 transition cursor-pointer px-2.5 py-1 rounded-lg hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30"
+                          title={translateText("Restore Default", "حذف و بازگردانی به پیش‌فرض", lang)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{translateText("Restore Default", "حذف", lang)}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
+
+                  <div className="p-2.5 rounded-lg bg-purple-950/20 border border-purple-800/30 text-[11px] text-purple-200/90 leading-relaxed space-y-1">
+                    <p>
+                      {translateText(
+                        "Configure the image shown strictly during Telegram Mini App loading. In case this is disabled or no image is uploaded, the default dashboard image (/icon.svg) will be used automatically.",
+                        "این بخش منحصراً عکس پیش‌نمایش صفحه لودینگ مینی‌اپ را تنظیم می‌کند. در صورت خاموش بودن یا عدم آپلود، به صورت خودکار عکس پیش‌فرض داشبورد (/icon.svg) لود خواهد شد.",
+                        lang
+                      )}
+                    </p>
+                    <p className="text-[10px] text-purple-300/70 font-mono">
+                      {translateText(
+                        "ℹ️ Note: Main Dashboard preview is completely isolated and maintains its own fixed classic preview.",
+                        "ℹ️ نکته: عکس پیش‌نمایش داشبورد همیشه مستقل بوده و تداخلی با عکس مینی‌اپ نخواهد داشت.",
+                        lang
+                      )}
+                    </p>
+                  </div>
+
+                  {miniAppSplashEnabled && (
+                    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center pt-1">
+                      <div className="flex-1 w-full">
+                        <input
+                          type="text"
+                          placeholder="https://example.com/logo.png یا آپلود تصویر از دکمه روبرو..."
+                          className="w-full bg-[#111827] border border-gray-700 rounded-lg p-2.5 text-xs text-purple-200 font-mono focus:ring-1 focus:ring-purple-500"
+                          value={miniAppSplashLogo}
+                          onChange={(e) => setMiniAppSplashLogo(e.target.value)}
+                        />
+                      </div>
+
+                      <label className="px-3.5 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition shrink-0">
+                        <Upload className="w-4 h-4" />
+                        <span>{translateText("Upload Image", "آپلود تصویر", lang)}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (ev) => {
+                                if (ev.target?.result) {
+                                  setMiniAppSplashLogo(String(ev.target.result));
+                                  setMiniAppSplashEnabled(true);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
 
                   {/* Live Preview of Splash Logo */}
                   <div className="pt-2 border-t border-gray-800/80">
                     <span className="text-[11px] font-medium text-gray-400 block mb-2">
-                      {translateText("Live Loading Screen Preview:", "پیش‌نمایش زنده صفحه لودینگ مینی اپ:", lang)}
+                      {translateText("Live Mini App Loading Preview:", "پیش‌نمایش زنده صفحه لودینگ مینی‌اپ:", lang)}
                     </span>
                     <div className="bg-[#0d1117] border border-gray-800 rounded-2xl p-6 flex flex-col items-center justify-center space-y-3 relative overflow-hidden">
                       <div className="relative group">
                         <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 opacity-30 blur-md animate-pulse" />
-                        <div className={`relative ${miniAppSplashLogo.trim() ? "bg-white p-2.5 rounded-2xl shadow-2xl" : ""}`}>
+                        <div className={`relative ${(miniAppSplashEnabled && miniAppSplashLogo.trim()) ? "bg-white p-2.5 rounded-2xl shadow-2xl" : ""}`}>
                           <img
-                            src={miniAppSplashLogo.trim() || "/icon.svg"}
+                            src={(miniAppSplashEnabled && miniAppSplashLogo.trim()) ? miniAppSplashLogo.trim() : "/icon.svg"}
                             alt="Loading Splash Logo Preview"
-                            className={`w-28 h-28 object-contain ${miniAppSplashLogo.trim() ? "rounded-xl" : "rounded-2xl shadow-2xl border border-white/10"}`}
+                            className={`w-28 h-28 object-contain ${(miniAppSplashEnabled && miniAppSplashLogo.trim()) ? "rounded-xl" : "rounded-2xl shadow-2xl border border-white/10"}`}
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = "/icon.svg";
                             }}
@@ -1478,10 +1557,14 @@ export default function BotButtonsPanel({
                       </div>
                       <div className="text-center">
                         <span className="text-xs font-bold text-white tracking-wider font-mono uppercase block mb-1">
-                          {settings.botNickname || "Telegram Daltoon Bot"}
+                          {(miniAppSplashEnabled && miniAppSplashLogo.trim())
+                            ? (settings.botNickname?.trim() || "دالتون")
+                            : "Telegram Daltoon Bot"}
                         </span>
                         <span className="text-[10px] text-gray-400 block">
-                          {miniAppSplashLogo.trim() ? "✨ تصویر سفارشی با پس‌زمینه سفید + نام ربات" : "🖼️ تصویر پیش‌فرض + نام ربات"}
+                          {(miniAppSplashEnabled && miniAppSplashLogo.trim())
+                            ? `✨ پیش‌نمایش با عکس اختصاصی + نام ربات (${settings.botNickname?.trim() || "دالتون"})`
+                            : "🖼️ پیش‌نمایش با عکس پیش‌فرض داشبورد (/icon.svg)"}
                         </span>
                       </div>
                     </div>
