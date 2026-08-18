@@ -430,6 +430,9 @@ def get_all_servers(include_colleague=True):
             })
     return unique
 
+import threading
+db_lock = threading.Lock()
+
 def read_sqlite_db():
     """ Read core database structure from shared SQLite database instead of json file """
     default_db = {
@@ -456,53 +459,61 @@ def read_sqlite_db():
         "logs": []
     }
     
-    try:
-        conn = get_sqlite_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT key, value FROM kv")
-        rows = cursor.fetchall()
-        conn.close()
-        
-        if not rows:
-            return default_db
+    with db_lock:
+        try:
+            conn = get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT key, value FROM kv")
+            rows = cursor.fetchall()
+            conn.close()
             
-        data = {}
-        for row in rows:
-            try:
-                data[row[0]] = json.loads(row[1])
-            except Exception as pe:
-                print(f"[SQLite Parse Error] for key {row[0]}: {pe}")
+            if not rows:
+                return default_db
                 
-        # Ensure all keys exist
-        for key, val in default_db.items():
-            if key not in data:
-                data[key] = val
-                
-        # Deduplicate subscription_keys IDs if duplicates exist
-        sub_keys = data.get("subscription_keys", [])
-        if sub_keys and isinstance(sub_keys, list):
-            seen_ids = set()
-            db_changed = False
-            for k in sub_keys:
-                if not isinstance(k, dict):
-                    continue
-                k_id = str(k.get("id", "")).strip()
-                if not k_id or k_id in seen_ids:
-                    import random, time
-                    new_id = f"SUB-{int(time.time() * 1000)}-{random.randint(10000, 99999)}"
-                    print(f"[DB Deduplication] Reassigned duplicate/empty sub ID '{k_id}' to '{new_id}' for user {k.get('userId')}")
-                    k["id"] = new_id
-                    seen_ids.add(new_id)
-                    db_changed = True
-                else:
-                    seen_ids.add(k_id)
-            if db_changed:
-                write_sqlite_db(data)
+            data = {}
+            for row in rows:
+                try:
+                    data[row[0]] = json.loads(row[1])
+                except Exception as pe:
+                    print(f"[SQLite Parse Error] for key {row[0]}: {pe}")
+                    
+            # Ensure all keys exist
+            for key, val in default_db.items():
+                if key not in data:
+                    data[key] = val
+                    
+            # Deduplicate subscription_keys IDs if duplicates exist
+            sub_keys = data.get("subscription_keys", [])
+            if sub_keys and isinstance(sub_keys, list):
+                seen_ids = set()
+                db_changed = False
+                for k in sub_keys:
+                    if not isinstance(k, dict):
+                        continue
+                    k_id = str(k.get("id", "")).strip()
+                    if not k_id or k_id in seen_ids:
+                        import random, time
+                        new_id = f"SUB-{int(time.time() * 1000)}-{random.randint(10000, 99999)}"
+                        print(f"[DB Deduplication] Reassigned duplicate/empty sub ID '{k_id}' to '{new_id}' for user {k.get('userId')}")
+                        k["id"] = new_id
+                        seen_ids.add(new_id)
+                        db_changed = True
+                    else:
+                        seen_ids.add(k_id)
+                if db_changed:
+                    # Write directly since we're already holding the lock
+                    conn = get_sqlite_conn()
+                    cursor = conn.cursor()
+                    cursor.execute("BEGIN TRANSACTION;")
+                    for key, val in data.items():
+                        cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(val, ensure_ascii=False)))
+                    conn.commit()
+                    conn.close()
 
-        return data
-    except Exception as e:
-        print(f"[SQLite Database Read Error] {e}")
-        return default_db
+            return data
+        except Exception as e:
+            print(f"[SQLite Database Read Error] {e}")
+            return default_db
 
 def write_sqlite_db(data):
     """ Persistence for the shared SQLite database structure with strict safeguards """
@@ -524,33 +535,34 @@ def write_sqlite_db(data):
             
     has_token = bool(panel_cfg.get("botToken") or panel_cfg.get("bot_token") or settings.get("botToken") or settings.get("BOT_TOKEN"))
     
-    try:
-        conn = get_sqlite_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM kv")
-        count = cursor.fetchone()[0]
-        
-        # If database already contains data, but the new 'data' is empty, REFUSE.
-        if count > 0:
-            if not has_users and not has_transactions and not has_plans and not has_token:
-                print("[SQLite Database Write CRITICAL] Refusing to overwrite populated database with empty/reset data structure.")
-                conn.close()
-                return False
-                
-        # Write keys atomically in a single transaction
-        cursor.execute("BEGIN TRANSACTION;")
-        for key, val in data.items():
-            cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(val, ensure_ascii=False)))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"[SQLite Database Write Error] {e}")
+    with db_lock:
         try:
-            conn.rollback()
+            conn = get_sqlite_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM kv")
+            count = cursor.fetchone()[0]
+            
+            # If database already contains data, but the new 'data' is empty, REFUSE.
+            if count > 0:
+                if not has_users and not has_transactions and not has_plans and not has_token:
+                    print("[SQLite Database Write CRITICAL] Refusing to overwrite populated database with empty/reset data structure.")
+                    conn.close()
+                    return False
+                    
+            # Write keys atomically in a single transaction
+            cursor.execute("BEGIN TRANSACTION;")
+            for key, val in data.items():
+                cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, json.dumps(val, ensure_ascii=False)))
+            conn.commit()
             conn.close()
-        except: pass
-        return False
+            return True
+        except Exception as e:
+            print(f"[SQLite Database Write Error] {e}")
+            try:
+                conn.rollback()
+                conn.close()
+            except: pass
+            return False
 
 def is_client_matching_colleague(c_name, acc):
     if not c_name or not acc:
