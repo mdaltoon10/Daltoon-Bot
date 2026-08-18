@@ -1,7 +1,18 @@
 import { translateText, Language, translations } from "../lang/locales";
 import React, { useState } from "react";
-import { ServerConfig, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage } from "../types";
+import { ServerConfig, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage, ConfigDeliveryMode } from "../types";
 import ConfirmationModal from "./ConfirmationModal";
+
+const SEPARATOR_PRESETS = [
+  { label: "🔸 الماس نارنجی (استاندارد)", value: "🔸━━━━━━━━━━━━━━━━━━🔸" },
+  { label: "⚡️ صاعقه نئون", value: "⚡️ ────────────── ⚡️" },
+  { label: "✨ ستاره درخشان", value: "✨➖➖➖➖➖➖➖➖✨" },
+  { label: "💎 الماس کریستال", value: "💎 ════════════════ 💎" },
+  { label: "🌐 شبکه جهانی", value: "🌐 ••••••••••••••••• 🌐" },
+  { label: "🚀 راکت پرسرعت", value: "🚀 ┈┈┈┈┈┈┈┈┈┈┈┈┈┈ 🚀" },
+  { label: "🔥 آتش کلاسیک", value: "🔥 ---------------- 🔥" },
+  { label: "✂️ خط برش", value: "✂️ ┄┄┄┄┄┄┄┄┄┄┄┄┄┄ ✂️" },
+];
 import {
   Cpu,
   RefreshCw,
@@ -114,6 +125,14 @@ export default function MultiServerConfig({
   ]);
   const [showInbounds, setShowInbounds] = useState(true);
 
+  // Custom Delivery State Overrides on a Per-Server level (v4.4.7 compatibility)
+  const [deliveryMode, setDeliveryMode] = useState<"use_default" | "both" | "subscription_only" | "direct_only">("use_default");
+  const [deliveryHeader, setDeliveryHeader] = useState("");
+  const [deliverySubText, setDeliverySubText] = useState("");
+  const [deliveryDirectText, setDeliveryDirectText] = useState("");
+  const [deliverySeparator, setDeliverySeparator] = useState("");
+  const [deliveryFooter, setDeliveryFooter] = useState("");
+
   const AVAILABLE_PAYMENT_METHODS = [
     { id: "wallet", name: "کیف پول (موجودی حساب)", icon: "💳", desc: "پرداخت آنی از موجودی کیف پول کاربر" },
     { id: "card_to_card", name: "کارت به کارت", icon: "💳", desc: "ارسال تصویر رسید و تایید دستی توسط مدیریت" },
@@ -145,6 +164,12 @@ export default function MultiServerConfig({
       "heleket",
       "stars",
     ]);
+    setDeliveryMode("use_default");
+    setDeliveryHeader("");
+    setDeliverySubText("");
+    setDeliveryDirectText("");
+    setDeliverySeparator("");
+    setDeliveryFooter("");
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(null);
     setShowForm(true);
@@ -168,6 +193,12 @@ export default function MultiServerConfig({
         ? s.allowedPaymentMethods
         : ["wallet", "card_to_card", "plisio", "nowpayments", "cryptomus", "heleket", "stars"]
     );
+    setDeliveryMode(s.deliveryMode || "use_default");
+    setDeliveryHeader(s.deliveryHeader || "");
+    setDeliverySubText(s.deliverySubText || "");
+    setDeliveryDirectText(s.deliveryDirectText || "");
+    setDeliverySeparator(s.deliverySeparator || "");
+    setDeliveryFooter(s.deliveryFooter || "");
     setInbounds([]); // We don't have the old list, need to re-test to fetch them or just let them stay as ids.
     setTestStatus({ type: "idle", message: "" });
     setEditingIndex(index);
@@ -270,6 +301,12 @@ export default function MultiServerConfig({
       activeInboundIds: checkedInboundIds,
       planCategories: checkedPlanCategories,
       allowedPaymentMethods: allowedPaymentMethods,
+      deliveryMode: deliveryMode === "use_default" ? undefined : (deliveryMode as any),
+      deliveryHeader: deliveryHeader.trim() || undefined,
+      deliverySubText: deliverySubText.trim() || undefined,
+      deliveryDirectText: deliveryDirectText.trim() || undefined,
+      deliverySeparator: deliverySeparator.trim() || undefined,
+      deliveryFooter: deliveryFooter.trim() || undefined,
       status: "active",
     };
 
@@ -692,6 +729,191 @@ export default function MultiServerConfig({
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Custom Server Delivery Settings Section */}
+          <div className="border border-purple-500/20 rounded-xl bg-slate-950/40 p-4 mt-4 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800/80 pb-2.5">
+              <div>
+                <h4 className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                  <span>📬</span>
+                  <span>{translateText("Custom Config Delivery for this server (Optional):", "تنظیمات تحویل اختصاصی این سرور (اختیاری):", lang)}</span>
+                </h4>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  {translateText(
+                    "Override the global bot delivery settings for users purchasing from this server.",
+                    "می‌توانید قالب ارسال و متون تحویل را فقط برای خریداران این سرور شخصی‌سازی کنید تا تنظیمات کل ربات را نادیده بگیرد.",
+                    lang
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* Delivery Mode Option */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-gray-300 mb-2 font-bold">
+                  {translateText("Delivery Format Override:", "نحوه تحویل برای این سرور:", lang)}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                    deliveryMode === "use_default"
+                      ? "bg-purple-950/20 border-purple-500/50"
+                      : "bg-[#111827]/60 border-gray-800/80"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="srvDeliveryMode"
+                      checked={deliveryMode === "use_default"}
+                      onChange={() => setDeliveryMode("use_default")}
+                      className="text-purple-500 focus:ring-purple-500 bg-gray-950"
+                    />
+                    <div className="text-xs">
+                      <div className="font-bold text-white">{translateText("Use Global Default", "استفاده از تنظیمات پیش‌فرض کل ربات", lang)}</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                    deliveryMode === "both"
+                      ? "bg-purple-950/20 border-purple-500/50"
+                      : "bg-[#111827]/60 border-gray-800/80"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="srvDeliveryMode"
+                      checked={deliveryMode === "both"}
+                      onChange={() => setDeliveryMode("both")}
+                      className="text-purple-500 focus:ring-purple-500 bg-gray-950"
+                    />
+                    <div className="text-xs">
+                      <div className="font-bold text-white">{translateText("Subscription + Direct", "سابسکریپشن + مستقیم", lang)}</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                    deliveryMode === "subscription_only"
+                      ? "bg-purple-950/20 border-purple-500/50"
+                      : "bg-[#111827]/60 border-gray-800/80"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="srvDeliveryMode"
+                      checked={deliveryMode === "subscription_only"}
+                      onChange={() => setDeliveryMode("subscription_only")}
+                      className="text-purple-500 focus:ring-purple-500 bg-gray-950"
+                    />
+                    <div className="text-xs">
+                      <div className="font-bold text-white">{translateText("Subscription Link Only", "فقط لینک سابسکریپشن", lang)}</div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                    deliveryMode === "direct_only"
+                      ? "bg-purple-950/20 border-purple-500/50"
+                      : "bg-[#111827]/60 border-gray-800/80"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="srvDeliveryMode"
+                      checked={deliveryMode === "direct_only"}
+                      onChange={() => setDeliveryMode("direct_only")}
+                      className="text-purple-500 focus:ring-purple-500 bg-gray-950"
+                    />
+                    <div className="text-xs">
+                      <div className="font-bold text-white">{translateText("Direct Links Only", "فقط لینک‌های معمولی (اتصال مستقیم)", lang)}</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Text Fields Overrides */}
+              {deliveryMode !== "use_default" && (
+                <div className="space-y-4 pt-2 border-t border-gray-800/60">
+                  <div>
+                    <label className="block text-xs text-gray-300 mb-1 font-bold">
+                      {translateText("Header & Greeting Text:", "متن سربرگ و تبریک خرید:", lang)}
+                    </label>
+                    <textarea
+                      rows={2}
+                      className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      placeholder="🎉 <b>خرید شما با موفقیت انجام شد!</b>"
+                      value={deliveryHeader}
+                      onChange={(e) => setDeliveryHeader(e.target.value)}
+                    />
+                  </div>
+
+                  {(deliveryMode === "both" || deliveryMode === "subscription_only") && (
+                    <div>
+                      <label className="block text-xs text-gray-300 mb-1 font-bold">
+                        {translateText("Above Subscription Link Text:", "متن بالای لینک سابسکریپشن:", lang)}
+                      </label>
+                      <textarea
+                        rows={2}
+                        className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        placeholder="👇 <b>لطفاً از لینک سابسکریپشن اختصاصی خود استفاده کنید (جهت کپی لمس کنید):</b>"
+                        value={deliverySubText}
+                        onChange={(e) => setDeliverySubText(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {(deliveryMode === "both" || deliveryMode === "direct_only") && (
+                    <div>
+                      <label className="block text-xs text-gray-300 mb-1 font-bold">
+                        {translateText("Above Direct Connections Text:", "متن بالای کانفیگ‌های مستقیم:", lang)}
+                      </label>
+                      <textarea
+                        rows={2}
+                        className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        placeholder="🚀 <b>لینک‌های اتصال مستقیم:</b>"
+                        value={deliveryDirectText}
+                        onChange={(e) => setDeliveryDirectText(e.target.value)}
+                      />
+                    </div>
+                  )}
+
+                  {(deliveryMode === "both" || deliveryMode === "direct_only") && (
+                    <div>
+                      <label className="block text-xs text-gray-300 mb-1 font-bold">
+                        {translateText("Emoji or Separator Line:", "شکلک یا خط جداکننده بین کانفیگ‌ها:", lang)}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="flex-1 bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                          placeholder="🔸━━━━━━━━━━━━━━━━━━🔸"
+                          value={deliverySeparator}
+                          onChange={(e) => setDeliverySeparator(e.target.value)}
+                        />
+                        <select
+                          className="bg-[#13192e] border border-gray-700 rounded-lg p-2 text-xs text-white"
+                          onChange={(e) => setDeliverySeparator(e.target.value)}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>{translateText("Presets", "انتخاب قالب آماده", lang)}</option>
+                          {SEPARATOR_PRESETS.map((preset) => (
+                            <option key={preset.value} value={preset.value}>{preset.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs text-gray-300 mb-1 font-bold">
+                      {translateText("Footer & Client Instructions Text:", "متن پاورقی و راهنمای مشتری:", lang)}
+                    </label>
+                    <textarea
+                      rows={3}
+                      className="w-full bg-[#13192e] border border-gray-700 rounded-lg p-2.5 text-sm text-indigo-300 focus:ring-1 focus:ring-indigo-500 outline-none"
+                      placeholder="💡 لینک سابسکریپشن را کپی کرده و در برنامه v2rayNG..."
+                      value={deliveryFooter}
+                      onChange={(e) => setDeliveryFooter(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="pt-4 flex justify-end">

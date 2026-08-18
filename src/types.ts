@@ -18,6 +18,7 @@ export interface ServerConfig {
   deliverySubText?: string;
   deliveryDirectText?: string;
   deliveryFooter?: string;
+  allowedPaymentMethods?: string[];
 }
 
 export interface PanelSettings {

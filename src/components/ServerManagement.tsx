@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { CustomSelect } from "./CustomSelect";
 import { VpnPlan, PanelSettings, InboundInfo, PlanCategory, ColleaguePackage, CustomPricingBox } from "../types";
 import MultiServerConfig from "./MultiServerConfig";
+import ConfigDeliverySettings from "./ConfigDeliverySettings";
 import ConfirmationModal from "./ConfirmationModal";
 import { 
   Server, 
@@ -527,6 +528,9 @@ export default function ServerManagement({
       {/* Multi-Server Config Block */}
       <MultiServerConfig settings={settings} onSaveSettings={onSaveSettings} lang={lang} planCategories={planCategories} colleaguePackages={colleaguePackages} />
 
+      {/* Config Delivery & Output Format Settings with Live Preview */}
+      <ConfigDeliverySettings settings={settings} onSaveSettings={onSaveSettings} lang={lang} />
+
       {/* Free Test Dedicated Server Config Box */}
       <div className="bg-[#111827] border border-[#1f2937] p-5 rounded-2xl space-y-4 shadow-sm">
         <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
@@ -710,7 +714,7 @@ export default function ServerManagement({
               className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
-              <span>{translateText("Add New Rule", "افزودن کادر جدید", lang)}</span>
+              <span>{translateText("Add New Rule", "افزودن قانون جدید", lang)}</span>
             </button>
           )}
         </div>
@@ -718,7 +722,7 @@ export default function ServerManagement({
         {settings.isCustomPricingActive !== false ? (
           <>
             <p className="text-xs text-gray-400 leading-relaxed font-medium">
-              {translateText("Define price per GB and price per Day for different servers. The bot will automatically calculate final prices for custom subscriptions and renewals based on these boxes.", "در این بخش می‌توانید قیمت هر گیگابایت ترافیک و هر روز اعتبار را به تفکیک سرورها مشخص کنید. ربات تلگرام در بخش خرید با حجم دلخواه و همچنین در فرآیند تمدید، قیمت نهایی را به صورت هوشمند بر اساس قوانین این کادرها محاسبه می‌کند.", lang)}
+              {translateText("Define price per GB and price per Day for different servers. The bot will automatically calculate final prices for custom subscriptions and renewals based on these boxes.", "در این بخش می‌توانید قیمت هر گیگابایت ترافیک و هر روز اعتبار را به تفکیک سرورها مشخص کنید. ربات تلگرام در بخش خرید با حجم دلخواه و همچنین در فرآیند تمدید، قیمت نهایی را به صورت هوشمند بر اساس این قوانین محاسبه می‌کند.", lang)}
             </p>
 
             {pricingBoxes.length === 0 ? (
@@ -751,7 +755,7 @@ export default function ServerManagement({
                           <div className="flex-1 space-y-2">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                                {translateText("Rule #", "کادر شماره ", lang) + (idx + 1)}
+                                {translateText("Rule #", "قانون شماره ", lang) + (idx + 1)}
                               </span>
                               <span className="text-[11px] text-gray-400 font-mono">
                                 {translateText(`GB: ${box.pricePerGb?.toLocaleString()}T | Day: ${box.pricePerDay?.toLocaleString()}T | Min: ${box.minGb || 1}GB & ${box.minDays || 1} Days`, `ترافیک: ${box.pricePerGb?.toLocaleString()} تومان | زمان: ${box.pricePerDay?.toLocaleString()} تومان | حداقل: ${box.minGb || 1} گیگ و ${box.minDays || 1} روز`, lang)}
@@ -786,7 +790,7 @@ export default function ServerManagement({
                             <button
                               onClick={() => setDeletingPricingBoxId(box.id)}
                               className="p-2 text-rose-400/80 hover:text-white hover:bg-rose-950/40 rounded-lg transition cursor-pointer"
-                              title={translateText("Delete box", "حذف کادر", lang)}
+                              title={translateText("Delete box", "حذف قانون", lang)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -798,13 +802,13 @@ export default function ServerManagement({
                            <div className="flex justify-between items-center pb-2 border-b border-gray-900">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">
-                                {translateText("✍️ Editing Rule #", "✍️ ویرایش تنظیمات کادر شماره ", lang) + (idx + 1)}
+                                {translateText("✍️ Editing Rule #", "✍️ ویرایش تنظیمات قانون شماره ", lang) + (idx + 1)}
                               </span>
                             </div>
                             <button
                               onClick={() => setDeletingPricingBoxId(box.id)}
                               className="p-1 text-rose-400 hover:text-white hover:bg-rose-950/40 rounded transition cursor-pointer"
-                              title={translateText("Delete box", "حذف کادر", lang)}
+                              title={translateText("Delete box", "حذف قانون", lang)}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -899,7 +903,7 @@ export default function ServerManagement({
                               className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition active:scale-95 cursor-pointer"
                             >
                               <Check className="w-3.5 h-3.5" />
-                              <span>{translateText("Save and Close Box", "ذخیره و بستن کادر", lang)}</span>
+                              <span>{translateText("Save and Close Box", "ذخیره و بستن", lang)}</span>
                             </button>
                           </div>
                         </>
@@ -1434,7 +1438,7 @@ export default function ServerManagement({
         message={
           translateText(
             "Are you sure you want to delete this pricing rule box?",
-            "آیا از حذف این کادر قانون قیمت‌گذاری اطمینان کامل دارید؟",
+            "آیا از حذف این قانون قیمت‌گذاری اطمینان کامل دارید؟",
             lang
           )
         }
@@ -1447,7 +1451,7 @@ export default function ServerManagement({
         onCancel={() => setDeletingPricingBoxId(null)}
         lang={lang}
         isDangerous={true}
-        confirmText={translateText("Delete Rule", "بله، حذف کادر", lang)}
+        confirmText={translateText("Delete Rule", "بله، حذف قانون", lang)}
         cancelText={translateText("Cancel", "انصراف", lang)}
       />
     </div>

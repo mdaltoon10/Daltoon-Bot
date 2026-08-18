@@ -66,7 +66,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/in
 | **[6] Restart** | `♻️ Restart Services` | Перезапуск всех служб (панели и бота). |
 | **[7] Credentials** | `🔑 Change Login` | Изменение логина и пароля администратора для входа в панель. |
 | **[8] Port** | `🔌 Change Port` | Изменение веб-порта панели управления. |
-| **[9] Exit** | `🚪 Exit` | Выход из панели управления. |
+| **[9] SSL** | `🔒 SSL Certificate Setup` | Выпуск и настройка SSL-сертификата и собственного домена. |
+| **[10] Exit** | `🚪 Exit` | Выход из панели управления. |
 
 ## 🛠 Ручная установка
 

@@ -66,7 +66,8 @@ Después de la instalación, puede administrar sus servicios mediante el comando
 | **[6] Restart** | `♻️ Restart Services` | Reinicia todos los servicios (panel de administración y bot). |
 | **[7] Credentials** | `🔑 Change Login` | Actualiza el usuario y la contraseña del panel de administración. |
 | **[8] Port** | `🔌 Change Port` | Modifica el puerto web del panel de administración. |
-| **[9] Exit** | `🚪 Exit` | Cierra la interfaz de línea de comandos de gestión. |
+| **[9] SSL** | `🔒 SSL Certificate Setup` | Emitir y configurar certificado SSL y dominio personalizado. |
+| **[10] Exit** | `🚪 Exit` | Cierra la interfaz de línea de comandos de gestión. |
 
 ## 🛠 Instalación Manual
 

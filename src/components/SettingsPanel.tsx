@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react"; // React hooks
 import { CustomSelect } from "./CustomSelect";
 import { PanelSettings, CustomButton, VpnPlan, InboundInfo } from "../types";
 import ConfirmationModal from "./ConfirmationModal";
+import BotNotificationSettings from "./BotNotificationSettings";
 import { formatDateTime, COMMON_TIMEZONES, CalendarSystem } from "../utils/dateTimeUtils";
 import {
   Settings,
@@ -80,6 +81,39 @@ export default function SettingsPanel({
   const [simulatorMode, setSimulatorMode] = useState(
     settings.simulatorMode || false,
   );
+
+  const [notificationToggles, setNotificationToggles] = useState<Partial<PanelSettings>>({
+    notifyUserPurchase: settings.notifyUserPurchase !== false,
+    notifyUserReceiptApproved: settings.notifyUserReceiptApproved !== false,
+    notifyUserReceiptRejected: settings.notifyUserReceiptRejected !== false,
+    notifyUserFreeTest: settings.notifyUserFreeTest !== false,
+    notifyUserTicketReply: settings.notifyUserTicketReply !== false,
+    notifyUserWalletCharge: settings.notifyUserWalletCharge !== false,
+    notifyUserRenewSuccess: settings.notifyUserRenewSuccess !== false,
+    notifyUserReferralReward: settings.notifyUserReferralReward !== false,
+    notifyUserUsageWarning: settings.notifyUserUsageWarning !== false,
+    notifyUserFirstConnection: settings.notifyUserFirstConnection !== false,
+    notifyUserNoConnection: settings.notifyUserNoConnection !== false,
+    notifyUserServiceToggle: settings.notifyUserServiceToggle !== false,
+    notifyAdminNewReceipt: settings.notifyAdminNewReceipt !== false,
+    notifyAdminNewOrder: settings.notifyAdminNewOrder !== false,
+    notifyAdminNewTicket: settings.notifyAdminNewTicket !== false,
+    notifyAdminNewUser: settings.notifyAdminNewUser !== false,
+    notifyAdminFreeTest: settings.notifyAdminFreeTest !== false,
+    notifyAdminServerAlert: settings.notifyAdminServerAlert !== false,
+    notifyAdminBackup: settings.notifyAdminBackup !== false,
+  });
+
+  const handleNotificationChange = (updated: Partial<PanelSettings>) => {
+    setNotificationToggles((prev) => {
+      const next = { ...prev, ...updated };
+      onSaveSettings({
+        ...settings,
+        ...next,
+      });
+      return next;
+    });
+  };
 
   const [aiSearchEnabled, setAiSearchEnabled] = useState(
     settings.aiSearchEnabled !== undefined ? settings.aiSearchEnabled : true,
@@ -719,6 +753,7 @@ export default function SettingsPanel({
       miniAppUrl,
       hideBtnMiniApp,
       primaryButtonColors,
+      ...notificationToggles,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -2305,7 +2340,12 @@ export default function SettingsPanel({
         </div>
       </div>
 
-
+      {/* Bot Direct Notifications Control Box */}
+      <BotNotificationSettings
+        settings={{ ...settings, ...notificationToggles }}
+        onChange={handleNotificationChange}
+        lang={lang}
+      />
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Telegram Bot Details */}

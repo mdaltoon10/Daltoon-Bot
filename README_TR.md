@@ -66,7 +66,8 @@ Kurulumdan sonra hizmetlerinizi `daltoon-dashboard` komutunu kullanarak yöneteb
 | **[6] Restart** | `♻️ Restart Services` | Tüm hizmetleri (Panel ve Bot) yeniden başlatır. |
 | **[7] Credentials** | `🔑 Change Login` | Yönetici paneli giriş kullanıcı adı ve şifresini günceller. |
 | **[8] Port** | `🔌 Change Port` | Yönetici paneli için web bağlantı noktasını (Port) değiştirir. |
-| **[9] Exit** | `🚪 Exit` | Yönetim CLI aracından çıkar. |
+| **[9] SSL** | `🔒 SSL Certificate Setup` | SSL sertifikasını ve özel alan adını (Domain) yapılandırır. |
+| **[10] Exit** | `🚪 Exit` | Yönetim CLI aracından çıkar. |
 
 ## 🛠 Manuel Kurulum
 

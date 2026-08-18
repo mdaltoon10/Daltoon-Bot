@@ -66,7 +66,8 @@ bash <(curl -Ls https://raw.githubusercontent.com/mdaltoon10/Daltoon-Bot/main/in
 | **[6] Restart** | `♻️ Restart Services` | إعادة تشغيل جميع الخدمات (لوحة التحكم والبوت). |
 | **[7] Credentials** | `🔑 Change Login` | تغيير اسم المستخدم وكلمة المرور للوحة تحكم المدير. |
 | **[8] Port** | `🔌 Change Port` | تغيير منفذ الويب (Port) للوحة التحكم. |
-| **[9] Exit** | `🚪 Exit` | الخروج من قائمة الإدارة. |
+| **[9] SSL** | `🔒 SSL Certificate Setup` | إعداد وتكوين شهادة SSL والنطاق الخاص باللوحة. |
+| **[10] Exit** | `🚪 Exit` | الخروج من قائمة الإدارة. |
 
 ## 🛠 التثبيت اليدوي
 

@@ -21,7 +21,11 @@ Built as an all-in-one system, Daltoon Bot adds broader panel support, improved 
 ## 🚀 Features
 
 - **Multi-Panel Support** — Seamless integration and synchronization with **Sanaei (3x-ui)**, **D-UI (v1.5.8)**, **Reebeka**, and **Pasarguard** panels.
+- **Telegram Mini App (WebApp)** — Interactive WebApp inside Telegram allowing users to view plans, purchase services, charge wallet, and check active subscriptions seamlessly.
 - **Wallet System** — Integrated user wallet allowing users to charge accounts and purchase subscriptions instantly.
+- **Per-Server Customization & Config Delivery** — Configure allowed payment gateways per server, customize subscription & direct link delivery formats, header/footer text, and separators per server.
+- **Bot Notification Manager** — Toggle and manage 24 direct notification alerts for user PMs and admin PMs (purchase alerts, receipt approval/rejections, ticket updates, wallet charges, server alerts).
+- **SSL Certificate & Domain Setup** — Integrated SSL certificate issuance (ZeroSSL / Certbot / Self-signed) and custom domain management directly from CLI option [9] or Admin Panel.
 - **Real-time Monitoring** — Automated traffic tracking, per-client usage quotas, and live connection status.
 - **Admin Dashboard** — A modern, full-stack React interface for managing users, servers, and system settings.
 - **Multi-Node Management** — Control and scale across multiple VPN servers from a single centralized bot.
@@ -70,7 +74,8 @@ After installation, you can manage your services using the `daltoon-dashboard` c
 | **[6] Restart** | `♻️ Restart Services` | Restarts all services (Dashboard and Bot). |
 | **[7] Credentials** | `🔑 Change Login` | Update the username and password for the Admin Dashboard. |
 | **[8] Port** | `🔌 Change Port` | Change the web port for the Admin Dashboard. |
-| **[9] Exit** | `🚪 Exit` | Closes the management CLI. |
+| **[9] SSL** | `🔒 SSL Certificate Setup` | Issue and configure SSL certificates and custom domain for web access. |
+| **[10] Exit** | `🚪 Exit` | Closes the management CLI. |
 
 ## 🛠 Manual Installation
 
