@@ -1662,13 +1662,7 @@ app.get("/api/data", async (req, res) => {
       plan_categories: db.plan_categories || [],
       logs: db.logs || [],
       settings,
-      isNewInstall:
-        db.isNewInstall ||
-        !settings.botToken ||
-        settings.botToken.trim() === "" ||
-        settings.botToken === "DUMMY_TOKEN" ||
-        !settings.ownerId ||
-        Number(settings.ownerId) === 0,
+      isNewInstall: db.isNewInstall === true,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

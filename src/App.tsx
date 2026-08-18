@@ -687,21 +687,13 @@ export default function App() {
   }, [isLightMode]);
 
   useEffect(() => {
-    if (isAuthenticated && settings) {
-      const isMissingConfig =
-        !settings.botToken ||
-        settings.botToken.trim() === "" ||
-        settings.botToken === "DUMMY_TOKEN" ||
-        !settings.ownerId ||
-        Number(settings.ownerId) === 0;
-
-      // Only force setup if critical config (Token/Owner) is missing OR if it's explicitly a new install
-      // If we have a token but missing nickname, we don't block the whole dashboard anymore.
-      if (!isDemoEnv && (isMissingConfig || isNewInstall === true)) {
+    if (isAuthenticated) {
+      // Only force setup if explicitly a new install (empty DB)
+      if (!isDemoEnv && isNewInstall === true) {
         setShowSetupModal(true);
       }
     }
-  }, [isAuthenticated, settings, isNewInstall]);
+  }, [isAuthenticated, isNewInstall]);
 
 
   const handleRestartAll = () => {
