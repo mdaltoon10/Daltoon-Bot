@@ -510,198 +510,24 @@ def read_sqlite_db():
                     conn.commit()
                     conn.close()
 
-            # Recover missing users from backup files and other tables
+            # Calculate accurate referral counts for each user based on actual referredBy
             users_list = data.get("users", [])
-            if not isinstance(users_list, list):
-                users_list = []
-                data["users"] = users_list
-            
-            user_map = {}
-            def get_uid_py(u):
-                if not isinstance(u, dict): return None
-                uid = u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")
-                if uid is not None and str(uid).strip() not in ["", "undefined", "null", "None"]:
-                    return str(uid).strip()
-                return None
-
-            for u in users_list:
-                uid = get_uid_py(u)
-                if uid: user_map[uid] = u
-
-            missing_users_added = 0
-            # 1. Search backup folders in /tmp and process directory
-            import glob, os, tempfile
-            try:
-                search_dirs = [tempfile.gettempdir(), os.getcwd(), os.path.join(os.getcwd(), "backups"), "/root"]
-                files_to_check = set()
-
-                for sd in search_dirs:
-                    if not os.path.exists(sd): continue
-                    for root_d, dirs_d, files_d in os.walk(sd):
-                        rel_depth = root_d.count(os.sep) - sd.count(os.sep)
-                        if rel_depth > 3: continue
-                        for fname_d in files_d:
-                            if "node_modules" in root_d or ".git" in root_d or "dist" in root_d: continue
-                            if fname_d in ["package.json", "package-lock.json", "tsconfig.json", "metadata.json"]: continue
-                            full_p = os.path.join(root_d, fname_d)
-                            if fname_d.endswith((".json", ".db", ".sqlite", ".bak")) or "Daltoon" in fname_d or "backup" in fname_d:
-                                files_to_check.add(full_p)
-
-                for fpath in files_to_check:
-                    if not os.path.isfile(fpath): continue
-                    
-                    if fpath.endswith(".db") or fpath.endswith(".sqlite") or "Daltoon_Bot" in fpath:
-                        try:
-                            conn_b = sqlite3.connect(fpath, timeout=5.0)
-                            cur_b = conn_b.cursor()
-                            cur_b.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='kv';")
-                            if cur_b.fetchone():
-                                cur_b.execute("SELECT key, value FROM kv WHERE key='users';")
-                                row_b = cur_b.fetchone()
-                                if row_b and row_b[1]:
-                                    u_list_b = json.loads(row_b[1])
-                                    if isinstance(u_list_b, list):
-                                        for u in u_list_b:
-                                            uid = get_uid_py(u)
-                                            if uid and (uid not in user_map or len(u) > len(user_map[uid])):
-                                                user_map[uid] = u
-                                                missing_users_added += 1
-                            conn_b.close()
-                        except Exception:
-                            pass
-                    if fpath.endswith(".json") or fpath.endswith(".bak"):
-                        try:
-                            with open(fpath, "r", encoding="utf-8", errors="ignore") as f_b:
-                                content_b = json.load(f_b)
-                                if isinstance(content_b, dict) and "users" in content_b and isinstance(content_b["users"], list):
-                                    for u in content_b["users"]:
-                                        uid = get_uid_py(u)
-                                        if uid and (uid not in user_map or len(u) > len(user_map[uid])):
-                                            user_map[uid] = u
-                                            missing_users_added += 1
-                        except Exception:
-                            pass
-            except Exception as e_rec:
-                print(f"[bot.py Recovery Error] {e_rec}")
-
-            # 2. Recover missing users from other tables
-            potential_recoveries = {} # uid -> username
-            for u in list(user_map.values()):
-                r_uid = u.get("referredBy")
-                if r_uid is not None:
-                    str_r = str(r_uid).strip()
-                    if str_r and str_r not in ["", "undefined", "null"] and str_r not in user_map:
-                        potential_recoveries[str_r] = f"user_{str_r}"
-            
-            tables_to_scan = ["transactions", "subscription_keys", "tickets", "logs", "colleague_accounts", "colleague_packages"]
-            for table in tables_to_scan:
-                tbl_data = data.get(table, [])
-                if isinstance(tbl_data, list):
-                    for item in tbl_data:
-                        if not isinstance(item, dict): continue
-                        uid = get_uid_py(item)
-                        if uid and uid not in user_map:
-                            uname = item.get("username") or item.get("clientName") or f"user_{uid}"
-                            if uid not in potential_recoveries or potential_recoveries[uid].startswith("user_"):
-                                potential_recoveries[uid] = uname
-                        
-                        if table == "tickets" and "messages" in item and isinstance(item["messages"], list):
-                            for msg in item["messages"]:
-                                if isinstance(msg, dict):
-                                    msg_uid = get_uid_py(msg) or msg.get("senderId") or msg.get("from")
-                                    if msg_uid:
-                                        str_msg_uid = str(msg_uid).strip()
-                                        if str_msg_uid and str_msg_uid not in ["", "undefined", "null"] and str_msg_uid not in user_map:
-                                            potential_recoveries[str_msg_uid] = f"user_{str_msg_uid}"
-
-            recovered_uids = set()
-            import datetime
-            for str_uid, uname in potential_recoveries.items():
-                if str_uid not in user_map:
-                    user_map[str_uid] = {
-                        "userId": int(str_uid) if str_uid.isdigit() else str_uid,
-                        "username": uname,
-                        "walletBalance": 0.0,
-                        "referralRewardTotal": 0,
-                        "referralCount": 0,
-                        "activePlansCount": 0,
-                        "joinDate": datetime.datetime.now().strftime("%Y-%m-%d"),
-                        "status": "active"
-                    }
-                    recovered_uids.add(str_uid)
-                    missing_users_added += 1
-
-            data["users"] = list(user_map.values())
-            
-            if missing_users_added > 0:
-                print(f"[DB Auto-Recovery] Recovered users in bot.py. Total users now: {len(data['users'])}")
+            if isinstance(users_list, list):
+                ref_counts = {}
+                for u in users_list:
+                    if isinstance(u, dict):
+                        r_by = u.get("referredBy")
+                        if r_by is not None:
+                            str_r = str(r_by).strip()
+                            if str_r and str_r not in ["", "undefined", "null", "None"]:
+                                ref_counts[str_r] = ref_counts.get(str_r, 0) + 1
                 
-                # Calculate balances and referral stats for recovered users
-                settings_str = data.get("settings", {}).get("panel_config", "{}")
-                try:
-                    if not isinstance(settings_str, dict):
-                        settings_obj = json.loads(settings_str)
-                    else:
-                        settings_obj = settings_str
-                except:
-                    settings_obj = {}
-                    
-                try:
-                    ref_amt = int(float(settings_obj.get("referralBaseAmount", 100000)))
-                    ref_pct = int(float(settings_obj.get("referralRewardPercent", 5)))
-                except:
-                    ref_amt = 100000
-                    ref_pct = 5
-                ref_reward = max(0, round((ref_amt * ref_pct) / 100))
-
-                for ru in data["users"]:
-                    uid_str = str(ru.get("userId") or ru.get("user_id") or ru.get("telegram_id") or ru.get("id")).strip()
-                    if uid_str in recovered_uids or ru.get("walletBalance", 0) == 0:
-                        # Referrals count
-                        ref_count = sum(1 for x in data["users"] if str(x.get("referredBy")).strip() == uid_str)
-                        ru["referralCount"] = ref_count
-                        
-                        # Referral earnings
-                        earned = 0
-                        for x in data["users"]:
-                            bonuses = x.get("referralBonusesGiven")
-                            if isinstance(bonuses, list):
-                                for b in bonuses:
-                                    if isinstance(b, dict) and str(b.get("userId")).strip() == uid_str:
-                                        try: earned += float(b.get("amount", 0))
-                                        except: pass
-                                        
-                        if earned == 0 and ref_count > 0 and ref_reward > 0:
-                            earned = ref_count * ref_reward
-                            
-                        ru["referralRewardTotal"] = int(earned)
-                        
-                        # Calculate wallet balance (earned + charges - buys)
-                        tot_recharge = 0.0
-                        tot_spent = 0.0
-                        transactions = data.get("transactions", [])
-                        if isinstance(transactions, list):
-                            for tx in transactions:
-                                if not isinstance(tx, dict): continue
-                                tx_uid = str(tx.get("userId") or tx.get("user_id")).strip()
-                                status = str(tx.get("status", "")).lower()
-                                if tx_uid == uid_str and status in ["paid", "successful", "approved"]:
-                                    tx_type = str(tx.get("type", "")).lower()
-                                    try:
-                                        amt = float(tx.get("amount", 0))
-                                        if tx_type == "charge": tot_recharge += amt
-                                        elif tx_type == "buy": tot_spent += amt
-                                    except: pass
-                                    
-                        if ru.get("walletBalance", 0) == 0 and (earned > 0 or tot_recharge > 0):
-                            ru["walletBalance"] = max(0.0, float(earned) + tot_recharge - tot_spent)
-
-                # Save the recovered users back to DB
-                conn = get_sqlite_conn()
-                cursor = conn.cursor()
-                cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", ("users", json.dumps(data["users"], ensure_ascii=False)))
-                conn.commit()
-                conn.close()
+                for u in users_list:
+                    if isinstance(u, dict):
+                        uid = u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")
+                        if uid is not None:
+                            str_u = str(uid).strip()
+                            u["referralCount"] = ref_counts.get(str_u, 0)
 
             return data
         except Exception as e:
