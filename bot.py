@@ -510,6 +510,47 @@ def read_sqlite_db():
                     conn.commit()
                     conn.close()
 
+            # Recover missing users from other tables
+            users_list = data.get("users", [])
+            if isinstance(users_list, list):
+                user_ids = set()
+                for u in users_list:
+                    uid = u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")
+                    if uid is not None:
+                        user_ids.add(str(uid).strip())
+                
+                missing_users_added = 0
+                tables_to_scan = ["transactions", "subscription_keys", "tickets"]
+                for table in tables_to_scan:
+                    tbl_data = data.get(table, [])
+                    if isinstance(tbl_data, list):
+                        for item in tbl_data:
+                            if not isinstance(item, dict): continue
+                            uid = item.get("userId") or item.get("user_id") or item.get("telegram_id") or item.get("id")
+                            if uid is not None:
+                                str_uid = str(uid).strip()
+                                if str_uid and str_uid not in ["", "undefined", "null"] and str_uid not in user_ids:
+                                    import datetime
+                                    users_list.append({
+                                        "userId": int(str_uid) if str_uid.isdigit() else str_uid,
+                                        "username": item.get("username") or item.get("clientName") or f"user_{str_uid}",
+                                        "walletBalance": 0.0,
+                                        "activePlansCount": 0,
+                                        "joinDate": datetime.datetime.now().strftime("%Y-%m-%d"),
+                                        "status": "active"
+                                    })
+                                    user_ids.add(str_uid)
+                                    missing_users_added += 1
+                
+                if missing_users_added > 0:
+                    print(f"[DB Auto-Recovery] Recovered {missing_users_added} missing users in bot.py from other tables.")
+                    # Save the recovered users back to DB
+                    conn = get_sqlite_conn()
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", ("users", json.dumps(users_list, ensure_ascii=False)))
+                    conn.commit()
+                    conn.close()
+
             return data
         except Exception as e:
             print(f"[SQLite Database Read Error] {e}")

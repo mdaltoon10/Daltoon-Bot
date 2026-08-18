@@ -720,6 +720,38 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
       }
     }
 
+    let missingUsersAdded = 0;
+    if (db.users && Array.isArray(db.users)) {
+      const userIds = new Set(db.users.map((u: any) => String(u.userId || u.user_id || u.telegram_id || u.id)));
+      const tablesToScan = ["transactions", "subscription_keys", "tickets"];
+      for (const table of tablesToScan) {
+        if (db[table] && Array.isArray(db[table])) {
+          for (const item of db[table]) {
+            if (!item || typeof item !== 'object') continue;
+            const rawUid = item.userId ?? item.user_id ?? item.telegram_id ?? item.id;
+            if (rawUid === undefined || rawUid === null) continue;
+            const uid = String(rawUid);
+            if (uid && uid.trim() !== "" && uid !== "undefined" && uid !== "null" && !userIds.has(uid)) {
+              db.users.push({
+                userId: Number(uid) || uid,
+                username: item.username || item.clientName || `user_${uid}`,
+                walletBalance: 0,
+                activePlansCount: 0,
+                joinDate: new Date().toISOString().split("T")[0],
+                status: "active"
+              });
+              userIds.add(uid);
+              missingUsersAdded++;
+              modified = true;
+            }
+          }
+        }
+      }
+      if (missingUsersAdded > 0) {
+        console.log(`[DB Auto-Recovery] Recovered ${missingUsersAdded} missing users from other tables.`);
+      }
+    }
+
     if (modified) {
       // Use writeSqliteDb instead of direct write to respect safeguards
       writeSqliteDb(db);
