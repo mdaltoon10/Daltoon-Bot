@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   LayoutDashboard,
   Activity,
@@ -457,6 +457,17 @@ export default function App() {
   const [colleagueAccounts, setColleagueAccounts] = useState<any[]>(() => safeLoad("daltoon_colleague_accounts", []));
   const [colleagueCategories, setColleagueCategories] = useState<any[]>(() => safeLoad("daltoon_colleague_categories", []));
   const [logs, setLogs] = useState<any[]>(() => safeLoad("daltoon_logs", []));
+
+  const managedServers = useMemo(() => {
+    const stdServers = Array.isArray(settings?.servers) ? settings.servers : [];
+    const colServers = Array.isArray(settings?.colleagueServers) ? settings.colleagueServers : [];
+    const combined = [...stdServers, ...colServers].filter((s: any) => s && s.status !== "inactive");
+    if (combined.length > 0) return combined;
+    if (Array.isArray(planCategories) && planCategories.length > 0) {
+      return planCategories.map((c: any) => ({ id: c.id, name: c.name || c.id, type: "category" }));
+    }
+    return inbounds;
+  }, [settings?.servers, settings?.colleagueServers, planCategories, inbounds]);
 
   const isDemoEnv = window.location.hostname.includes("ais-dev") || window.location.hostname.includes("ais-pre") || window.location.hostname.includes("localhost") || window.location.hostname.includes("run.app");
 
@@ -2502,7 +2513,7 @@ export default function App() {
                 }
               }}
               promoCodes={promoCodes}
-              servers={inbounds}
+              servers={managedServers}
               onAddPromoCode={handleAddPromoCode}
               onEditPromoCode={handleEditPromoCode}
               onDeletePromoCode={handleDeletePromoCode}
