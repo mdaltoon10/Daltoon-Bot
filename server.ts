@@ -66,7 +66,9 @@ const sqliteDb = (() => {
           const pythonCode = `
 import sqlite3, json, sys
 try:
-    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}")
+    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}", timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)")
     cursor.execute("SELECT key, value FROM kv")
@@ -107,7 +109,9 @@ import sqlite3, json, os, sys
 try:
     with open("${tempJsonPath.replace(/\\/g, "/")}", "r", encoding="utf-8") as f:
         data = json.load(f)
-    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}")
+    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}", timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     cursor = conn.cursor()
     cursor.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)")
     for k, v in data.items():
@@ -198,9 +202,7 @@ conn.close()
       if (lowerSql.includes("insert or replace into kv")) {
         return {
           run(key: string, value: string) {
-            loadFromDisk();
             cachedData[key] = value;
-            saveToDisk(cachedData);
             return { changes: 1 };
           }
         };
@@ -216,7 +218,9 @@ conn.close()
       return (obj: any) => {
         loadFromDisk();
         const res = fn(obj);
-        saveToDisk(cachedData);
+        if (res !== false) {
+           saveToDisk(cachedData);
+        }
         return res;
       };
     }
@@ -593,6 +597,7 @@ function normalizeDbRecords(db: any) {
 // In-memory cache for ultra-fast response times across MiniApp and Dashboard
 let memoryDbCache: DbSchema | null = null;
 let memoryDbCacheTimestamp = 0;
+let memoryDbSnapshot: Record<string, string> = {};
 
 // Function to read JSON Database, seeding with default templates if not found
 function readSqliteDb(forceFresh: boolean = false): DbSchema {
@@ -621,7 +626,9 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
           // Re-fetch rows now that we've migrated
           const migratedRows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
           const db: any = {};
+          memoryDbSnapshot = {};
           for (const row of migratedRows) {
+            memoryDbSnapshot[row.key] = row.value;
             try {
               db[row.key] = JSON.parse(row.value);
             } catch (err) {
@@ -670,7 +677,9 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
     }
 
     const db: any = {};
+    memoryDbSnapshot = {};
     for (const row of rows) {
+      memoryDbSnapshot[row.key] = row.value;
       try {
         db[row.key] = JSON.parse(row.value);
       } catch (err) {
@@ -961,6 +970,7 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
     memoryDbCacheTimestamp = Date.now();
     const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
     const transaction = sqliteDb.transaction((obj: any) => {
+      let isAnyModified = false;
       if (isRestore) {
         try {
           (sqliteDb.prepare("DELETE FROM kv") as any).run();
@@ -969,8 +979,18 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
       for (const key of Object.keys(obj)) {
         if (key.startsWith("_")) continue;
         const val = typeof obj[key] === "string" ? obj[key] : JSON.stringify(obj[key]);
+        if (!isRestore && memoryDbSnapshot[key] === val) {
+           continue; // Skip unchanged keys
+        }
         insert.run(key, val);
+        memoryDbSnapshot[key] = val; // Update snapshot
+        isAnyModified = true;
       }
+      // If nothing was modified and we are not restoring, we don't need to do anything
+      if (!isAnyModified && !isRestore) {
+         return false;
+      }
+      return true;
     });
     transaction(data);
     return true;
@@ -1085,6 +1105,36 @@ function getSystemSettings(db?: any) {
     panelConnectionActive: false,
     ...parsedSettings,
   };
+
+  // Normalization for keys that might be saved under alternative names or casing
+  settings.botToken =
+    settings.botToken ||
+    settings.bot_token ||
+    settings.BOT_TOKEN ||
+    process.env.BOT_TOKEN ||
+    "";
+
+  settings.receiptBotToken =
+    settings.receiptBotToken ||
+    settings.receipt_bot_token ||
+    settings.RECEIPT_BOT_TOKEN ||
+    process.env.RECEIPT_BOT_TOKEN ||
+    "";
+
+  settings.ownerId =
+    Number(
+      settings.ownerId ||
+      settings.owner_id ||
+      settings.OWNER_ID ||
+      process.env.OWNER_ID ||
+      0
+    );
+
+  settings.botNickname =
+    settings.botNickname ||
+    settings.bot_nickname ||
+    settings.BOT_NICKNAME ||
+    "";
 
   if (
     !settings.sslPublicKeyPath ||
