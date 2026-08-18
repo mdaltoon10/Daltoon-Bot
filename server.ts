@@ -723,6 +723,20 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
     let missingUsersAdded = 0;
     if (db.users && Array.isArray(db.users)) {
       const userIds = new Set(db.users.map((u: any) => String(u.userId || u.user_id || u.telegram_id || u.id)));
+      
+      const potentialRecoveries = new Map<string, any>(); // uid -> { username }
+
+      // 1. Scan from existing users' referredBy
+      db.users.forEach((u: any) => {
+        if (u.referredBy) {
+           const r_uid = String(u.referredBy).trim();
+           if (r_uid && r_uid !== "undefined" && r_uid !== "null" && !userIds.has(r_uid)) {
+              potentialRecoveries.set(r_uid, { username: `user_${r_uid}` });
+           }
+        }
+      });
+
+      // 2. Scan from other tables
       const tablesToScan = ["transactions", "subscription_keys", "tickets"];
       for (const table of tablesToScan) {
         if (db[table] && Array.isArray(db[table])) {
@@ -730,25 +744,94 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
             if (!item || typeof item !== 'object') continue;
             const rawUid = item.userId ?? item.user_id ?? item.telegram_id ?? item.id;
             if (rawUid === undefined || rawUid === null) continue;
-            const uid = String(rawUid);
-            if (uid && uid.trim() !== "" && uid !== "undefined" && uid !== "null" && !userIds.has(uid)) {
-              db.users.push({
-                userId: Number(uid) || uid,
-                username: item.username || item.clientName || `user_${uid}`,
-                walletBalance: 0,
-                activePlansCount: 0,
-                joinDate: new Date().toISOString().split("T")[0],
-                status: "active"
-              });
-              userIds.add(uid);
-              missingUsersAdded++;
-              modified = true;
+            const uid = String(rawUid).trim();
+            if (uid && uid !== "" && uid !== "undefined" && uid !== "null" && !userIds.has(uid)) {
+               if (!potentialRecoveries.has(uid)) {
+                   potentialRecoveries.set(uid, { username: item.username || item.clientName || `user_${uid}` });
+               } else if (!potentialRecoveries.get(uid).username || potentialRecoveries.get(uid).username.startsWith('user_')) {
+                   potentialRecoveries.set(uid, { username: item.username || item.clientName || `user_${uid}` });
+               }
             }
           }
         }
       }
+
+      const recoveredUids = new Set<string>();
+
+      for (const [uid, info] of potentialRecoveries.entries()) {
+          db.users.push({
+            userId: Number(uid) || uid,
+            username: info.username,
+            walletBalance: 0,
+            referralRewardTotal: 0,
+            referralCount: 0,
+            activePlansCount: 0,
+            joinDate: new Date().toISOString().split("T")[0],
+            status: "active"
+          });
+          userIds.add(uid);
+          recoveredUids.add(uid);
+          missingUsersAdded++;
+          modified = true;
+      }
+
+      // If we recovered anyone, calculate their referral stats & balances
       if (missingUsersAdded > 0) {
         console.log(`[DB Auto-Recovery] Recovered ${missingUsersAdded} missing users from other tables.`);
+        
+        let settings_str = "{}";
+        if (db.settings && typeof db.settings === 'object') {
+             if (typeof db.settings.panel_config === 'string') settings_str = db.settings.panel_config;
+             else if (typeof db.settings.panel_config === 'object') settings_str = JSON.stringify(db.settings.panel_config);
+        }
+        let settingsObj: any = {};
+        try { settingsObj = JSON.parse(settings_str); } catch (e) {}
+
+        const referralAmount = Number(settingsObj.referralBaseAmount || 100000);
+        const referralPercent = Number(settingsObj.referralRewardPercent || 5);
+        const refReward = Math.max(0, Math.round((referralAmount * referralPercent) / 100));
+
+        db.users.forEach((ru: any) => {
+            const uidStr = String(ru.userId || ru.user_id || ru.telegram_id || ru.id).trim();
+            if (recoveredUids.has(uidStr)) {
+               // Calculate how many users were referred by this recovered user
+               const referredCount = db.users.filter((x: any) => String(x.referredBy).trim() === uidStr).length;
+               ru.referralCount = referredCount;
+               
+               let earned = 0;
+               // Calculate based on referralBonusesGiven history in other users
+               db.users.forEach((x: any) => {
+                   if (Array.isArray(x.referralBonusesGiven)) {
+                       x.referralBonusesGiven.forEach((b: any) => {
+                           if (String(b.userId).trim() === uidStr) {
+                               earned += Number(b.amount || 0);
+                           }
+                       });
+                   }
+               });
+
+               // If no history found, but they have referrals, estimate it via settings
+               if (earned === 0 && referredCount > 0 && refReward > 0) {
+                   earned = referredCount * refReward;
+               }
+
+               ru.referralRewardTotal = earned;
+               
+               // Calculate walletBalance: referral earnings + successful charges - successful purchases
+               let totalRecharge = 0;
+               let totalSpent = 0;
+               if (Array.isArray(db.transactions)) {
+                   db.transactions.forEach((tx: any) => {
+                       if (String(tx.userId || tx.user_id).trim() === uidStr && (tx.status === "paid" || tx.status === "successful" || tx.status === "approved")) {
+                           if (tx.type === "charge") totalRecharge += Number(tx.amount || 0);
+                           else if (tx.type === "buy") totalSpent += Number(tx.amount || 0);
+                       }
+                   });
+               }
+
+               ru.walletBalance = Math.max(0, earned + totalRecharge - totalSpent);
+            }
+        });
       }
     }
 

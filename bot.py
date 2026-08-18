@@ -519,7 +519,14 @@ def read_sqlite_db():
                     if uid is not None:
                         user_ids.add(str(uid).strip())
                 
-                missing_users_added = 0
+                potential_recoveries = {} # uid -> username
+                for u in users_list:
+                    r_uid = u.get("referredBy")
+                    if r_uid is not None:
+                        str_r = str(r_uid).strip()
+                        if str_r and str_r not in ["", "undefined", "null"] and str_r not in user_ids:
+                            potential_recoveries[str_r] = f"user_{str_r}"
+                
                 tables_to_scan = ["transactions", "subscription_keys", "tickets"]
                 for table in tables_to_scan:
                     tbl_data = data.get(table, [])
@@ -530,20 +537,90 @@ def read_sqlite_db():
                             if uid is not None:
                                 str_uid = str(uid).strip()
                                 if str_uid and str_uid not in ["", "undefined", "null"] and str_uid not in user_ids:
-                                    import datetime
-                                    users_list.append({
-                                        "userId": int(str_uid) if str_uid.isdigit() else str_uid,
-                                        "username": item.get("username") or item.get("clientName") or f"user_{str_uid}",
-                                        "walletBalance": 0.0,
-                                        "activePlansCount": 0,
-                                        "joinDate": datetime.datetime.now().strftime("%Y-%m-%d"),
-                                        "status": "active"
-                                    })
-                                    user_ids.add(str_uid)
-                                    missing_users_added += 1
+                                    uname = item.get("username") or item.get("clientName") or f"user_{str_uid}"
+                                    if str_uid not in potential_recoveries or potential_recoveries[str_uid].startswith("user_"):
+                                        potential_recoveries[str_uid] = uname
+
+                missing_users_added = 0
+                recovered_uids = set()
+                import datetime
+                for str_uid, uname in potential_recoveries.items():
+                    users_list.append({
+                        "userId": int(str_uid) if str_uid.isdigit() else str_uid,
+                        "username": uname,
+                        "walletBalance": 0.0,
+                        "referralRewardTotal": 0,
+                        "referralCount": 0,
+                        "activePlansCount": 0,
+                        "joinDate": datetime.datetime.now().strftime("%Y-%m-%d"),
+                        "status": "active"
+                    })
+                    user_ids.add(str_uid)
+                    recovered_uids.add(str_uid)
+                    missing_users_added += 1
                 
                 if missing_users_added > 0:
                     print(f"[DB Auto-Recovery] Recovered {missing_users_added} missing users in bot.py from other tables.")
+                    
+                    # Calculate balances and referral stats for recovered users
+                    settings_str = data.get("settings", {}).get("panel_config", "{}")
+                    try:
+                        if not isinstance(settings_str, dict):
+                            settings_obj = json.loads(settings_str)
+                        else:
+                            settings_obj = settings_str
+                    except:
+                        settings_obj = {}
+                        
+                    try:
+                        ref_amt = int(float(settings_obj.get("referralBaseAmount", 100000)))
+                        ref_pct = int(float(settings_obj.get("referralRewardPercent", 5)))
+                    except:
+                        ref_amt = 100000
+                        ref_pct = 5
+                    ref_reward = max(0, round((ref_amt * ref_pct) / 100))
+
+                    for ru in users_list:
+                        uid_str = str(ru.get("userId")).strip()
+                        if uid_str in recovered_uids:
+                            # Referrals count
+                            ref_count = sum(1 for x in users_list if str(x.get("referredBy")).strip() == uid_str)
+                            ru["referralCount"] = ref_count
+                            
+                            # Referral earnings
+                            earned = 0
+                            for x in users_list:
+                                bonuses = x.get("referralBonusesGiven")
+                                if isinstance(bonuses, list):
+                                    for b in bonuses:
+                                        if isinstance(b, dict) and str(b.get("userId")).strip() == uid_str:
+                                            try: earned += float(b.get("amount", 0))
+                                            except: pass
+                                            
+                            if earned == 0 and ref_count > 0 and ref_reward > 0:
+                                earned = ref_count * ref_reward
+                                
+                            ru["referralRewardTotal"] = int(earned)
+                            
+                            # Calculate wallet balance (earned + charges - buys)
+                            tot_recharge = 0.0
+                            tot_spent = 0.0
+                            transactions = data.get("transactions", [])
+                            if isinstance(transactions, list):
+                                for tx in transactions:
+                                    if not isinstance(tx, dict): continue
+                                    tx_uid = str(tx.get("userId") or tx.get("user_id")).strip()
+                                    status = str(tx.get("status", "")).lower()
+                                    if tx_uid == uid_str and status in ["paid", "successful", "approved"]:
+                                        tx_type = str(tx.get("type", "")).lower()
+                                        try:
+                                            amt = float(tx.get("amount", 0))
+                                            if tx_type == "charge": tot_recharge += amt
+                                            elif tx_type == "buy": tot_spent += amt
+                                        except: pass
+                                        
+                            ru["walletBalance"] = max(0.0, float(earned) + tot_recharge - tot_spent)
+
                     # Save the recovered users back to DB
                     conn = get_sqlite_conn()
                     cursor = conn.cursor()
