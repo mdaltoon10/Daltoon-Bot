@@ -12699,8 +12699,8 @@ app.post("/api/system/update", async (req, res) => {
           updateSuccess = true;
         }
         
-        // RESTORE BACKUP IF FILES WERE DELETED BY GIT CLEAN / TAR
-        await runCommandAsync(`cp -r -n ${backupDir}/* . 2>/dev/null || true`);
+        // RESTORE BACKUP FORCEFULLY (OVERWRITE) SO USER DATABASE AND CONFIGS ARE NEVER LOST OR ROLLED BACK BY GIT
+        await runCommandAsync(`cp -r -f ${backupDir}/* . 2>/dev/null || true`);
         await runCommandAsync(`rm -rf ${backupDir}`);
         
         if (!updateSuccess) {
