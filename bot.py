@@ -510,42 +510,121 @@ def read_sqlite_db():
                     conn.commit()
                     conn.close()
 
-            # Recover missing users from other tables
+            # Recover missing users from backup files and other tables
             users_list = data.get("users", [])
-            if isinstance(users_list, list):
-                user_ids = set()
-                for u in users_list:
-                    uid = u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")
-                    if uid is not None:
-                        user_ids.add(str(uid).strip())
-                
-                potential_recoveries = {} # uid -> username
-                for u in users_list:
-                    r_uid = u.get("referredBy")
-                    if r_uid is not None:
-                        str_r = str(r_uid).strip()
-                        if str_r and str_r not in ["", "undefined", "null"] and str_r not in user_ids:
-                            potential_recoveries[str_r] = f"user_{str_r}"
-                
-                tables_to_scan = ["transactions", "subscription_keys", "tickets"]
-                for table in tables_to_scan:
-                    tbl_data = data.get(table, [])
-                    if isinstance(tbl_data, list):
-                        for item in tbl_data:
-                            if not isinstance(item, dict): continue
-                            uid = item.get("userId") or item.get("user_id") or item.get("telegram_id") or item.get("id")
-                            if uid is not None:
-                                str_uid = str(uid).strip()
-                                if str_uid and str_uid not in ["", "undefined", "null"] and str_uid not in user_ids:
-                                    uname = item.get("username") or item.get("clientName") or f"user_{str_uid}"
-                                    if str_uid not in potential_recoveries or potential_recoveries[str_uid].startswith("user_"):
-                                        potential_recoveries[str_uid] = uname
+            if not isinstance(users_list, list):
+                users_list = []
+                data["users"] = users_list
+            
+            user_map = {}
+            def get_uid_py(u):
+                if not isinstance(u, dict): return None
+                uid = u.get("userId") or u.get("user_id") or u.get("telegram_id") or u.get("id")
+                if uid is not None and str(uid).strip() not in ["", "undefined", "null", "None"]:
+                    return str(uid).strip()
+                return None
 
-                missing_users_added = 0
-                recovered_uids = set()
-                import datetime
-                for str_uid, uname in potential_recoveries.items():
-                    users_list.append({
+            for u in users_list:
+                uid = get_uid_py(u)
+                if uid: user_map[uid] = u
+
+            missing_users_added = 0
+            # 1. Search backup folders in /tmp and process directory
+            import glob, os, tempfile
+            try:
+                search_dirs = [tempfile.gettempdir(), os.getcwd(), os.path.join(os.getcwd(), "backups"), "/root"]
+                backup_paths = []
+                for sd in search_dirs:
+                    if not os.path.exists(sd): continue
+                    backup_paths.extend(glob.glob(os.path.join(sd, "daltoon_update_backup_*")))
+                    backup_paths.extend(glob.glob(os.path.join(sd, "daltoon_backup_*")))
+                    backup_paths.extend(glob.glob(os.path.join(sd, "backups")))
+
+                files_to_check = []
+                for sd in search_dirs:
+                    if os.path.exists(sd):
+                        files_to_check.extend(glob.glob(os.path.join(sd, "*.db")))
+                        files_to_check.extend(glob.glob(os.path.join(sd, "*.sqlite")))
+                        files_to_check.extend(glob.glob(os.path.join(sd, "*.json")))
+                        files_to_check.extend(glob.glob(os.path.join(sd, "*.bak")))
+
+                for bp in backup_paths:
+                    if os.path.isdir(bp):
+                        files_to_check.extend(glob.glob(os.path.join(bp, "*")))
+
+                for fpath in files_to_check:
+                    if not os.path.isfile(fpath) or fpath.endswith("package.json") or fpath.endswith("package-lock.json") or fpath.endswith("tsconfig.json") or fpath.endswith("metadata.json"):
+                        continue
+                    
+                    if fpath.endswith(".db") or fpath.endswith(".sqlite"):
+                        try:
+                            conn_b = sqlite3.connect(fpath, timeout=5.0)
+                            cur_b = conn_b.cursor()
+                            cur_b.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='kv';")
+                            if cur_b.fetchone():
+                                cur_b.execute("SELECT key, value FROM kv WHERE key='users';")
+                                row_b = cur_b.fetchone()
+                                if row_b and row_b[1]:
+                                    u_list_b = json.loads(row_b[1])
+                                    if isinstance(u_list_b, list):
+                                        for u in u_list_b:
+                                            uid = get_uid_py(u)
+                                            if uid and (uid not in user_map or len(u) > len(user_map[uid])):
+                                                user_map[uid] = u
+                                                missing_users_added += 1
+                            conn_b.close()
+                        except Exception:
+                            pass
+                    elif fpath.endswith(".json") or fpath.endswith(".bak"):
+                        try:
+                            with open(fpath, "r", encoding="utf-8", errors="ignore") as f_b:
+                                content_b = json.load(f_b)
+                                if isinstance(content_b, dict) and "users" in content_b and isinstance(content_b["users"], list):
+                                    for u in content_b["users"]:
+                                        uid = get_uid_py(u)
+                                        if uid and (uid not in user_map or len(u) > len(user_map[uid])):
+                                            user_map[uid] = u
+                                            missing_users_added += 1
+                        except Exception:
+                            pass
+            except Exception as e_rec:
+                print(f"[bot.py Recovery Error] {e_rec}")
+
+            # 2. Recover missing users from other tables
+            potential_recoveries = {} # uid -> username
+            for u in list(user_map.values()):
+                r_uid = u.get("referredBy")
+                if r_uid is not None:
+                    str_r = str(r_uid).strip()
+                    if str_r and str_r not in ["", "undefined", "null"] and str_r not in user_map:
+                        potential_recoveries[str_r] = f"user_{str_r}"
+            
+            tables_to_scan = ["transactions", "subscription_keys", "tickets", "logs", "colleague_accounts", "colleague_packages"]
+            for table in tables_to_scan:
+                tbl_data = data.get(table, [])
+                if isinstance(tbl_data, list):
+                    for item in tbl_data:
+                        if not isinstance(item, dict): continue
+                        uid = get_uid_py(item)
+                        if uid and uid not in user_map:
+                            uname = item.get("username") or item.get("clientName") or f"user_{uid}"
+                            if uid not in potential_recoveries or potential_recoveries[uid].startswith("user_"):
+                                potential_recoveries[uid] = uname
+                        
+                        if table == "tickets" and "messages" in item and isinstance(item["messages"], list):
+                            for msg in item["messages"]:
+                                if isinstance(msg, dict):
+                                    msg_uid = get_uid_py(msg) or msg.get("senderId") or msg.get("from")
+                                    if msg_uid:
+                                        str_msg_uid = str(msg_uid).strip()
+                                        if str_msg_uid and str_msg_uid not in ["", "undefined", "null"] and str_msg_uid not in user_map:
+                                            potential_recoveries[str_msg_uid] = f"user_{str_msg_uid}"
+
+            recovered_uids = set()
+            import datetime
+            for str_uid, uname in potential_recoveries.items():
+                if str_uid not in user_map:
+                    user_map[str_uid] = {
                         "userId": int(str_uid) if str_uid.isdigit() else str_uid,
                         "username": uname,
                         "walletBalance": 0.0,
@@ -554,13 +633,14 @@ def read_sqlite_db():
                         "activePlansCount": 0,
                         "joinDate": datetime.datetime.now().strftime("%Y-%m-%d"),
                         "status": "active"
-                    })
-                    user_ids.add(str_uid)
+                    }
                     recovered_uids.add(str_uid)
                     missing_users_added += 1
-                
-                if missing_users_added > 0:
-                    print(f"[DB Auto-Recovery] Recovered {missing_users_added} missing users in bot.py from other tables.")
+
+            data["users"] = list(user_map.values())
+            
+            if missing_users_added > 0:
+                print(f"[DB Auto-Recovery] Recovered users in bot.py. Total users now: {len(data['users'])}")
                     
                     # Calculate balances and referral stats for recovered users
                     settings_str = data.get("settings", {}).get("panel_config", "{}")

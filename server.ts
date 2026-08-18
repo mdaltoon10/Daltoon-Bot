@@ -732,34 +732,156 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
     let missingUsersAdded = 0;
     if (db.users && Array.isArray(db.users)) {
       const userIds = new Set(db.users.map((u: any) => String(u.userId || u.user_id || u.telegram_id || u.id)));
-      
+      const userMap = new Map<string, any>();
+      db.users.forEach((u: any) => {
+        const uid = String(u.userId || u.user_id || u.telegram_id || u.id || "").trim();
+        if (uid && uid !== "undefined" && uid !== "null") userMap.set(uid, u);
+      });
+
+      const getUidStr = (u: any): string | null => {
+        if (!u || typeof u !== "object") return null;
+        const raw = u.userId ?? u.user_id ?? u.telegram_id ?? u.id;
+        if (raw === undefined || raw === null) return null;
+        const str = String(raw).trim();
+        if (!str || str === "undefined" || str === "null" || str === "None") return null;
+        return str;
+      };
+
+      // 1. Scan backup folders in /tmp and process directory
+      try {
+        const tmpDir = os.tmpdir();
+        const searchDirs = [tmpDir, process.cwd(), path.join(process.cwd(), "backups"), "/root"];
+        const backupFolders: string[] = [];
+
+        searchDirs.forEach((sd) => {
+          if (fs.existsSync(sd)) {
+            try {
+              const items = fs.readdirSync(sd);
+              items.forEach((item) => {
+                if (item.includes("daltoon_update_backup_") || item.includes("daltoon_backup_") || item === "backups") {
+                  const fullP = path.join(sd, item);
+                  if (fs.statSync(fullP).isDirectory()) backupFolders.push(fullP);
+                }
+              });
+            } catch (e) {}
+          }
+        });
+
+        const filesToCheck: string[] = [];
+        searchDirs.forEach((sd) => {
+          if (fs.existsSync(sd)) {
+            try {
+              const items = fs.readdirSync(sd);
+              items.forEach((item) => {
+                const fullP = path.join(sd, item);
+                if (fs.statSync(fullP).isFile() && (item.endsWith(".json") || item.endsWith(".db") || item.endsWith(".bak"))) {
+                  if (!item.includes("package") && !item.includes("tsconfig") && !item.includes("metadata")) {
+                    filesToCheck.push(fullP);
+                  }
+                }
+              });
+            } catch (e) {}
+          }
+        });
+
+        backupFolders.forEach((bf) => {
+          try {
+            const items = fs.readdirSync(bf);
+            items.forEach((item) => {
+              filesToCheck.push(path.join(bf, item));
+            });
+          } catch (e) {}
+        });
+
+        filesToCheck.forEach((fpath) => {
+          if (!fs.existsSync(fpath) || fs.statSync(fpath).isDirectory()) return;
+
+          if (fpath.endsWith(".json") || fpath.endsWith(".bak")) {
+            try {
+              const raw = fs.readFileSync(fpath, "utf8");
+              const parsed = JSON.parse(raw);
+              if (parsed && Array.isArray(parsed.users)) {
+                parsed.users.forEach((u: any) => {
+                  const uid = getUidStr(u);
+                  if (uid && (!userMap.has(uid) || Object.keys(u).length > Object.keys(userMap.get(uid)).length)) {
+                    userMap.set(uid, u);
+                    userIds.add(uid);
+                    missingUsersAdded++;
+                    modified = true;
+                  }
+                });
+              }
+            } catch (e) {}
+          } else if (fpath.endsWith(".db") || fpath.endsWith(".sqlite")) {
+            try {
+              const pyCode = `
+import sqlite3, json, sys
+try:
+    conn = sqlite3.connect("${fpath.replace(/\\/g, "/")}", timeout=5.0)
+    cur = conn.cursor()
+    cur.execute("SELECT key, value FROM kv WHERE key='users'")
+    row = cur.fetchone()
+    conn.close()
+    if row and row[1]:
+        print(row[1])
+except Exception as e:
+    pass
+`;
+              const res = runPython(pyCode).trim();
+              if (res && res.startsWith("[")) {
+                const parsed = JSON.parse(res);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach((u: any) => {
+                    const uid = getUidStr(u);
+                    if (uid && (!userMap.has(uid) || Object.keys(u).length > Object.keys(userMap.get(uid)).length)) {
+                      userMap.set(uid, u);
+                      userIds.add(uid);
+                      missingUsersAdded++;
+                      modified = true;
+                    }
+                  });
+                }
+              }
+            } catch (e) {}
+          }
+        });
+      } catch (err) {
+        console.error("[Deep User Recovery File Search Error]", err);
+      }
+
+      // 2. Scan all DB tables for missing User IDs
       const potentialRecoveries = new Map<string, any>(); // uid -> { username }
 
-      // 1. Scan from existing users' referredBy
-      db.users.forEach((u: any) => {
+      // Check referredBy in existing users
+      Array.from(userMap.values()).forEach((u: any) => {
         if (u.referredBy) {
-           const r_uid = String(u.referredBy).trim();
-           if (r_uid && r_uid !== "undefined" && r_uid !== "null" && !userIds.has(r_uid)) {
-              potentialRecoveries.set(r_uid, { username: `user_${r_uid}` });
-           }
+          const r_uid = String(u.referredBy).trim();
+          if (r_uid && r_uid !== "undefined" && r_uid !== "null" && !userMap.has(r_uid)) {
+            potentialRecoveries.set(r_uid, { username: `user_${r_uid}` });
+          }
         }
       });
 
-      // 2. Scan from other tables
-      const tablesToScan = ["transactions", "subscription_keys", "tickets"];
+      const tablesToScan = ["transactions", "subscription_keys", "tickets", "logs", "colleague_accounts", "colleague_packages"];
       for (const table of tablesToScan) {
         if (db[table] && Array.isArray(db[table])) {
           for (const item of db[table]) {
-            if (!item || typeof item !== 'object') continue;
-            const rawUid = item.userId ?? item.user_id ?? item.telegram_id ?? item.id;
-            if (rawUid === undefined || rawUid === null) continue;
-            const uid = String(rawUid).trim();
-            if (uid && uid !== "" && uid !== "undefined" && uid !== "null" && !userIds.has(uid)) {
-               if (!potentialRecoveries.has(uid)) {
-                   potentialRecoveries.set(uid, { username: item.username || item.clientName || `user_${uid}` });
-               } else if (!potentialRecoveries.get(uid).username || potentialRecoveries.get(uid).username.startsWith('user_')) {
-                   potentialRecoveries.set(uid, { username: item.username || item.clientName || `user_${uid}` });
-               }
+            if (!item || typeof item !== "object") continue;
+            const uid = getUidStr(item);
+            if (uid && !userMap.has(uid)) {
+              const uname = item.username || item.clientName || `user_${uid}`;
+              if (!potentialRecoveries.has(uid) || potentialRecoveries.get(uid)?.username?.startsWith("user_")) {
+                potentialRecoveries.set(uid, { username: uname });
+              }
+            }
+
+            if (table === "tickets" && Array.isArray(item.messages)) {
+              item.messages.forEach((msg: any) => {
+                const msgUid = getUidStr(msg) || (msg.senderId ? String(msg.senderId).trim() : null) || (msg.from ? String(msg.from).trim() : null);
+                if (msgUid && !userMap.has(msgUid)) {
+                  potentialRecoveries.set(msgUid, { username: `user_${msgUid}` });
+                }
+              });
             }
           }
         }
@@ -768,78 +890,85 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
       const recoveredUids = new Set<string>();
 
       for (const [uid, info] of potentialRecoveries.entries()) {
-          db.users.push({
-            userId: Number(uid) || uid,
-            username: info.username,
-            walletBalance: 0,
-            referralRewardTotal: 0,
-            referralCount: 0,
-            activePlansCount: 0,
-            joinDate: new Date().toISOString().split("T")[0],
-            status: "active"
-          });
-          userIds.add(uid);
-          recoveredUids.add(uid);
-          missingUsersAdded++;
-          modified = true;
+        const nu = {
+          userId: isNaN(Number(uid)) ? uid : Number(uid),
+          username: info.username,
+          walletBalance: 0,
+          referralRewardTotal: 0,
+          referralCount: 0,
+          activePlansCount: 0,
+          joinDate: new Date().toISOString().split("T")[0],
+          status: "active",
+        };
+        userMap.set(uid, nu);
+        userIds.add(uid);
+        recoveredUids.add(uid);
+        missingUsersAdded++;
+        modified = true;
       }
+
+      db.users = Array.from(userMap.values());
 
       // If we recovered anyone, calculate their referral stats & balances
       if (missingUsersAdded > 0) {
-        console.log(`[DB Auto-Recovery] Recovered ${missingUsersAdded} missing users from other tables.`);
-        
+        console.log(`[DB Auto-Recovery] Restored missing users from backups and transaction logs. Total users now: ${db.users.length}`);
+
         let settings_str = "{}";
-        if (db.settings && typeof db.settings === 'object') {
-             if (typeof db.settings.panel_config === 'string') settings_str = db.settings.panel_config;
-             else if (typeof db.settings.panel_config === 'object') settings_str = JSON.stringify(db.settings.panel_config);
+        if (db.settings && typeof db.settings === "object") {
+          if (typeof db.settings.panel_config === "string") settings_str = db.settings.panel_config;
+          else if (typeof db.settings.panel_config === "object") settings_str = JSON.stringify(db.settings.panel_config);
         }
         let settingsObj: any = {};
-        try { settingsObj = JSON.parse(settings_str); } catch (e) {}
+        try {
+          settingsObj = JSON.parse(settings_str);
+        } catch (e) {}
 
         const referralAmount = Number(settingsObj.referralBaseAmount || 100000);
         const referralPercent = Number(settingsObj.referralRewardPercent || 5);
         const refReward = Math.max(0, Math.round((referralAmount * referralPercent) / 100));
 
         db.users.forEach((ru: any) => {
-            const uidStr = String(ru.userId || ru.user_id || ru.telegram_id || ru.id).trim();
-            if (recoveredUids.has(uidStr)) {
-               // Calculate how many users were referred by this recovered user
-               const referredCount = db.users.filter((x: any) => String(x.referredBy).trim() === uidStr).length;
-               ru.referralCount = referredCount;
-               
-               let earned = 0;
-               // Calculate based on referralBonusesGiven history in other users
-               db.users.forEach((x: any) => {
-                   if (Array.isArray(x.referralBonusesGiven)) {
-                       x.referralBonusesGiven.forEach((b: any) => {
-                           if (String(b.userId).trim() === uidStr) {
-                               earned += Number(b.amount || 0);
-                           }
-                       });
-                   }
-               });
+          const uidStr = String(ru.userId || ru.user_id || ru.telegram_id || ru.id).trim();
+          if (recoveredUids.has(uidStr) || ru.walletBalance === 0) {
+            // Calculate how many users were referred by this user
+            const referredCount = db.users.filter((x: any) => String(x.referredBy).trim() === uidStr).length;
+            ru.referralCount = referredCount;
 
-               // If no history found, but they have referrals, estimate it via settings
-               if (earned === 0 && referredCount > 0 && refReward > 0) {
-                   earned = referredCount * refReward;
-               }
+            let earned = 0;
+            // Calculate based on referralBonusesGiven history in other users
+            db.users.forEach((x: any) => {
+              if (Array.isArray(x.referralBonusesGiven)) {
+                x.referralBonusesGiven.forEach((b: any) => {
+                  if (String(b.userId).trim() === uidStr) {
+                    earned += Number(b.amount || 0);
+                  }
+                });
+              }
+            });
 
-               ru.referralRewardTotal = earned;
-               
-               // Calculate walletBalance: referral earnings + successful charges - successful purchases
-               let totalRecharge = 0;
-               let totalSpent = 0;
-               if (Array.isArray(db.transactions)) {
-                   db.transactions.forEach((tx: any) => {
-                       if (String(tx.userId || tx.user_id).trim() === uidStr && (tx.status === "paid" || tx.status === "successful" || tx.status === "approved")) {
-                           if (tx.type === "charge") totalRecharge += Number(tx.amount || 0);
-                           else if (tx.type === "buy") totalSpent += Number(tx.amount || 0);
-                       }
-                   });
-               }
-
-               ru.walletBalance = Math.max(0, earned + totalRecharge - totalSpent);
+            // If no history found, but they have referrals, estimate it via settings
+            if (earned === 0 && referredCount > 0 && refReward > 0) {
+              earned = referredCount * refReward;
             }
+
+            ru.referralRewardTotal = earned;
+
+            // Calculate walletBalance: referral earnings + successful charges - successful purchases
+            let totalRecharge = 0;
+            let totalSpent = 0;
+            if (Array.isArray(db.transactions)) {
+              db.transactions.forEach((tx: any) => {
+                if (String(tx.userId || tx.user_id).trim() === uidStr && (tx.status === "paid" || tx.status === "successful" || tx.status === "approved")) {
+                  if (tx.type === "charge") totalRecharge += Number(tx.amount || 0);
+                  else if (tx.type === "buy") totalSpent += Number(tx.amount || 0);
+                }
+              });
+            }
+
+            if (ru.walletBalance === 0 && (earned > 0 || totalRecharge > 0)) {
+              ru.walletBalance = Math.max(0, earned + totalRecharge - totalSpent);
+            }
+          }
         });
       }
     }
