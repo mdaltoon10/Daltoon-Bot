@@ -10610,6 +10610,16 @@ app.post("/api/miniapp/validate-promo", async (req, res) => {
       return res.status(404).json({ success: false, error: "کد تخفیف وارد شده معتبر نیست یا منقضی شده است." });
     }
 
+    // Check server restrictions
+    const reqServerId = req.body.serverId || req.body.server_id || req.body.serverIdStr;
+    if (Array.isArray(promo.allowedServerIds) && promo.allowedServerIds.length > 0) {
+      const allowed = promo.allowedServerIds.map((s: any) => String(s).trim());
+      const currentServerIdStr = String(reqServerId || "").trim();
+      if (!currentServerIdStr || !allowed.includes(currentServerIdStr)) {
+        return res.status(404).json({ success: false, error: "کد تخفیف وجود ندارد یا منقضی شده است." });
+      }
+    }
+
     // Check active status
     if (promo.isActive === false || promo.status === "inactive" || promo.status === "disabled") {
       return res.status(400).json({ success: false, error: "این کد تخفیف در حال حاضر غیرفعال می‌باشد." });
@@ -10792,6 +10802,13 @@ app.post("/api/miniapp/purchase", async (req, res) => {
       const promo = (db.promo_codes || []).find((p: any) => (p.code || "").trim().toUpperCase() === pCode);
       if (promo) {
         let isPromoValid = true;
+        if (Array.isArray(promo.allowedServerIds) && promo.allowedServerIds.length > 0) {
+          const allowed = promo.allowedServerIds.map((s: any) => String(s).trim());
+          const currentServerIdStr = String(serverId || "").trim();
+          if (!currentServerIdStr || !allowed.includes(currentServerIdStr)) {
+            isPromoValid = false;
+          }
+        }
         if (promo.isActive === false || promo.status === "inactive" || promo.status === "disabled") {
           isPromoValid = false;
         }

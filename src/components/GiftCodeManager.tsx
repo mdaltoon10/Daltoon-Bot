@@ -16,6 +16,7 @@ interface GiftCodeManagerProps {
   onDeletePromoCode?: (id: string) => void;
   settings?: PanelSettings;
   onSaveSettings?: (settings: PanelSettings) => void;
+  servers?: any[];
   lang?: Language;
 }
 
@@ -30,6 +31,7 @@ export default function GiftCodeManager({
   onDeletePromoCode,
   settings,
   onSaveSettings,
+  servers = [],
   lang = 'fa'
 }: GiftCodeManagerProps) {
   const currency = settings?.currency || (lang === 'fa' ? 'تومان' : 'Toman');
@@ -73,6 +75,7 @@ export default function GiftCodeManager({
   const [promoValue, setPromoValue] = useState("");
   const [promoMaxUsage, setPromoMaxUsage] = useState("50");
   const [promoDurationDays, setPromoDurationDays] = useState("30");
+  const [promoAllowedServerIds, setPromoAllowedServerIds] = useState<string[]>([]);
   const [promoIsActive, setPromoIsActive] = useState(true);
   const [promoSuccess, setPromoSuccess] = useState(false);
   const [calcBasePrice, setCalcBasePrice] = useState<string>("100,000".replace(/,/g, ""));
@@ -143,7 +146,7 @@ export default function GiftCodeManager({
         parseFloat(promoValue),
         parseInt(promoMaxUsage, 10),
         promoDurationDays ? parseInt(promoDurationDays, 10) : undefined,
-        undefined,
+        promoAllowedServerIds.length > 0 ? promoAllowedServerIds : undefined,
         promoIsActive
       );
     }
@@ -152,6 +155,7 @@ export default function GiftCodeManager({
     setPromoValue("");
     setPromoMaxUsage("50");
     setPromoDurationDays("30");
+    setPromoAllowedServerIds([]);
     setPromoIsActive(true);
 
     setPromoSuccess(true);
@@ -513,6 +517,81 @@ export default function GiftCodeManager({
                 </p>
               </div>
 
+              {/* Server Selection Section */}
+              <div className="space-y-2 pt-1 border-t border-gray-800/50">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs text-gray-300 font-semibold flex items-center gap-1.5">
+                    <span>🖥️</span>
+                    <span>{translateText("Allowed Servers", "سرورهای مجاز کد تخفیف", lang)}</span>
+                  </label>
+                  {servers && servers.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (promoAllowedServerIds.length === servers.length) {
+                          setPromoAllowedServerIds([]);
+                        } else {
+                          setPromoAllowedServerIds(servers.map((s) => String(s.id)));
+                        }
+                      }}
+                      className="text-[10px] text-indigo-400 hover:text-indigo-300 transition cursor-pointer font-semibold"
+                    >
+                      {promoAllowedServerIds.length === servers.length
+                        ? translateText("Deselect All", "عدم انتخاب همه", lang)
+                        : translateText("Select All", "انتخاب همه", lang)}
+                    </button>
+                  )}
+                </div>
+
+                {(!servers || servers.length === 0) ? (
+                  <div className="text-[11px] text-gray-500 bg-[#161c2a] p-2.5 rounded-xl border border-gray-800 text-center">
+                    {translateText("No servers found. Promo code will apply to all servers.", "سروری یافت نشد؛ تخفیف روی تمامی سرورها اعمال می‌شود.", lang)}
+                  </div>
+                ) : (
+                  <div className="bg-[#121824] border border-gray-800 rounded-xl p-3 space-y-2 max-h-48 overflow-y-auto">
+                    <p className="text-[10px] text-gray-400 mb-1">
+                      {promoAllowedServerIds.length === 0
+                        ? translateText("⚡ No server checked = Applicable on ALL servers", "⚡ هیچ سروری تیک نخورده = اعمال روی تمامی سرورها", lang)
+                        : translateText(`Selected ${promoAllowedServerIds.length} server(s)`, `تعداد ${promoAllowedServerIds.length} سرور انتخاب شد (کد فقط روی این سرورها فعال است)`, lang)}
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {servers.map((srv) => {
+                        const srvIdStr = String(srv.id);
+                        const isChecked = promoAllowedServerIds.includes(srvIdStr);
+                        const srvName = srv.name || srv.remark || srv.title || `سرور ${srv.id}`;
+                        return (
+                          <label
+                            key={srv.id}
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition text-xs ${
+                              isChecked
+                                ? "bg-indigo-600/25 border border-indigo-500/50 text-indigo-200 font-semibold"
+                                : "bg-[#161c2a] border border-gray-800 text-gray-400 hover:text-gray-200"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 overflow-hidden">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setPromoAllowedServerIds((prev) => [...prev, srvIdStr]);
+                                  } else {
+                                    setPromoAllowedServerIds((prev) => prev.filter((id) => id !== srvIdStr));
+                                  }
+                                }}
+                                className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
+                              />
+                              <span className="truncate">{srvName}</span>
+                            </div>
+                            <span className="text-[9px] text-gray-500 dir-ltr font-mono">{srv.type || "v2ray"}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Active / Inactive Status Switch */}
               <div className="bg-[#121824] border border-gray-800 rounded-xl p-3 flex items-center justify-between">
                 <div>
@@ -720,6 +799,24 @@ export default function GiftCodeManager({
                           / <span className="text-gray-400">{pc.maxUsage}</span>
                           <div className={`text-[10px] mt-1 font-medium ${isExpired ? 'text-rose-400 font-bold' : 'text-amber-400'}`}>
                             {translateText("Validity:", "اعتبار:", lang)} {pc.durationDays ? `${pc.durationDays} روز (${timeRemainingText})` : translateText("Unlimited", "نامحدود", lang)}
+                          </div>
+                          <div className="mt-2 text-[10px] text-gray-400 flex items-center gap-1 flex-wrap">
+                            <span className="text-gray-500 font-medium">{translateText("Servers:", "سرورهای مجاز:", lang)}</span>
+                            {(!pc.allowedServerIds || pc.allowedServerIds.length === 0) ? (
+                              <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-semibold">
+                                {translateText("All Servers", "همه سرورها", lang)}
+                              </span>
+                            ) : (
+                              pc.allowedServerIds.map((sId: string) => {
+                                const matchedSrv = (servers || []).find((srv: any) => String(srv.id) === String(sId));
+                                const name = matchedSrv ? (matchedSrv.name || matchedSrv.remark || matchedSrv.id) : `سرور ${sId}`;
+                                return (
+                                  <span key={sId} className="bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded font-semibold">
+                                    {name}
+                                  </span>
+                                );
+                              })
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-1 text-right">

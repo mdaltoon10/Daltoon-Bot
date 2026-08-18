@@ -1347,6 +1347,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           code: promoCodeInput.trim(),
           userId: tgUser?.id,
           originalPrice: basePrice,
+          serverId: selectedServer?.id,
         }),
       });
 

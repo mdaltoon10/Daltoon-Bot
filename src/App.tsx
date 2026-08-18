@@ -2502,6 +2502,7 @@ export default function App() {
                 }
               }}
               promoCodes={promoCodes}
+              servers={inbounds}
               onAddPromoCode={handleAddPromoCode}
               onEditPromoCode={handleEditPromoCode}
               onDeletePromoCode={handleDeletePromoCode}

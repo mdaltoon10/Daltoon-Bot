@@ -5794,12 +5794,12 @@ def check_promo_code_validity(promo, tg_id=None, server_id=None):
             print(f"[Promo Code Duration Check Error]: {ex}")
 
     # 4. Check server restrictions
-    if server_id is not None:
-        allowed_servers = promo.get("allowedServerIds", [])
-        if allowed_servers and isinstance(allowed_servers, list):
-            curr_srv = str(server_id)
-            if curr_srv and curr_srv not in [str(x) for x in allowed_servers]:
-                return False, "❌ <b>این کد تخفیف برای سرور انتخاب شده معتبر نیست.</b>"
+    allowed_servers = promo.get("allowedServerIds", [])
+    if allowed_servers and isinstance(allowed_servers, list) and len(allowed_servers) > 0:
+        curr_srv = str(server_id).strip() if server_id is not None else ""
+        allowed_str_list = [str(x).strip() for x in allowed_servers]
+        if not curr_srv or curr_srv not in allowed_str_list:
+            return False, "❌ <b>کد تخفیف وجود ندارد یا منقضی شده است.</b>"
 
     # 5. Check if user already used this promo code
     if tg_id is not None:
