@@ -898,6 +898,7 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
       return true;
     });
     transaction(data);
+    clearMiniappDataCache();
     return true;
   } catch (err: any) {
     console.error("[Database SQLite Write Error]", err.message);
@@ -9493,18 +9494,29 @@ const mapServerFormat = (s: any, forceIsColleague = false) => {
   };
 };
 
+const miniappDataCacheMap = new Map<number, { data: any; timestamp: number }>();
+export const clearMiniappDataCache = () => { miniappDataCacheMap.clear(); };
+
 app.get("/api/miniapp/data", async (req, res) => {
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
   try {
+    const tgIdRaw = req.query.tg_id || req.query.userId || req.headers["x-telegram-user-id"];
+    let tgId = tgIdRaw ? Number(tgIdRaw) : 0;
+
+    if (tgId > 0 && miniappDataCacheMap.has(tgId)) {
+      const cachedItem = miniappDataCacheMap.get(tgId)!;
+      if (Date.now() - cachedItem.timestamp < 3000) {
+        return res.json(cachedItem.data);
+      }
+    }
+
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
 
-    const tgIdRaw = req.query.tg_id || req.query.userId || req.headers["x-telegram-user-id"];
     const tgUsername = (req.query.username as string) || "";
     const tgFirstName = (req.query.first_name as string) || "";
     const tgLastName = (req.query.last_name as string) || "";
 
-    let tgId = tgIdRaw ? Number(tgIdRaw) : 0;
     let currentUser: any = null;
 
     // Resolve comprehensive user role & permissions
@@ -9825,7 +9837,7 @@ app.get("/api/miniapp/data", async (req, res) => {
         ? activeServers.find((s: any) => String(s.id).trim() === String(freeTestServerId).trim())
         : null;
 
-      res.json({
+      const responseData = {
         success: true,
         user: currentUser ? {
           id: currentUser.id || currentUser.userId,
@@ -9895,7 +9907,13 @@ app.get("/api/miniapp/data", async (req, res) => {
         tickets: userTickets,
         transactions: userTransactions,
         notifications: tgId > 0 ? (db.user_notifications || []).filter((n: any) => Number(n.userId) === tgId && !n.read && !n.isRead) : []
-      });
+      };
+
+      if (tgId > 0) {
+        miniappDataCacheMap.set(tgId, { data: responseData, timestamp: Date.now() });
+      }
+
+      res.json(responseData);
   } catch (error: any) {
     console.error("[MiniApp Data Error]:", error);
     res.status(500).json({ success: false, error: error.message });

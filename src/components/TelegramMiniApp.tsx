@@ -989,6 +989,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     const user = userObj || tgUser;
     if (!user?.id) return;
 
+    let hasLoadedFromCache = false;
+
     // Instant Hydration from local cache
     try {
       const cacheKey = `daltoon_miniapp_cache_${user.id}`;
@@ -998,12 +1000,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         if (parsed && parsed.success) {
           applyMiniAppData(parsed);
           setLoading(false);
+          hasLoadedFromCache = true;
         }
       }
     } catch (e) {}
 
     try {
-      if (!userData) setLoading(true);
+      if (!hasLoadedFromCache && !userData) setLoading(true);
       setErrorMessage(null);
 
       const params = new URLSearchParams({
@@ -1020,13 +1023,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           localStorage.setItem(`daltoon_miniapp_cache_${user.id}`, JSON.stringify(data));
         } catch (e) {}
       } else {
-        if (!userData) {
+        if (!hasLoadedFromCache && !userData) {
           setErrorMessage(error || data?.error || "خطای نامشخص در دریافت اطلاعات");
         }
       }
     } catch (err: any) {
       console.error("MiniApp fetch error:", err);
-      if (!userData) {
+      if (!hasLoadedFromCache && !userData) {
         setErrorMessage(err.message || "خطا در ارتباط با سرور");
       }
     } finally {
