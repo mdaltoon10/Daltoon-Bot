@@ -751,47 +751,34 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
       try {
         const tmpDir = os.tmpdir();
         const searchDirs = [tmpDir, process.cwd(), path.join(process.cwd(), "backups"), "/root"];
-        const backupFolders: string[] = [];
+        const filesToCheck = new Set<string>();
 
-        searchDirs.forEach((sd) => {
-          if (fs.existsSync(sd)) {
-            try {
-              const items = fs.readdirSync(sd);
-              items.forEach((item) => {
-                if (item.includes("daltoon_update_backup_") || item.includes("daltoon_backup_") || item === "backups") {
-                  const fullP = path.join(sd, item);
-                  if (fs.statSync(fullP).isDirectory()) backupFolders.push(fullP);
-                }
-              });
-            } catch (e) {}
-          }
-        });
-
-        const filesToCheck: string[] = [];
-        searchDirs.forEach((sd) => {
-          if (fs.existsSync(sd)) {
-            try {
-              const items = fs.readdirSync(sd);
-              items.forEach((item) => {
-                const fullP = path.join(sd, item);
-                if (fs.statSync(fullP).isFile() && (item.endsWith(".json") || item.endsWith(".db") || item.endsWith(".bak"))) {
+        const scanRecursive = (dirPath: string, depth = 0) => {
+          if (depth > 3 || !fs.existsSync(dirPath)) return;
+          try {
+            const items = fs.readdirSync(dirPath);
+            items.forEach((item) => {
+              if (item === "node_modules" || item === ".git" || item === "dist") return;
+              const fullP = path.join(dirPath, item);
+              try {
+                const stat = fs.statSync(fullP);
+                if (stat.isDirectory()) {
+                  if (item.includes("backup") || item === "backups" || depth === 0) {
+                    scanRecursive(fullP, depth + 1);
+                  }
+                } else if (stat.isFile()) {
                   if (!item.includes("package") && !item.includes("tsconfig") && !item.includes("metadata")) {
-                    filesToCheck.push(fullP);
+                    if (item.endsWith(".json") || item.endsWith(".db") || item.endsWith(".sqlite") || item.endsWith(".bak") || item.includes("Daltoon") || item.includes("backup")) {
+                      filesToCheck.add(fullP);
+                    }
                   }
                 }
-              });
-            } catch (e) {}
-          }
-        });
-
-        backupFolders.forEach((bf) => {
-          try {
-            const items = fs.readdirSync(bf);
-            items.forEach((item) => {
-              filesToCheck.push(path.join(bf, item));
+              } catch (e) {}
             });
           } catch (e) {}
-        });
+        };
+
+        searchDirs.forEach((sd) => scanRecursive(sd, 0));
 
         filesToCheck.forEach((fpath) => {
           if (!fs.existsSync(fpath) || fs.statSync(fpath).isDirectory()) return;

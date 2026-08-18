@@ -533,30 +533,24 @@ def read_sqlite_db():
             import glob, os, tempfile
             try:
                 search_dirs = [tempfile.gettempdir(), os.getcwd(), os.path.join(os.getcwd(), "backups"), "/root"]
-                backup_paths = []
+                files_to_check = set()
+
                 for sd in search_dirs:
                     if not os.path.exists(sd): continue
-                    backup_paths.extend(glob.glob(os.path.join(sd, "daltoon_update_backup_*")))
-                    backup_paths.extend(glob.glob(os.path.join(sd, "daltoon_backup_*")))
-                    backup_paths.extend(glob.glob(os.path.join(sd, "backups")))
-
-                files_to_check = []
-                for sd in search_dirs:
-                    if os.path.exists(sd):
-                        files_to_check.extend(glob.glob(os.path.join(sd, "*.db")))
-                        files_to_check.extend(glob.glob(os.path.join(sd, "*.sqlite")))
-                        files_to_check.extend(glob.glob(os.path.join(sd, "*.json")))
-                        files_to_check.extend(glob.glob(os.path.join(sd, "*.bak")))
-
-                for bp in backup_paths:
-                    if os.path.isdir(bp):
-                        files_to_check.extend(glob.glob(os.path.join(bp, "*")))
+                    for root_d, dirs_d, files_d in os.walk(sd):
+                        rel_depth = root_d.count(os.sep) - sd.count(os.sep)
+                        if rel_depth > 3: continue
+                        for fname_d in files_d:
+                            if "node_modules" in root_d or ".git" in root_d or "dist" in root_d: continue
+                            if fname_d in ["package.json", "package-lock.json", "tsconfig.json", "metadata.json"]: continue
+                            full_p = os.path.join(root_d, fname_d)
+                            if fname_d.endswith((".json", ".db", ".sqlite", ".bak")) or "Daltoon" in fname_d or "backup" in fname_d:
+                                files_to_check.add(full_p)
 
                 for fpath in files_to_check:
-                    if not os.path.isfile(fpath) or fpath.endswith("package.json") or fpath.endswith("package-lock.json") or fpath.endswith("tsconfig.json") or fpath.endswith("metadata.json"):
-                        continue
+                    if not os.path.isfile(fpath): continue
                     
-                    if fpath.endswith(".db") or fpath.endswith(".sqlite"):
+                    if fpath.endswith(".db") or fpath.endswith(".sqlite") or "Daltoon_Bot" in fpath:
                         try:
                             conn_b = sqlite3.connect(fpath, timeout=5.0)
                             cur_b = conn_b.cursor()
@@ -575,7 +569,7 @@ def read_sqlite_db():
                             conn_b.close()
                         except Exception:
                             pass
-                    elif fpath.endswith(".json") or fpath.endswith(".bak"):
+                    if fpath.endswith(".json") or fpath.endswith(".bak"):
                         try:
                             with open(fpath, "r", encoding="utf-8", errors="ignore") as f_b:
                                 content_b = json.load(f_b)
@@ -641,72 +635,73 @@ def read_sqlite_db():
             
             if missing_users_added > 0:
                 print(f"[DB Auto-Recovery] Recovered users in bot.py. Total users now: {len(data['users'])}")
+                
+                # Calculate balances and referral stats for recovered users
+                settings_str = data.get("settings", {}).get("panel_config", "{}")
+                try:
+                    if not isinstance(settings_str, dict):
+                        settings_obj = json.loads(settings_str)
+                    else:
+                        settings_obj = settings_str
+                except:
+                    settings_obj = {}
                     
-                    # Calculate balances and referral stats for recovered users
-                    settings_str = data.get("settings", {}).get("panel_config", "{}")
-                    try:
-                        if not isinstance(settings_str, dict):
-                            settings_obj = json.loads(settings_str)
-                        else:
-                            settings_obj = settings_str
-                    except:
-                        settings_obj = {}
-                        
-                    try:
-                        ref_amt = int(float(settings_obj.get("referralBaseAmount", 100000)))
-                        ref_pct = int(float(settings_obj.get("referralRewardPercent", 5)))
-                    except:
-                        ref_amt = 100000
-                        ref_pct = 5
-                    ref_reward = max(0, round((ref_amt * ref_pct) / 100))
+                try:
+                    ref_amt = int(float(settings_obj.get("referralBaseAmount", 100000)))
+                    ref_pct = int(float(settings_obj.get("referralRewardPercent", 5)))
+                except:
+                    ref_amt = 100000
+                    ref_pct = 5
+                ref_reward = max(0, round((ref_amt * ref_pct) / 100))
 
-                    for ru in users_list:
-                        uid_str = str(ru.get("userId")).strip()
-                        if uid_str in recovered_uids:
-                            # Referrals count
-                            ref_count = sum(1 for x in users_list if str(x.get("referredBy")).strip() == uid_str)
-                            ru["referralCount"] = ref_count
-                            
-                            # Referral earnings
-                            earned = 0
-                            for x in users_list:
-                                bonuses = x.get("referralBonusesGiven")
-                                if isinstance(bonuses, list):
-                                    for b in bonuses:
-                                        if isinstance(b, dict) and str(b.get("userId")).strip() == uid_str:
-                                            try: earned += float(b.get("amount", 0))
-                                            except: pass
-                                            
-                            if earned == 0 and ref_count > 0 and ref_reward > 0:
-                                earned = ref_count * ref_reward
-                                
-                            ru["referralRewardTotal"] = int(earned)
-                            
-                            # Calculate wallet balance (earned + charges - buys)
-                            tot_recharge = 0.0
-                            tot_spent = 0.0
-                            transactions = data.get("transactions", [])
-                            if isinstance(transactions, list):
-                                for tx in transactions:
-                                    if not isinstance(tx, dict): continue
-                                    tx_uid = str(tx.get("userId") or tx.get("user_id")).strip()
-                                    status = str(tx.get("status", "")).lower()
-                                    if tx_uid == uid_str and status in ["paid", "successful", "approved"]:
-                                        tx_type = str(tx.get("type", "")).lower()
-                                        try:
-                                            amt = float(tx.get("amount", 0))
-                                            if tx_type == "charge": tot_recharge += amt
-                                            elif tx_type == "buy": tot_spent += amt
+                for ru in data["users"]:
+                    uid_str = str(ru.get("userId") or ru.get("user_id") or ru.get("telegram_id") or ru.get("id")).strip()
+                    if uid_str in recovered_uids or ru.get("walletBalance", 0) == 0:
+                        # Referrals count
+                        ref_count = sum(1 for x in data["users"] if str(x.get("referredBy")).strip() == uid_str)
+                        ru["referralCount"] = ref_count
+                        
+                        # Referral earnings
+                        earned = 0
+                        for x in data["users"]:
+                            bonuses = x.get("referralBonusesGiven")
+                            if isinstance(bonuses, list):
+                                for b in bonuses:
+                                    if isinstance(b, dict) and str(b.get("userId")).strip() == uid_str:
+                                        try: earned += float(b.get("amount", 0))
                                         except: pass
                                         
+                        if earned == 0 and ref_count > 0 and ref_reward > 0:
+                            earned = ref_count * ref_reward
+                            
+                        ru["referralRewardTotal"] = int(earned)
+                        
+                        # Calculate wallet balance (earned + charges - buys)
+                        tot_recharge = 0.0
+                        tot_spent = 0.0
+                        transactions = data.get("transactions", [])
+                        if isinstance(transactions, list):
+                            for tx in transactions:
+                                if not isinstance(tx, dict): continue
+                                tx_uid = str(tx.get("userId") or tx.get("user_id")).strip()
+                                status = str(tx.get("status", "")).lower()
+                                if tx_uid == uid_str and status in ["paid", "successful", "approved"]:
+                                    tx_type = str(tx.get("type", "")).lower()
+                                    try:
+                                        amt = float(tx.get("amount", 0))
+                                        if tx_type == "charge": tot_recharge += amt
+                                        elif tx_type == "buy": tot_spent += amt
+                                    except: pass
+                                    
+                        if ru.get("walletBalance", 0) == 0 and (earned > 0 or tot_recharge > 0):
                             ru["walletBalance"] = max(0.0, float(earned) + tot_recharge - tot_spent)
 
-                    # Save the recovered users back to DB
-                    conn = get_sqlite_conn()
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", ("users", json.dumps(users_list, ensure_ascii=False)))
-                    conn.commit()
-                    conn.close()
+                # Save the recovered users back to DB
+                conn = get_sqlite_conn()
+                cursor = conn.cursor()
+                cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", ("users", json.dumps(data["users"], ensure_ascii=False)))
+                conn.commit()
+                conn.close()
 
             return data
         except Exception as e:
