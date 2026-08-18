@@ -2012,6 +2012,25 @@ export default function App() {
           </button>
 
           <button
+            onClick={() => setActiveTab("settings")}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
+              activeTab === "settings"
+                ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]"
+                : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Settings
+                className={`w-4 h-4 transition-colors duration-300 ${activeTab === "settings" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
+              />
+              <span>{t.tabSettings}</span>
+            </div>
+            {activeTab === "settings" && (
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
+            )}
+          </button>
+
+          <button
             onClick={() => setActiveTab("tickets")}
             className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group relative ${
               activeTab === "tickets"
@@ -2035,25 +2054,6 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
               )}
             </div>
-          </button>
-
-          <button
-            onClick={() => setActiveTab("settings")}
-            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold cursor-pointer transition-all duration-300 group ${
-              activeTab === "settings"
-                ? "bg-gradient-to-r from-purple-600/15 via-indigo-600/5 to-transparent text-purple-200 border-s-2 border-purple-500 shadow-[inset_0_0_12px_rgba(168,85,247,0.06)]"
-                : "text-gray-400 hover:text-gray-200 hover:bg-white/[0.02]"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Settings
-                className={`w-4 h-4 transition-colors duration-300 ${activeTab === "settings" ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.4)]" : "text-gray-500 group-hover:text-gray-300"}`}
-              />
-              <span>{t.tabSettings}</span>
-            </div>
-            {activeTab === "settings" && (
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse" />
-            )}
           </button>
 
           <button
