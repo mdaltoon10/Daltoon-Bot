@@ -40,6 +40,7 @@ import {
   AlertTriangle,
   MousePointer,
   Smartphone,
+  Upload,
   Search
 } from "lucide-react";
 
@@ -654,6 +655,9 @@ export default function SettingsPanel({
   const [hideBtnMiniApp, setHideBtnMiniApp] = useState(
     !!settings.hideBtnMiniApp
   );
+  const [miniAppSplashLogo, setMiniAppSplashLogo] = useState(
+    settings.miniAppSplashLogo || ""
+  );
   const [primaryButtonColors, setPrimaryButtonColors] = useState<Record<string, string>>(
     settings.primaryButtonColors || {}
   );
@@ -752,9 +756,15 @@ export default function SettingsPanel({
       btnTextMiniApp,
       miniAppUrl,
       hideBtnMiniApp,
+      miniAppSplashLogo,
       primaryButtonColors,
       ...notificationToggles,
     });
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("daltoon_mini_app_splash_logo", miniAppSplashLogo || "");
+      } catch (e) {}
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };

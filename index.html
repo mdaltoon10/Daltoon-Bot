@@ -26,11 +26,55 @@
     <div id="root">
       <div id="initial-splash" style="position: fixed; inset: 0; background-color: #0d1117; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;">
         <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
-          <img src="/icon.svg" alt="Daltoon Bot" style="width: 224px; height: 224px; object-fit: cover; border-radius: 24px; box-shadow: 0 16px 40px rgba(0,0,0,0.5); border: 1px solid rgba(255, 255, 255, 0.1); margin-bottom: 24px;" />
-          <div style="font-weight: 700; color: #ffffff; font-size: 20px; letter-spacing: 0.05em; text-transform: uppercase;">Telegram Daltoon Bot</div>
+          <div id="splash-logo-box" style="padding: 12px; background-color: transparent; border-radius: 32px; transition: background-color 0.3s ease; display: flex; align-items: center; justify-content: center;">
+            <img id="splash-logo-img" src="/icon.svg" alt="App Logo" style="width: 180px; height: 180px; object-fit: contain; border-radius: 20px;" />
+          </div>
+          <div id="splash-bot-nickname" style="font-weight: 700; color: #ffffff; font-size: 18px; margin-top: 16px; letter-spacing: 0.05em; text-transform: uppercase;">Telegram Daltoon Bot</div>
         </div>
       </div>
     </div>
+    <script>
+      (function() {
+        try {
+          var customLogo = localStorage.getItem("daltoon_mini_app_splash_logo");
+          var nickname = "";
+          var savedSettings = localStorage.getItem("daltoon_settings");
+          if (savedSettings) {
+            var parsed = JSON.parse(savedSettings);
+            if (parsed) {
+              if (!customLogo && parsed.miniAppSplashLogo) {
+                customLogo = parsed.miniAppSplashLogo;
+              }
+              if (parsed.botNickname) {
+                nickname = parsed.botNickname;
+              }
+            }
+          }
+          var imgEl = document.getElementById("splash-logo-img");
+          var nickEl = document.getElementById("splash-bot-nickname");
+          var boxEl = document.getElementById("splash-logo-box");
+
+          if (customLogo && customLogo.trim()) {
+            if (imgEl) imgEl.src = customLogo.trim();
+            if (boxEl) {
+              boxEl.style.backgroundColor = "#ffffff";
+              boxEl.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)";
+            }
+          } else {
+            if (imgEl) imgEl.src = "/icon.svg";
+            if (boxEl) {
+              boxEl.style.backgroundColor = "transparent";
+              boxEl.style.boxShadow = "none";
+            }
+          }
+
+          if (nickEl) {
+            nickEl.innerText = (nickname && nickname.trim()) ? nickname.trim() : "Telegram Daltoon Bot";
+            nickEl.style.display = "block";
+          }
+        } catch(e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {

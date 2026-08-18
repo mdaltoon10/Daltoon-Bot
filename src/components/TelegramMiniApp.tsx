@@ -1894,17 +1894,38 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* Main Content Area */}
       <main ref={mainScrollRef} className="flex-1 w-full max-w-md mx-auto px-4 pt-4 pb-8 overflow-y-auto overscroll-contain relative z-10">
         {/* Loading State */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center py-20 space-y-4">
-            <div className="relative w-14 h-14">
-              <div className="absolute inset-0 rounded-full border-4 border-purple-500/20 animate-ping" />
-              <div className="w-14 h-14 rounded-full border-4 border-t-purple-500 border-purple-500/20 animate-spin" />
+        {loading && (() => {
+          const customLogoUrl = (systemSettings?.miniAppSplashLogo?.trim() || (typeof localStorage !== "undefined" ? localStorage.getItem("daltoon_mini_app_splash_logo")?.trim() : "")) || "";
+          const hasCustomLogo = !!customLogoUrl;
+          return (
+            <div className="flex flex-col items-center justify-center py-16 space-y-5 animate-fadeIn">
+              <div className="relative group">
+                <div className="absolute -inset-1 rounded-3xl bg-gradient-to-r from-purple-600 via-indigo-600 to-emerald-500 opacity-40 blur-lg animate-pulse" />
+                <div className={`relative ${hasCustomLogo ? "bg-white p-3 rounded-3xl shadow-2xl" : ""}`}>
+                  <img
+                    src={hasCustomLogo ? customLogoUrl : "/icon.svg"}
+                    alt="Mini App Loading Splash Logo"
+                    className={`w-36 h-36 object-contain ${hasCustomLogo ? "rounded-2xl" : "rounded-3xl shadow-2xl border border-white/10"}`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/icon.svg";
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="text-center space-y-1">
+                <h2 className="text-base font-bold text-white tracking-wider font-mono uppercase">
+                  {systemSettings?.botNickname || "Telegram Daltoon Bot"}
+                </h2>
+                <p className="text-xs text-gray-400 font-sans animate-pulse">
+                  در حال دریافت آخرین اطلاعات سرورها و پکیج‌ها...
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                <div className="w-6 h-6 rounded-full border-2 border-purple-500/30 border-t-purple-400 animate-spin" />
+              </div>
             </div>
-            <p className="text-sm text-slate-400 font-medium animate-pulse">
-              در حال دریافت آخرین اطلاعات سرورها و پکیج‌ها...
-            </p>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Global Error Banner */}
         {errorMessage && !loading && (

@@ -938,6 +938,7 @@ function getSystemSettings(db?: any) {
     hideBtnDashPro: false,
     miniAppUrl: "",
     hideBtnMiniApp: false,
+    miniAppSplashLogo: "",
     gatewayStarsStatus: false,
     autoWarningConfigBtn: false,
     autoWarningNoConnectionBtn: false,

@@ -187,12 +187,12 @@ export default function ConfigDeliverySettings({
           <button
             type="button"
             onClick={handleSave}
-            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
           >
             {savedSuccess ? (
               <>
-                <Check className="w-4 h-4 text-emerald-300" />
-                <span className="text-emerald-200">{translateText("Saved!", "ذخیره شد!", lang)}</span>
+                <Check className="w-4 h-4 text-emerald-200" />
+                <span className="text-emerald-100">{translateText("Saved!", "ذخیره شد!", lang)}</span>
               </>
             ) : (
               <>
@@ -499,7 +499,7 @@ export default function ConfigDeliverySettings({
                 onClick={() => setShowQr(!showQr)}
                 className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full transition-colors duration-300 focus:outline-none ${
                   showQr
-                    ? "bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.35)]"
+                    ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.35)]"
                     : "bg-slate-800"
                 }`}
                 style={{ direction: "ltr" }}
