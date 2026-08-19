@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v4.7.1"];
+  const tagsToDelete = ["v4.7.2"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v4.7.1", { stdio: "inherit" });
+    execSync("git tag -d v4.7.2", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v4.7.1`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v4.7.2`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v4.7.1 - Fix MiniApp user identity persistence across refreshes and prevent guest database mutations" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync('git commit -m "release: v4.7.2 - Auto-heal users from active subscriptions and purge fake dummy servers" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin HEAD:main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v4.7.1 tag
-  console.log("Creating and pushing local v4.7.1 tag...");
+  // 4. Create and push the v4.7.2 tag
+  console.log("Creating and pushing local v4.7.2 tag...");
   try {
-    execSync("git tag v4.7.1", { stdio: "inherit" });
-    execSync("git push origin v4.7.1", { stdio: "inherit" });
-    console.log("Tag v4.7.1 pushed successfully.");
+    execSync("git tag v4.7.2", { stdio: "inherit" });
+    execSync("git push origin v4.7.2", { stdio: "inherit" });
+    console.log("Tag v4.7.2 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -116,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v4.7.1...");
+  console.log("Creating new GitHub release for v4.7.2...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v4.7.1",
+      tag_name: "v4.7.2",
       target_commitish: "main",
-      name: "v4.7.1",
-      body: "### Changes in v4.7.1\n\n- **Telegram MiniApp User Identity Persistence**: Fixed hydration and refresh race condition where Telegram WebApp initData could momentarily default to guest user (`daltoon_guest`). Real user identity is now preserved in localStorage and Telegram session across page reloads.\n- **Database Protection Against Guest Mutations**: Guest visits and unauthenticated browser refreshes are strictly isolated in memory and forbidden from writing or modifying `db.users` or the SQLite database.\n- **Owner Privilege Recognition**: Added robust username matching for bot owners (including @mDaltoon) to ensure full administrative access in the MiniApp.",
+      name: "v4.7.2",
+      body: "### Changes in v4.7.2\n\n- **Automatic User Auto-Healing from Subscriptions & Transactions**: Implemented intelligent self-healing database layer that automatically restores and reconstructs missing user records from all active configs (e.g. 167+ subscription keys) and transactions, ensuring user lists and stats are never zeroed.\n- **Complete Removal of Dummy / Fake Servers**: Completely purged hardcoded fallback mock servers (Germany DE / Finland FI) so only real, authentic servers and panels are ever loaded.",
       draft: false,
       prerelease: false,
     };

@@ -729,6 +729,104 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
       }
     }
 
+    // Auto-heal missing users in db.users from subscription_keys and transactions
+    if (Array.isArray(db.subscription_keys) || Array.isArray(db.transactions)) {
+      if (!Array.isArray(db.users)) {
+        db.users = [];
+        modified = true;
+      }
+      const existingUserIds = new Set<number>();
+      db.users.forEach((u: any) => {
+        const uid = Number(u.userId || u.user_id || u.id);
+        if (uid && !isNaN(uid) && uid > 0) existingUserIds.add(uid);
+      });
+
+      // Recover users from subscription keys (167+ configs)
+      if (Array.isArray(db.subscription_keys)) {
+        for (const k of db.subscription_keys) {
+          if (!k || typeof k !== "object") continue;
+          const uid = Number(k.userId || k.user_id);
+          if (uid && !isNaN(uid) && uid > 0 && uid !== 100001 && !existingUserIds.has(uid)) {
+            const reconstructedUser = {
+              id: uid,
+              userId: uid,
+              user_id: uid,
+              username: k.username || (k.clientName && !k.clientName.includes(" ") ? k.clientName : `user_${uid}`),
+              firstName: k.firstName || k.clientName || `کاربر ${uid}`,
+              lastName: "",
+              fullName: k.clientName || `کاربر ${uid}`,
+              walletBalance: 0,
+              wallet_balance: 0,
+              balance: 0,
+              status: "active",
+              role: "user",
+              isAdmin: false,
+              isOwner: false,
+              isSuperAdmin: false,
+              activePlansCount: 1,
+              registeredAt: k.createdAt ? new Date(k.createdAt).toISOString() : new Date().toISOString(),
+              createdAt: k.createdAt ? new Date(k.createdAt).toISOString() : new Date().toISOString()
+            };
+            db.users.push(reconstructedUser);
+            existingUserIds.add(uid);
+            modified = true;
+            console.log(`[DB Auto-Healing] Reconstructed missing user ${uid} (${reconstructedUser.fullName}) from subscription keys`);
+          }
+        }
+      }
+
+      // Recover users from transactions
+      if (Array.isArray(db.transactions)) {
+        for (const t of db.transactions) {
+          if (!t || typeof t !== "object") continue;
+          const uid = Number(t.userId || t.user_id);
+          if (uid && !isNaN(uid) && uid > 0 && uid !== 100001 && !existingUserIds.has(uid)) {
+            const reconstructedUser = {
+              id: uid,
+              userId: uid,
+              user_id: uid,
+              username: t.username || `user_${uid}`,
+              firstName: t.firstName || `کاربر ${uid}`,
+              lastName: "",
+              fullName: `کاربر ${uid}`,
+              walletBalance: 0,
+              wallet_balance: 0,
+              balance: 0,
+              status: "active",
+              role: "user",
+              isAdmin: false,
+              isOwner: false,
+              isSuperAdmin: false,
+              activePlansCount: 0,
+              registeredAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString(),
+              createdAt: t.createdAt ? new Date(t.createdAt).toISOString() : new Date().toISOString()
+            };
+            db.users.push(reconstructedUser);
+            existingUserIds.add(uid);
+            modified = true;
+            console.log(`[DB Auto-Healing] Reconstructed missing user ${uid} from transactions`);
+          }
+        }
+      }
+
+      // Re-calculate accurate activePlansCount for all users based on active keys
+      if (Array.isArray(db.users) && Array.isArray(db.subscription_keys)) {
+        const keyCounts = new Map<number, number>();
+        db.subscription_keys.forEach((k: any) => {
+          const uid = Number(k.userId || k.user_id);
+          if (uid && (!k.status || k.status === "active")) {
+            keyCounts.set(uid, (keyCounts.get(uid) || 0) + 1);
+          }
+        });
+        db.users.forEach((u: any) => {
+          const uid = Number(u.userId || u.user_id || u.id);
+          if (uid) {
+            u.activePlansCount = keyCounts.get(uid) || 0;
+          }
+        });
+      }
+    }
+
     // Calculate accurate referral counts based on actual referredBy
     if (db.users && Array.isArray(db.users)) {
       const refCountMap = new Map<string, number>();
@@ -3327,12 +3425,10 @@ function getActiveServers(settings: any) {
     if (unique.length > 0) return unique;
   }
 
-  // Fallback to legacy single server configuration if active
+  // Fallback to legacy single server configuration if baseUrl is present
   if (
-    settings.panelConnectionActive &&
     settings.baseUrl &&
-    settings.panelUsername &&
-    settings.panelPassword
+    (settings.panelUsername || settings.panelConnectionActive)
   ) {
     return [
       {
@@ -3340,56 +3436,16 @@ function getActiveServers(settings: any) {
         name: "پنل اصلی",
         panelUrl: settings.baseUrl,
         subUrl: settings.subUrl || settings.sub_url || "",
-        panelUsername: settings.panelUsername,
-        panelPassword: settings.panelPassword,
+        panelUsername: settings.panelUsername || "admin",
+        panelPassword: settings.panelPassword || "",
         activeInboundIds: settings.activeInboundIds || [],
         status: "active",
       },
     ];
   }
 
-  // Fallback active servers when none configured yet
-  return [
-    {
-      id: "srv_de_default",
-      name: "آلمان - پرسرعت و پایدار (DE)",
-      flag: "🇩🇪",
-      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
-      subUrl: settings.subUrl || "",
-      panelUsername: settings.panelUsername || "admin",
-      panelPassword: settings.panelPassword || "admin",
-      activeInboundIds: [1],
-      protocol: "VLESS + Reality",
-      status: "active",
-      isColleague: false,
-    },
-    {
-      id: "srv_fi_default",
-      name: "فنلاند - پینگ پایین و گیمینگ (FI)",
-      flag: "🇫🇮",
-      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
-      subUrl: settings.subUrl || "",
-      panelUsername: settings.panelUsername || "admin",
-      panelPassword: settings.panelPassword || "admin",
-      activeInboundIds: [1],
-      protocol: "VLESS + VMess",
-      status: "active",
-      isColleague: false,
-    },
-    {
-      id: "srv_col_default",
-      name: "سرور اختصاصی بسته همکاران (VIP)",
-      flag: "🛡️",
-      panelUrl: settings.baseUrl || "http://127.0.0.1:2053",
-      subUrl: settings.subUrl || "",
-      panelUsername: settings.panelUsername || "admin",
-      panelPassword: settings.panelPassword || "admin",
-      activeInboundIds: [1],
-      protocol: "VLESS + Trojan",
-      status: "active",
-      isColleague: true,
-    }
-  ];
+  // No fake servers - return empty list so no counterfeit servers are displayed
+  return [];
 }
 
 function formatSubUrlWithToken(baseUrl: string, token: string): string {
