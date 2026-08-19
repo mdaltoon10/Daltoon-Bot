@@ -1012,7 +1012,21 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
       return isAnyModified;
     });
     transaction(data);
-    memoryDbCache = data;
+    if (!isRestore) {
+      if (memoryDbCache) {
+        memoryDbCache = { ...memoryDbCache, ...data } as any;
+      } else {
+        const fullData: any = {};
+        for (const key of Object.keys(memoryDbSnapshot)) {
+          try {
+            fullData[key] = JSON.parse(memoryDbSnapshot[key]);
+          } catch(e) {}
+        }
+        memoryDbCache = { ...fullData, ...data } as any;
+      }
+    } else {
+      memoryDbCache = data;
+    }
     memoryDbCacheTimestamp = Date.now();
     clearMiniappDataCache();
     return true;
