@@ -36,6 +36,7 @@ const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
 const sqliteDb = (() => {
   let cachedData: Record<string, any> = {};
   let lastMtime: number = 0;
+  let hasLoadError: boolean = false;
 
   function runPython(code: string): string {
     const tempPy = path.join(os.tmpdir(), `py_db_${Math.random().toString(36).substring(7)}.py`);
@@ -87,20 +88,28 @@ except Exception as e:
               cachedData[k] = v;
             }
             lastMtime = currentMtime;
+            hasLoadError = false;
           } else if (parsed && parsed.error) {
             console.error("[Python DB Bridge Load Error]", parsed.error);
+            hasLoadError = true;
           }
         }
       } else {
         cachedData = {};
         lastMtime = 0;
+        hasLoadError = false;
       }
     } catch (err: any) {
       console.error("[Python DB Bridge Read Exception]", err.message);
+      hasLoadError = true;
     }
   }
 
   function saveToDisk(data: Record<string, string>) {
+    if (hasLoadError) {
+      console.error("[Python DB Bridge] CRITICAL: Refusing to save to disk because a previous load operation failed. This prevents data wipes.");
+      return;
+    }
     const tempJsonPath = dbSqlitePath + ".tmp.json";
     try {
       fs.writeFileSync(tempJsonPath, JSON.stringify(data), "utf8");
@@ -223,6 +232,9 @@ conn.close()
         }
         return res;
       };
+    },
+    hasError() {
+      return hasLoadError;
     }
   };
 })();
@@ -607,6 +619,10 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
   try {
     const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
     
+    if ((sqliteDb as any).hasError()) {
+      throw new Error("Underlying Python SQLite bridge reported a load error.");
+    }
+    
     if (rows.length === 0) {
       // Auto-migrate from JSON if it exists
       const jsonDbPath = path.join(process.cwd(), "Daltoon_Bot.json");
@@ -944,9 +960,18 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
   // Safeguard: refuse to overwrite if existing database is large but new data is empty
   if (!isRestore) {
     try {
+      let isExistingDbLarge = false;
+      const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
+      if (fs.existsSync(dbSqlitePath)) {
+        const stats = fs.statSync(dbSqlitePath);
+        if (stats.size > 2048) { // 2KB+ means it's not empty
+          isExistingDbLarge = true;
+        }
+      }
+
       const rowCountRow = sqliteDb.prepare("SELECT COUNT(*) as count FROM kv").get() as { count: number };
-      if (rowCountRow.count > 0) {
-        const hasUsers = Array.isArray(data.users) && data.users.length > 0;
+      if (rowCountRow.count > 0 || isExistingDbLarge) {
+        const hasUsers = Array.isArray(data.users) && data.users.length > 1; // Require >1 user if it was populated
         const hasTransactions = Array.isArray(data.transactions) && data.transactions.length > 0;
         const hasKeys = Array.isArray(data.subscription_keys) && data.subscription_keys.length > 0;
         const hasServers = Array.isArray(data.servers) && data.servers.length > 0;
@@ -961,7 +986,7 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
         } catch(err) {}
 
         if (!hasUsers && !hasTransactions && !hasToken && !hasKeys && !hasServers) {
-          console.error("[Database] CRITICAL Safeguard: Refusing to overwrite populated database with empty/reset structure!");
+          console.error(`[Database] CRITICAL Safeguard: Refusing to overwrite populated database (file size check: ${isExistingDbLarge}) with empty/reset structure!`);
           return false;
         }
       }
@@ -9594,6 +9619,9 @@ app.get("/api/miniapp/data", async (req, res) => {
     }
 
     const db = readSqliteDb();
+    if ((db as any)._isReadError) {
+      return res.status(503).json({ success: false, error: "دیتابیس در حال حاضر مشغول یا در وضعیت خطا است. لطفاً مجدداً تلاش کنید." });
+    }
     const settings = getSystemSettings(db);
 
     const tgUsername = (req.query.username as string) || "";
