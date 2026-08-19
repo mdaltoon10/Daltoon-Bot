@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v3.9.34"];
+  const tagsToDelete = ["v4.7.0"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v3.9.34", { stdio: "inherit" });
+    execSync("git tag -d v4.7.0", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v3.9.34`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v4.7.0`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v3.9.34 - Fix receipt approval callback, optimize receipt image storage, resolve linter dashboard imports and datetime types" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync('git commit -m "release: v4.7.0 - Fix database cache persistence on refresh and restore MiniApp server loading for all users" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin HEAD:main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v3.9.34 tag
-  console.log("Creating and pushing local v3.9.34 tag...");
+  // 4. Create and push the v4.7.0 tag
+  console.log("Creating and pushing local v4.7.0 tag...");
   try {
-    execSync("git tag v3.9.34", { stdio: "inherit" });
-    execSync("git push origin v3.9.34", { stdio: "inherit" });
-    console.log("Tag v3.9.34 pushed successfully.");
+    execSync("git tag v4.7.0", { stdio: "inherit" });
+    execSync("git push origin v4.7.0", { stdio: "inherit" });
+    console.log("Tag v4.7.0 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -116,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v3.9.34...");
+  console.log("Creating new GitHub release for v4.7.0...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v3.9.34",
+      tag_name: "v4.7.0",
       target_commitish: "main",
-      name: "v3.9.34",
-      body: "### Changes in v3.9.34\n\n- **Fix Receipt Approval**: Fixed the local proxy/loopback routing inside `bot.py` so callback handlers successfully reach the Node backend and approve card-to-card manual transactions.\n- **Optimized Receipt Image Storage**: Receipts are now saved as physical files (`receipts/{tx_id}.jpg`) on disk instead of encoding entire files into raw base64 data URIs in the SQLite database, preventing database bloating and process buffer overflows.\n- **Statically Serves Receipts**: Express now mounts `/receipts` dynamically as a static route so images load fast and reliably inside the dashboard.\n- **Full Dashboard Linter Fixes**: Added the missing `MonitoringDashboard.tsx` component, restored complete exports in `dateTimeUtils.ts` (like CalendarSystem and COMMON_TIMEZONES), and updated settings panel interfaces in `types.ts` so the dashboard compiles and lints perfectly.",
+      name: "v4.7.0",
+      body: "### Changes in v4.7.0\n\n- **Permanent Database Persistence & Cache Consistency**: Completely resolved cache race condition during database writes and restores, ensuring that user records, subscriptions, and settings are never lost or overwritten when refreshing the MiniApp or switching roles.\n- **MiniApp Server Visibility Fix**: Standard public servers are now guaranteed to load robustly for all users (both non-admin users and administrators alike) from all configuration layers.\n- **Optimized SQLite Bridge**: Forced reload ensures fresh disk synchronization without relying on unreliable filesystem millisecond mtimes.",
       draft: false,
       prerelease: false,
     };

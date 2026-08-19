@@ -52,7 +52,7 @@ const sqliteDb = (() => {
     }
   }
 
-  function loadFromDisk() {
+  function loadFromDisk(force: boolean = false) {
     try {
       if (fs.existsSync(dbSqlitePath)) {
         const stats = fs.statSync(dbSqlitePath);
@@ -62,7 +62,7 @@ const sqliteDb = (() => {
            currentMtime += fs.statSync(walPath).mtimeMs;
         }
 
-        if (currentMtime !== lastMtime) {
+        if (force || currentMtime !== lastMtime || Object.keys(cachedData).length === 0) {
           const pythonCode = `
 import sqlite3, json, sys
 try:
@@ -158,7 +158,7 @@ conn.close()
 `;
       runPython(initPython);
     }
-    loadFromDisk();
+    loadFromDisk(true);
   } catch (err) {}
 
   return {
@@ -871,33 +871,26 @@ function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
   }
 
   try {
-    memoryDbCache = data;
-    memoryDbCacheTimestamp = Date.now();
+    if (isRestore) {
+      memoryDbSnapshot = {};
+      memoryDbCache = null;
+      memoryDbCacheTimestamp = 0;
+    }
     const insert = sqliteDb.prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)");
     const transaction = sqliteDb.transaction((obj: any) => {
       let isAnyModified = false;
-      if (isRestore) {
-        try {
-          (sqliteDb.prepare("DELETE FROM kv") as any).run();
-        } catch(e) {}
-      }
       for (const key of Object.keys(obj)) {
         if (key.startsWith("_")) continue;
         const val = typeof obj[key] === "string" ? obj[key] : JSON.stringify(obj[key]);
-        if (!isRestore && memoryDbSnapshot[key] === val) {
-           continue; // Skip unchanged keys
-        }
         insert.run(key, val);
-        memoryDbSnapshot[key] = val; // Update snapshot
+        memoryDbSnapshot[key] = val;
         isAnyModified = true;
       }
-      // If nothing was modified and we are not restoring, we don't need to do anything
-      if (!isAnyModified && !isRestore) {
-         return false;
-      }
-      return true;
+      return isAnyModified;
     });
     transaction(data);
+    memoryDbCache = data;
+    memoryDbCacheTimestamp = Date.now();
     clearMiniappDataCache();
     return true;
   } catch (err: any) {
@@ -1011,6 +1004,12 @@ function getSystemSettings(db?: any) {
     panelConnectionActive: false,
     ...parsedSettings,
   };
+
+  if (!Array.isArray(settings.servers) || settings.servers.length === 0) {
+    if (data && Array.isArray(data.servers) && data.servers.length > 0) {
+      settings.servers = data.servers;
+    }
+  }
 
   // Normalization for keys that might be saved under alternative names or casing
   settings.botToken =
@@ -9623,8 +9622,19 @@ app.get("/api/miniapp/data", async (req, res) => {
       });
     }
 
-    // Standard Servers - EXACTLY from settings.servers (where status is active)
-    let standardServersRaw = Array.isArray(settings.servers) ? settings.servers.filter((s: any) => s && s.status !== "inactive") : [];
+    // Standard Servers - Extract robustly from settings.servers, rawServers, or db.servers
+    let standardServersRaw = Array.isArray(settings.servers) && settings.servers.length > 0
+      ? settings.servers.filter((s: any) => s && s.status !== "inactive" && !s.isColleague && !s.is_colleague && !s.isReseller && !s.is_reseller)
+      : [];
+
+    if (standardServersRaw.length === 0 && Array.isArray(rawServers) && rawServers.length > 0) {
+      standardServersRaw = rawServers.filter((s: any) => s && s.status !== "inactive" && !s.isColleague && !s.is_colleague && !s.isReseller && !s.is_reseller);
+    }
+
+    if (standardServersRaw.length === 0 && Array.isArray(db.servers) && db.servers.length > 0) {
+      standardServersRaw = db.servers.filter((s: any) => s && s.status !== "inactive" && !s.isColleague && !s.is_colleague && !s.isReseller && !s.is_reseller);
+    }
+
     if (standardServersRaw.length === 0 && settings.panelConnectionActive && settings.baseUrl && settings.panelUsername && settings.panelPassword) {
       standardServersRaw = [{
         id: "legacy_server",
