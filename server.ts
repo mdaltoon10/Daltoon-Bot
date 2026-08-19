@@ -1661,6 +1661,9 @@ app.get("/api/data", async (req, res) => {
   res.setHeader("Pragma", "no-cache");
   try {
     const db = readSqliteDb();
+    if ((db as any)._isReadError) {
+      return res.status(503).json({ success: false, error: "دیتابیس در حال حاضر مشغول یا در وضعیت خطا است. لطفاً مجدداً تلاش کنید." });
+    }
     const settings = getSystemSettings(db);
 
     // Ensure admins list is properly formatted
