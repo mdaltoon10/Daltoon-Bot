@@ -17,6 +17,8 @@ try {
   console.error("Error reading git remote URL:", err);
 }
 
+const pkg = JSON.parse(fs.readFileSync("./package.json", "utf8"));
+const VERSION = `v${pkg.version}`;
 const REPO = "mdaltoon10/Daltoon-Bot";
 
 async function run() {
@@ -25,7 +27,7 @@ async function run() {
     return;
   }
 
-  console.log("=== STARTING SAFE GITHUB RELEASE CLEANUP AND RE-PUBLISH ===");
+  console.log(`=== STARTING SAFE GITHUB RELEASE CLEANUP AND PUBLISH FOR ${VERSION} ===`);
 
   const headers = {
     Authorization: `token ${TOKEN}`,
@@ -33,8 +35,6 @@ async function run() {
     "User-Agent": "Daltoon-Dashboard-Release-Script",
   };
 
-  // 1. Delete releases v2.3.2, v2.3.2, v2.3.2 if they exist
-  // We'll query all releases first to dynamically find any release IDs matching these tags
   console.log("Fetching existing releases to find IDs...");
   let releases = [];
   try {
@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v4.7.3"];
+  const tagsToDelete = [VERSION];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v4.7.3", { stdio: "inherit" });
+    execSync(`git tag -d ${VERSION}`, { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v4.7.3`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/${VERSION}`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v4.7.3 - Ultimate root fix for database wipe during heavy load and UI flicker" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync(`git commit -m "release: ${VERSION} - Permanent fix for in-memory cache corruption during partial updates" || echo "No changes to commit"`, { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin HEAD:main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v4.7.3 tag
-  console.log("Creating and pushing local v4.7.3 tag...");
+  // 4. Create and push the tag
+  console.log(`Creating and pushing local ${VERSION} tag...`);
   try {
-    execSync("git tag v4.7.3", { stdio: "inherit" });
-    execSync("git push origin v4.7.3", { stdio: "inherit" });
-    console.log("Tag v4.7.3 pushed successfully.");
+    execSync(`git tag ${VERSION}`, { stdio: "inherit" });
+    execSync(`git push origin ${VERSION}`, { stdio: "inherit" });
+    console.log(`Tag ${VERSION} pushed successfully.`);
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -103,11 +103,9 @@ async function run() {
   // 5. Package the tarball assets
   console.log("Packaging release tarball assets...");
   try {
-    // Make sure old tarballs are deleted before packaging
     try { fs.unlinkSync("./daltoon-bot-linux-amd64.tar.gz"); } catch {}
     try { fs.unlinkSync("./daltoon-bot-linux-arm64.tar.gz"); } catch {}
     
-    // Use || true to prevent exit code 1 if files change during tar
     execSync("tar -czf daltoon-bot-linux-amd64.tar.gz --exclude=node_modules --exclude=.git --exclude=.github --exclude=dist/server.cjs.map --exclude=*.tar.gz . || true", { stdio: "inherit" });
     execSync("cp daltoon-bot-linux-amd64.tar.gz daltoon-bot-linux-arm64.tar.gz", { stdio: "inherit" });
     console.log("Tarball assets packaged successfully.");
@@ -116,14 +114,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v4.7.3...");
+  console.log(`Creating new GitHub release for ${VERSION}...`);
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v4.7.3",
+      tag_name: VERSION,
       target_commitish: "main",
-      name: "v4.7.3",
-      body: "### Changes in v4.7.3 (Critical Database Fix)\n\n- **Root Cause Fix for Database Wipes (737 Users -> 1)**: Prevented a critical race condition where heavy load or a timeout in the Python SQLite bridge caused the database to appear empty to the Node.js process. The backend no longer blindly overwrites the existing database with an empty structure.\n- **Strict File Size Verification**: Before any database write, the system physically checks the SQLite file size. If the database file is large (>2KB) but the data payload is empty (e.g. 1 user), the write operation is strictly forbidden and aborted.\n- **Global Read Lock Error Guard**: Implemented a global locking mechanism that sets an error flag `hasLoadError` when the database fails to read. This completely freezes all writes to prevent accidental wipes until the system recovers.\n- **MiniApp Load Flicker Fix**: The `/api/miniapp/data` route now intelligently returns a `503 Service Unavailable` error instead of returning empty data if the database is in an errored state. This stops the frontend MiniApp from caching and flashing empty screens.",
+      name: VERSION,
+      body: `### Changes in ${VERSION} (Critical Data Persistence Fix)\n\n- **Fix Memory DB Cache Corruption during Partial Writes**: Fixed a bug where partial writes (e.g. updating inbounds or settings) overwrote \`memoryDbCache\` with a partial object lacking the \`users\` array. Now partial data is safely merged with the existing cache snapshot, ensuring user lists are never wiped on MiniApp refresh or concurrent sync operations.`,
       draft: false,
       prerelease: false,
     };
