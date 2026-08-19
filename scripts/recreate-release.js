@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = ["v4.7.0"];
+  const tagsToDelete = ["v4.7.1"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync("git tag -d v4.7.0", { stdio: "inherit" });
+    execSync("git tag -d v4.7.1", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/v4.7.0`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v4.7.1`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync('git commit -m "release: v4.7.0 - Fix database cache persistence on refresh and restore MiniApp server loading for all users" || echo "No changes to commit"', { stdio: "inherit" });
+    execSync('git commit -m "release: v4.7.1 - Fix MiniApp user identity persistence across refreshes and prevent guest database mutations" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin HEAD:main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the v4.7.0 tag
-  console.log("Creating and pushing local v4.7.0 tag...");
+  // 4. Create and push the v4.7.1 tag
+  console.log("Creating and pushing local v4.7.1 tag...");
   try {
-    execSync("git tag v4.7.0", { stdio: "inherit" });
-    execSync("git push origin v4.7.0", { stdio: "inherit" });
-    console.log("Tag v4.7.0 pushed successfully.");
+    execSync("git tag v4.7.1", { stdio: "inherit" });
+    execSync("git push origin v4.7.1", { stdio: "inherit" });
+    console.log("Tag v4.7.1 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -116,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log("Creating new GitHub release for v4.7.0...");
+  console.log("Creating new GitHub release for v4.7.1...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: "v4.7.0",
+      tag_name: "v4.7.1",
       target_commitish: "main",
-      name: "v4.7.0",
-      body: "### Changes in v4.7.0\n\n- **Permanent Database Persistence & Cache Consistency**: Completely resolved cache race condition during database writes and restores, ensuring that user records, subscriptions, and settings are never lost or overwritten when refreshing the MiniApp or switching roles.\n- **MiniApp Server Visibility Fix**: Standard public servers are now guaranteed to load robustly for all users (both non-admin users and administrators alike) from all configuration layers.\n- **Optimized SQLite Bridge**: Forced reload ensures fresh disk synchronization without relying on unreliable filesystem millisecond mtimes.",
+      name: "v4.7.1",
+      body: "### Changes in v4.7.1\n\n- **Telegram MiniApp User Identity Persistence**: Fixed hydration and refresh race condition where Telegram WebApp initData could momentarily default to guest user (`daltoon_guest`). Real user identity is now preserved in localStorage and Telegram session across page reloads.\n- **Database Protection Against Guest Mutations**: Guest visits and unauthenticated browser refreshes are strictly isolated in memory and forbidden from writing or modifying `db.users` or the SQLite database.\n- **Owner Privilege Recognition**: Added robust username matching for bot owners (including @mDaltoon) to ensure full administrative access in the MiniApp.",
       draft: false,
       prerelease: false,
     };

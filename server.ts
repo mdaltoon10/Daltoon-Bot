@@ -9304,10 +9304,10 @@ function checkUserRoleAndAdmin(
   let isSuperAdmin = isOwner;
 
   // Check owner by username
-  const ownerUsernames: string[] = [];
+  const ownerUsernames: string[] = ["mdaltoon", "daltoon"];
   if (settings?.ownerUsername) ownerUsernames.push(String(settings.ownerUsername).toLowerCase().replace(/^@/, "").trim());
   if (settings?.adminUsername) ownerUsernames.push(String(settings.adminUsername).toLowerCase().replace(/^@/, "").trim());
-  if (cleanUsername && ownerUsernames.includes(cleanUsername)) {
+  if (cleanUsername && ownerUsernames.some(ou => ou && (cleanUsername === ou || cleanUsername.toLowerCase() === ou.toLowerCase()))) {
     isOwner = true;
     isSuperAdmin = true;
   }
@@ -9555,54 +9555,78 @@ app.get("/api/miniapp/data", async (req, res) => {
     const userRoleTitle = userRoleCheck.roleTitle;
 
     if (tgId && !isNaN(tgId) && tgId > 0) {
-      if (!Array.isArray(db.users)) db.users = [];
-      currentUser = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId);
-
-      if (!currentUser) {
-        // Auto-register user in DB
+      if (tgId === 100001 || tgUsername === "daltoon_guest") {
+        // GUEST USER: Do NOT push to db.users and do NOT write to database!
         currentUser = {
-          id: tgId,
-          userId: tgId,
-          user_id: tgId,
-          username: tgUsername || `user_${tgId}`,
-          firstName: tgFirstName,
-          lastName: tgLastName,
-          fullName: `${tgFirstName} ${tgLastName}`.trim() || `User ${tgId}`,
+          id: 100001,
+          userId: 100001,
+          user_id: 100001,
+          username: "daltoon_guest",
+          firstName: "کاربر",
+          lastName: "مهمان",
+          fullName: "کاربر مهمان",
           walletBalance: 0,
           wallet_balance: 0,
           balance: 0,
           status: "active",
-          role: userRole,
-          isAdmin: isAdmin,
-          isOwner: isOwner,
-          isSuperAdmin: isSuperAdmin,
+          role: "user",
+          isAdmin: false,
+          isOwner: false,
+          isSuperAdmin: false,
           activePlansCount: 0,
           registeredAt: new Date().toISOString(),
           createdAt: new Date().toISOString()
         };
-        db.users.push(currentUser);
-        writeSqliteDb(db);
       } else {
-        // Update user profile if changed
-        let updated = false;
-        if (tgUsername && currentUser.username !== tgUsername) {
-          currentUser.username = tgUsername;
-          updated = true;
-        }
-        if (tgFirstName && currentUser.firstName !== tgFirstName) {
-          currentUser.firstName = tgFirstName;
-          currentUser.fullName = `${tgFirstName} ${tgLastName || currentUser.lastName || ""}`.trim();
-          updated = true;
-        }
-        if (currentUser.role !== userRole || currentUser.isAdmin !== isAdmin || currentUser.isOwner !== isOwner) {
-          currentUser.role = userRole;
-          currentUser.isAdmin = isAdmin;
-          currentUser.isOwner = isOwner;
-          currentUser.isSuperAdmin = isSuperAdmin;
-          updated = true;
-        }
-        if (updated) {
+        if (!Array.isArray(db.users)) db.users = [];
+        currentUser = db.users.find((u: any) => Number(u.userId) === tgId || Number(u.user_id) === tgId || Number(u.id) === tgId);
+
+        if (!currentUser) {
+          // Auto-register user in DB
+          currentUser = {
+            id: tgId,
+            userId: tgId,
+            user_id: tgId,
+            username: tgUsername || `user_${tgId}`,
+            firstName: tgFirstName || "",
+            lastName: tgLastName || "",
+            fullName: `${tgFirstName || ""} ${tgLastName || ""}`.trim() || `User ${tgId}`,
+            walletBalance: 0,
+            wallet_balance: 0,
+            balance: 0,
+            status: "active",
+            role: userRole,
+            isAdmin: isAdmin,
+            isOwner: isOwner,
+            isSuperAdmin: isSuperAdmin,
+            activePlansCount: 0,
+            registeredAt: new Date().toISOString(),
+            createdAt: new Date().toISOString()
+          };
+          db.users.push(currentUser);
           writeSqliteDb(db);
+        } else {
+          // Update user profile if changed
+          let updated = false;
+          if (tgUsername && currentUser.username !== tgUsername) {
+            currentUser.username = tgUsername;
+            updated = true;
+          }
+          if (tgFirstName && currentUser.firstName !== tgFirstName) {
+            currentUser.firstName = tgFirstName;
+            currentUser.fullName = `${tgFirstName} ${tgLastName || currentUser.lastName || ""}`.trim();
+            updated = true;
+          }
+          if (currentUser.role !== userRole || currentUser.isAdmin !== isAdmin || currentUser.isOwner !== isOwner) {
+            currentUser.role = userRole;
+            currentUser.isAdmin = isAdmin;
+            currentUser.isOwner = isOwner;
+            currentUser.isSuperAdmin = isSuperAdmin;
+            updated = true;
+          }
+          if (updated) {
+            writeSqliteDb(db);
+          }
         }
       }
     }

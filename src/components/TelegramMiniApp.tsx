@@ -866,23 +866,44 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     if (typeof window !== "undefined") {
       if (window.Telegram?.WebApp) {
         const wa = window.Telegram.WebApp;
-        wa.ready();
-        wa.expand();
+        try { wa.ready(); } catch (e) {}
+        try { wa.expand(); } catch (e) {}
         if (wa.initDataUnsafe?.user) {
           detectedUser = wa.initDataUnsafe.user;
+        } else if (wa.initData) {
+          try {
+            const parsedInitData = new URLSearchParams(wa.initData);
+            const userJson = parsedInitData.get("user");
+            if (userJson) {
+              detectedUser = JSON.parse(userJson);
+            }
+          } catch (e) {}
         }
       }
 
       // Check URL search params for fallback
       const urlParams = new URLSearchParams(window.location.search);
-      const tgIdParam = urlParams.get("tg_id") || urlParams.get("userId");
+      const tgIdParam = urlParams.get("tg_id") || urlParams.get("userId") || urlParams.get("id");
       if (tgIdParam && !detectedUser) {
         detectedUser = {
           id: Number(tgIdParam),
           username: urlParams.get("username") || `user_${tgIdParam}`,
-          first_name: urlParams.get("first_name") || "کاربر",
+          first_name: urlParams.get("first_name") || urlParams.get("name") || "کاربر",
           last_name: urlParams.get("last_name") || "",
         };
+      }
+
+      // Check localStorage for previously authenticated real Telegram user
+      if (!detectedUser) {
+        try {
+          const cachedUser = localStorage.getItem("daltoon_saved_tg_user");
+          if (cachedUser) {
+            const parsedCached = JSON.parse(cachedUser);
+            if (parsedCached && parsedCached.id && parsedCached.id !== 100001) {
+              detectedUser = parsedCached;
+            }
+          }
+        } catch (e) {}
       }
 
       if (!detectedUser) {
@@ -892,7 +913,13 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           username: "daltoon_guest",
           first_name: "کاربر",
           last_name: "مهمان",
+          isGuest: true,
         };
+      } else if (detectedUser.id && detectedUser.id !== 100001) {
+        // Persist real user so refreshes in WebApp/Browser never lose user identity
+        try {
+          localStorage.setItem("daltoon_saved_tg_user", JSON.stringify(detectedUser));
+        } catch (e) {}
       }
     }
 
