@@ -387,4 +387,89 @@ export function registerAdminRoutes(app: Express) {
   
   // 7. Inbounds status mapping
 
-}
+  app.get("/api/vpn-plans", (req, res) => {
+    try {
+      const db = readSqliteDb();
+      res.json({ success: true, vpnPlans: db.vpn_plans || [] });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  
+  
+  app.post("/api/vpn-plans", async (req, res) => {
+    try {
+      const { id, name, durationDays, trafficGb, price, category, configStock } =
+        req.body;
+      const db = readSqliteDb();
+      if (!db.vpn_plans) db.vpn_plans = [];
+  
+      const nextPlan = {
+        id,
+        name,
+        durationDays: Number(durationDays),
+        trafficGb: Number(trafficGb),
+        price: Number(price),
+        category,
+        configStock: Array.isArray(configStock) ? configStock : [],
+      };
+  
+      const idx = db.vpn_plans.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        db.vpn_plans[idx] = nextPlan;
+      } else {
+        db.vpn_plans.push(nextPlan);
+      }
+  
+      writeSqliteDb(db);
+      res.json({ success: true, vpnPlans: db.vpn_plans });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  
+  app.post("/api/vpn-plans/delete", async (req, res) => {
+    try {
+      const { id } = req.body;
+      const db = readSqliteDb();
+      if (!db.vpn_plans) db.vpn_plans = [];
+  
+      db.vpn_plans = db.vpn_plans.filter((p) => p.id !== id);
+      writeSqliteDb(db);
+      res.json({ success: true, vpnPlans: db.vpn_plans });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  
+  app.post("/api/vpn-plans/reorder", async (req, res) => {
+    try {
+      const { orderedIds } = req.body;
+      if (!Array.isArray(orderedIds)) {
+        return res.status(400).json({ success: false, error: "Invalid payload, expected orderedIds array" });
+      }
+      const db = readSqliteDb();
+      if (!db.vpn_plans) db.vpn_plans = [];
+  
+      const plansMap = new Map(db.vpn_plans.map((p: any) => [p.id, p]));
+      const sortedPlans: any[] = [];
+      orderedIds.forEach((id: string) => {
+        const plan = plansMap.get(id);
+        if (plan) {
+          sortedPlans.push(plan);
+          plansMap.delete(id);
+        }
+      });
+      plansMap.forEach((plan) => {
+        sortedPlans.push(plan);
+      });
+  
+      db.vpn_plans = sortedPlans;
+      writeSqliteDb(db);
+      res.json({ success: true, vpnPlans: db.vpn_plans });
+    } catch (error: any) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  
+  }
