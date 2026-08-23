@@ -11,8 +11,7 @@ import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import dns from "dns";
-// Replaced better-sqlite3 with custom pure-JS/Python bridge to prevent native dependency issues on cloud run containers
-// import Database from "better-sqlite3";
+import Database from "better-sqlite3";
 
 // Prefer IPv4 DNS resolution first to fix native fetch failing on self-hosted VPS servers (especially with dual-stack domain names like AwanLLM)
 dns.setDefaultResultOrder("ipv4first");
@@ -28,216 +27,29 @@ try {
   dotenv.config({ path: path.resolve(_dirname, "..", ".env") });
 } catch (e) {}
 
+// ===== GLOBAL PROCESS RESILIENCE (prevents total panel outage) =====
+// Since Node 15, an unhandled promise rejection CRASHES the whole process by
+// default, and Express 4 does not forward async route errors to its error
+// middleware. A single rejected promise inside any of the 100+ async API routes
+// would therefore take the entire panel down (PM2 restart loop = outage for
+// every installed copy). These handlers keep the process alive, log loudly,
+// and let the rest of the API continue serving.
+process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
+  console.error("[Process Safety] Unhandled promise rejection (server kept alive):", reason instanceof Error ? reason.stack || reason.message : reason);
+});
+process.on("uncaughtException", (err: Error) => {
+  console.error("[Process Safety] Uncaught exception (server kept alive):", err.stack || err.message || err);
+});
+
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
-// Path to SQLite DB store
 const dbSqlitePath = path.resolve(process.cwd(), "Daltoon_Bot.db");
-const sqliteDb = (() => {
-  let cachedData: Record<string, any> = {};
-  let lastMtime: number = 0;
-  let hasLoadError: boolean = false;
+const sqliteDb = new Database(dbSqlitePath);
+sqliteDb.pragma("journal_mode = WAL");
+sqliteDb.pragma("synchronous = NORMAL");
+sqliteDb.exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)");
 
-  function runPython(code: string): string {
-    const tempPy = path.join(os.tmpdir(), `py_db_${Math.random().toString(36).substring(7)}.py`);
-    try {
-      fs.writeFileSync(tempPy, code, "utf8");
-      const result = execSync(`python3 "${tempPy}"`, { encoding: "utf8", maxBuffer: 100 * 1024 * 1024 });
-      return result;
-    } finally {
-      try {
-        if (fs.existsSync(tempPy)) {
-          fs.unlinkSync(tempPy);
-        }
-      } catch (_) {}
-    }
-  }
-
-  function loadFromDisk(force: boolean = false) {
-    try {
-      if (fs.existsSync(dbSqlitePath)) {
-        const stats = fs.statSync(dbSqlitePath);
-        let currentMtime = stats.mtimeMs;
-        const walPath = dbSqlitePath + "-wal";
-        if (fs.existsSync(walPath)) {
-           currentMtime += fs.statSync(walPath).mtimeMs;
-        }
-
-        if (force || currentMtime !== lastMtime || Object.keys(cachedData).length === 0) {
-          const pythonCode = `
-import sqlite3, json, sys
-try:
-    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}", timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)")
-    cursor.execute("SELECT key, value FROM kv")
-    rows = cursor.fetchall()
-    conn.close()
-    data = {row[0]: row[1] for row in rows}
-    print(json.dumps(data))
-except Exception as e:
-    print(json.dumps({"error": str(e)}))
-`;
-          const result = runPython(pythonCode);
-          const parsed = JSON.parse(result);
-          if (parsed && !parsed.error) {
-            cachedData = {};
-            for (const [k, v] of Object.entries(parsed)) {
-              cachedData[k] = v;
-            }
-            lastMtime = currentMtime;
-            hasLoadError = false;
-          } else if (parsed && parsed.error) {
-            console.error("[Python DB Bridge Load Error]", parsed.error);
-            hasLoadError = true;
-          }
-        }
-      } else {
-        cachedData = {};
-        lastMtime = 0;
-        hasLoadError = false;
-      }
-    } catch (err: any) {
-      console.error("[Python DB Bridge Read Exception]", err.message);
-      hasLoadError = true;
-    }
-  }
-
-  function saveToDisk(data: Record<string, string>) {
-    if (hasLoadError) {
-      console.error("[Python DB Bridge] CRITICAL: Refusing to save to disk because a previous load operation failed. This prevents data wipes.");
-      return;
-    }
-    const tempJsonPath = dbSqlitePath + ".tmp.json";
-    try {
-      fs.writeFileSync(tempJsonPath, JSON.stringify(data), "utf8");
-      const pythonCode = `
-import sqlite3, json, os, sys
-try:
-    with open("${tempJsonPath.replace(/\\/g, "/")}", "r", encoding="utf-8") as f:
-        data = json.load(f)
-    conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}", timeout=30.0)
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA synchronous=NORMAL;")
-    cursor = conn.cursor()
-    cursor.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)")
-    for k, v in data.items():
-        cursor.execute("INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (k, v))
-    conn.commit()
-    conn.close()
-    os.remove("${tempJsonPath.replace(/\\/g, "/")}")
-    print("SUCCESS")
-except Exception as e:
-    print("ERROR:", str(e))
-    if os.path.exists("${tempJsonPath.replace(/\\/g, "/")}"):
-        os.remove("${tempJsonPath.replace(/\\/g, "/")}")
-`;
-      const result = runPython(pythonCode).trim();
-      if (result === "SUCCESS") {
-        if (fs.existsSync(dbSqlitePath)) {
-          let currentMtime = fs.statSync(dbSqlitePath).mtimeMs;
-          const walPath = dbSqlitePath + "-wal";
-          if (fs.existsSync(walPath)) {
-             currentMtime += fs.statSync(walPath).mtimeMs;
-          }
-          lastMtime = currentMtime;
-        }
-      } else {
-        console.error("[Python DB Bridge Write Error]", result);
-      }
-    } catch (err: any) {
-      console.error("[Python DB Bridge Write Exception]", err.message);
-      if (fs.existsSync(tempJsonPath)) {
-        try { fs.unlinkSync(tempJsonPath); } catch (_) {}
-      }
-    }
-  }
-
-  try {
-    if (!fs.existsSync(dbSqlitePath)) {
-      const initPython = `
-import sqlite3
-conn = sqlite3.connect("${dbSqlitePath.replace(/\\/g, "/")}")
-cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)")
-conn.commit()
-conn.close()
-`;
-      runPython(initPython);
-    }
-    loadFromDisk(true);
-  } catch (err) {}
-
-  return {
-    pragma(sql: string) {
-      return this;
-    },
-    exec(sql: string) {
-      if (sql.trim().toUpperCase().startsWith("DELETE FROM KV")) {
-        cachedData = {};
-        saveToDisk({});
-      }
-      return this;
-    },
-    close() {
-      // No-op
-    },
-    prepare(sql: string) {
-      const lowerSql = sql.toLowerCase().trim();
-
-      if (lowerSql.includes("count(*)")) {
-        return {
-          get() {
-            loadFromDisk();
-            return { count: Object.keys(cachedData).length };
-          }
-        };
-      }
-
-      if (lowerSql.includes("select key, value from kv")) {
-        return {
-          all() {
-            loadFromDisk();
-            return Object.entries(cachedData).map(([key, value]) => ({
-              key,
-              value: String(value)
-            }));
-          }
-        };
-      }
-
-      if (lowerSql.includes("insert or replace into kv")) {
-        return {
-          run(key: string, value: string) {
-            cachedData[key] = value;
-            return { changes: 1 };
-          }
-        };
-      }
-
-      return {
-        get() { return null; },
-        all() { return []; },
-        run() { return { changes: 0 }; }
-      };
-    },
-    transaction(fn: Function) {
-      return (obj: any) => {
-        loadFromDisk();
-        const res = fn(obj);
-        if (res !== false) {
-           saveToDisk(cachedData);
-        }
-        return res;
-      };
-    },
-    hasError() {
-      return hasLoadError;
-    }
-  };
-})();
 
 function migrateLegacyJsonToSqlite() {
   const possibleFiles = ["Daltoon_Bot.json", "db.json", "database.json", "bot_database.json"];
@@ -619,9 +431,7 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
   try {
     const rows = sqliteDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
     
-    if ((sqliteDb as any).hasError()) {
-      throw new Error("Underlying Python SQLite bridge reported a load error.");
-    }
+    // hasError check removed - errors now surface via try/catch from native better-sqlite3
     
     if (rows.length === 0) {
       // Auto-migrate from JSON if it exists
@@ -898,55 +708,39 @@ function readSqliteDb(forceFresh: boolean = false): DbSchema {
 // Helper to extract database object from SQLite binary buffer (.db file)
 function extractDbFromSqliteBuffer(buf: Buffer): Record<string, any> {
   const tempPath = path.join(os.tmpdir(), `restore_${Date.now()}_${Math.random().toString(36).substring(2)}.db`);
-  const tempPy = path.join(os.tmpdir(), `py_extract_${Date.now()}_${Math.random().toString(36).substring(2)}.py`);
   try {
     fs.writeFileSync(tempPath, buf);
-    const code = `
-import sqlite3, json, sys, os
-
-result = {}
-try:
-    conn = sqlite3.connect("${tempPath.replace(/\\/g, "/")}")
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-    tables = [r[0] for r in cursor.fetchall()]
+    const tempDb = new Database(tempPath, { readonly: true });
+    const result: Record<string, any> = {};
     
-    if "kv" in tables:
-        cursor.execute("SELECT key, value FROM kv")
-        rows = cursor.fetchall()
-        for k, v in rows:
-            try:
-                result[k] = json.loads(v)
-            except Exception:
-                result[k] = v
-    else:
-        for t in tables:
-            if t.startswith("sqlite_"): continue
-            cursor.execute(f"SELECT * FROM {t}")
-            rows = cursor.fetchall()
-            cursor.execute(f"PRAGMA table_info({t})")
-            cols = [c[1] for c in cursor.fetchall()]
-            table_data = [dict(zip(cols, row)) for row in rows]
-            result[t] = table_data
-            
-    conn.close()
-    print(json.dumps(result))
-except Exception as e:
-    print(json.dumps({"_error": str(e)}))
-`;
-    fs.writeFileSync(tempPy, code, "utf8");
-    const outStr = execSync(`python3 "${tempPy}"`, { encoding: "utf8" });
-    const parsedRes = JSON.parse(outStr);
-    if (parsedRes && parsedRes._error) {
-      throw new Error(parsedRes._error);
+    const tables = tempDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
+    if (tables.some((t: any) => t.name === 'kv')) {
+      const rows = tempDb.prepare("SELECT key, value FROM kv").all() as { key: string; value: string }[];
+      for (const row of rows) {
+        try {
+          result[row.key] = JSON.parse(row.value);
+        } catch {
+          result[row.key] = row.value;
+        }
+      }
+    } else {
+      for (const { name: t } of tables) {
+        if (t.startsWith('sqlite_')) continue;
+        const rows = tempDb.prepare(`SELECT * FROM "${t}"`).all();
+        const cols = (tempDb.prepare(`PRAGMA table_info("${t}")`).all() as any[]).map((c: any) => c.name);
+        result[t] = rows.map((row: any) => {
+          const obj: any = {};
+          cols.forEach((col: string, i: number) => { obj[col] = row[col]; });
+          return obj;
+        });
+      }
     }
-    return parsedRes;
+    tempDb.close();
+    return result;
   } finally {
     try { if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath); } catch (e) {}
-    try { if (fs.existsSync(tempPy)) fs.unlinkSync(tempPy); } catch (e) {}
   }
 }
-
 // Function to write back data
 function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boolean {
   if (!data) return false;
@@ -12853,12 +12647,15 @@ app.post("/api/system/update", async (req, res) => {
 
         writeLog(`[Step 1/5] Pulling latest changes from origin/main branch or release tag (${targetTag})...`);
         
-        // CRITICAL DATA PRESERVATION: Backup databases before destructive git/tar commands
+        // CRITICAL DATA PRESERVATION: Backup databases + runtime data before destructive git/tar commands.
+        // uploads/ (broadcast media), receipts/, data.db, node-compile-cache/ etc. are wiped by `git clean -fd`,
+        // so they MUST be backed up and restored or users lose their files on update.
         const backupDir = path.join(os.tmpdir(), `daltoon_update_backup_${Date.now()}`);
         const permBackupDir = "/var/backups/daltoon";
+        const runtimeBackupPatterns = "Daltoon_Bot* database.json db.json .env* uploads receipts data.db nohup.out node-compile-cache bot.pid";
         await runCommandAsync(`mkdir -p ${backupDir} ${permBackupDir}`);
-        await runCommandAsync(`cp -r Daltoon_Bot* database.json db.json .env* ${backupDir}/ 2>/dev/null || true`);
-        await runCommandAsync(`cp -r Daltoon_Bot* database.json db.json .env* ${permBackupDir}/ 2>/dev/null || true`);
+        await runCommandAsync(`cp -r ${runtimeBackupPatterns} ${backupDir}/ 2>/dev/null || true`);
+        await runCommandAsync(`cp -r ${runtimeBackupPatterns} ${permBackupDir}/ 2>/dev/null || true`);
         
         let gitResult = { success: false, stdout: "", stderr: "" };
         if (isGit) {
@@ -12894,8 +12691,22 @@ app.post("/api/system/update", async (req, res) => {
         writeLog(`npm install output:\n${npmInstallResult.stdout}\n${npmInstallResult.stderr}`);
 
         writeLog(`[Step 3/5] Building project...`);
+        if (!npmInstallResult.success) {
+          writeLog(`WARNING: npm install reported a failure. Continuing anyway - the build below will tell us if the installed dependencies are usable.`);
+        }
         const buildResult = await runCommandAsync(`npm run build`);
         writeLog(`Build output:\n${buildResult.stdout}\n${buildResult.stderr}`);
+
+        // CRITICAL OUTAGE GUARD: if the new code failed to build, do NOT restart PM2 and do NOT exit.
+        // The currently running process keeps serving the old (working) bundle in memory, so an
+        // auto-update can never take the panel down by shipping a broken build.
+        const distServerCjs = path.join(process.cwd(), "dist", "server.cjs");
+        const buildOk = buildResult.success && fs.existsSync(distServerCjs);
+        if (!buildOk) {
+          writeLog(`=== Auto-Update FAILED: the new build did not complete successfully. Keeping the current running version online to avoid an outage. Fix the build errors manually, then run the update again. ===`);
+          writeLog(`Build success: ${buildResult.success} | dist/server.cjs exists: ${fs.existsSync(distServerCjs)}`);
+          return;
+        }
 
         // Step 4: Make files executable and update python packages
         writeLog(`[Step 4/5] Updating executable permissions and Python dependencies...`);
