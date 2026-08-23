@@ -70,6 +70,7 @@ interface TelegramMiniAppProps {
 }
 
 import { MiniAppBottomNav } from "./MiniAppBottomNav";
+import { ThemedModal } from "./ThemedModal";
 export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Main Navigation Tabs
   const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "colleagues" | "profile" | "support">("plans");
@@ -5582,49 +5583,14 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         )}
       </main>
 
-      {/* ========================================================================= */}
-      {/* THEMED NOTIFICATION MODAL (Harmonized with Theme, Replaces Native Alert)   */}
-      {/* ========================================================================= */}
-      {customModal.isOpen && (
-        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl shadow-purple-950/60 text-center animate-fade-in my-auto">
-            <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
-              {customModal.type === "success" && (
-                <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 w-full h-full rounded-2xl flex items-center justify-center">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-              )}
-              {customModal.type === "error" && (
-                <div className="bg-rose-500/20 text-rose-400 border border-rose-500/30 w-full h-full rounded-2xl flex items-center justify-center">
-                  <XCircle className="w-6 h-6" />
-                </div>
-              )}
-              {customModal.type === "warning" && (
-                <div className="bg-amber-500/20 text-amber-400 border border-amber-500/30 w-full h-full rounded-2xl flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6" />
-                </div>
-              )}
-              {customModal.type === "info" && (
-                <div className="bg-purple-500/20 text-purple-400 border border-purple-500/30 w-full h-full rounded-2xl flex items-center justify-center">
-                  <Info className="w-6 h-6" />
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <h4 className="font-extrabold text-sm text-white">{customModal.title}</h4>
-              <p className="text-xs text-slate-300 leading-relaxed">{customModal.message}</p>
-            </div>
-
-            <button
-              onClick={closeThemedModal}
-              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-95 transition-all"
-            >
-              {customModal.buttonText || "متوجه شدم"}
-            </button>
-          </div>
-        </div>
-      )}
+      <ThemedModal
+        isOpen={customModal.isOpen}
+        type={customModal.type}
+        title={customModal.title}
+        message={customModal.message}
+        buttonText={customModal.buttonText}
+        onClose={closeThemedModal}
+      />
 
       {/* ========================================================================= */}
       {/* QR CODE MODAL                                                             */}
