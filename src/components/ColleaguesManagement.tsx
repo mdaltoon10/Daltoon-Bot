@@ -1023,7 +1023,7 @@ export default function ColleaguesManagement({
                         <button
                           onClick={() =>
                             copyToClipboard(
-                              acc.recoveryToken,
+                              acc.recoveryToken!,
                               translateText("Recovery Token", "توکن بازیابی", lang),
                             )
                           }

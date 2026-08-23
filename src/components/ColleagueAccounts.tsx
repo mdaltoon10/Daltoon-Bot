@@ -208,7 +208,7 @@ export default function ColleagueAccounts({
                       <div className="flex items-center gap-1.5 justify-start">
                         <span>{acc.recoveryToken}</span>
                         <button
-                          onClick={() => copyToClipboard(acc.recoveryToken, translateText("Recovery Token", "توکن بازیابی", lang))}
+                          onClick={() => copyToClipboard(acc.recoveryToken!, translateText("Recovery Token", "توکن بازیابی", lang))}
                           className="opacity-0 group-hover:opacity-100 p-1 hover:bg-white/10 rounded text-gray-400 hover:text-indigo-400 transition cursor-pointer"
                         >
                           <Copy className="w-3.5 h-3.5" />

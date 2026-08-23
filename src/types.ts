@@ -22,6 +22,7 @@ export interface ServerConfig {
 }
 
 export interface PanelSettings {
+  [key: string]: any;
   servers?: ServerConfig[];
   colleagueServers?: ServerConfig[];
   botToken: string;
@@ -276,6 +277,7 @@ export interface User {
   joinDate: string;
   referralCount?: number;
   referralRewardTotal?: number;
+  referralRewards?: number;
   status: "active" | "banned";
 }
 
@@ -318,6 +320,8 @@ export interface SubscriptionKey {
   planId: string;
   planName: string;
   clientName?: string;
+  clientEmail?: string;
+  serverId?: string;
   subLink: string;
   expireDate: string;
   trafficLimitGb: number;

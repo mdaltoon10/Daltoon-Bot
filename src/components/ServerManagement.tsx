@@ -207,8 +207,8 @@ export default function ServerManagement({
     setEditingBoxIds(prev => prev.filter(x => x !== id));
     const sanitizedBoxes = pricingBoxes.map(b => ({
       ...b,
-      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
-      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
+      minGb: b.minGb === ("" as any) || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
+      minDays: b.minDays === ("" as any) || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
     }));
     setPricingBoxes(sanitizedBoxes);
     onSaveSettings({
@@ -221,8 +221,8 @@ export default function ServerManagement({
     setEditingBoxIds([]);
     const sanitizedBoxes = pricingBoxes.map(b => ({
       ...b,
-      minGb: b.minGb === "" || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
-      minDays: b.minDays === "" || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
+      minGb: b.minGb === ("" as any) || b.minGb === undefined || b.minGb === null ? 0 : Number(b.minGb),
+      minDays: b.minDays === ("" as any) || b.minDays === undefined || b.minDays === null ? 0 : Number(b.minDays)
     }));
     setPricingBoxes(sanitizedBoxes);
     onSaveSettings({

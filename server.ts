@@ -43,6 +43,7 @@ process.on("uncaughtException", (err: Error) => {
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 import { readSqliteDb, writeSqliteDb, getSystemSettings, extractDbFromSqliteBuffer, isKeyForColleague, sqliteDb, dbSqlitePath, clearMiniappDataCache, miniappDataCacheMap } from "./src/db/database.js";
+import { createSslMiddleware } from "./src/middleware/ssl.js";
 
 // Helper to load port dynamically from DB config
 function getServerPort(): number {
@@ -110,214 +111,9 @@ if (!fs.existsSync(receiptsDir)) {
 app.use("/uploads", express.static(uploadsDir));
 app.use("/receipts", express.static(receiptsDir));
 
-// Middleware: Enforce SSL Certificate when accessing via Domain Name
-app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  try {
-    const rawHost = req.headers.host || req.hostname || "";
-    const hostname = rawHost.split(":")[0].toLowerCase().trim();
+// SSL domain enforcement (extracted to src/middleware/ssl.ts)
+app.use(createSslMiddleware(PORT));
 
-    // Check if accessing via domain name (excluding IP addresses, localhost, and container preview hostnames)
-    const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname) || /^\[?[a-fA-F0-9:]+\]?$/.test(hostname);
-    const isLocalOrDev = !hostname || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "0.0.0.0" ||
-                         hostname.endsWith(".local") || hostname.endsWith(".run.app") ||
-                         hostname.endsWith(".cloudrun.app") || hostname.endsWith(".google.com") ||
-                         hostname.endsWith(".aistudio.google.com");
-
-    const db = readSqliteDb();
-    const settings = getSystemSettings(db);
-    let pubKey = settings.sslPublicKeyPath;
-    let privKey = settings.sslPrivateKeyPath;
-    let hasValidCert = pubKey && privKey && fs.existsSync(pubKey) && fs.existsSync(privKey);
-
-    if (!isIp && !isLocalOrDev) {
-      // Accessing via domain! Check if SSL Certificate exists and is valid on disk.
-      if (!hasValidCert) {
-        // Attempt auto-detecting cert for hostname on disk
-        let autoPub = "";
-        let autoPriv = "";
-        if (fs.existsSync(`/root/cert/${hostname}/fullchain.pem`) && fs.existsSync(`/root/cert/${hostname}/privkey.pem`)) {
-          autoPub = `/root/cert/${hostname}/fullchain.pem`;
-          autoPriv = `/root/cert/${hostname}/privkey.pem`;
-        } else if (fs.existsSync(`/etc/letsencrypt/live/${hostname}/fullchain.pem`) && fs.existsSync(`/etc/letsencrypt/live/${hostname}/privkey.pem`)) {
-          autoPub = `/etc/letsencrypt/live/${hostname}/fullchain.pem`;
-          autoPriv = `/etc/letsencrypt/live/${hostname}/privkey.pem`;
-        } else if (fs.existsSync(`/root/.acme.sh/${hostname}_ecc/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${hostname}_ecc/${hostname}.key`)) {
-          autoPub = `/root/.acme.sh/${hostname}_ecc/fullchain.cer`;
-          autoPriv = `/root/.acme.sh/${hostname}_ecc/${hostname}.key`;
-        } else if (fs.existsSync(`/root/.acme.sh/${hostname}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${hostname}/${hostname}.key`)) {
-          autoPub = `/root/.acme.sh/${hostname}/fullchain.cer`;
-          autoPriv = `/root/.acme.sh/${hostname}/${hostname}.key`;
-        }
-
-        if (autoPub && autoPriv) {
-          console.log(`[Domain SSL Auto-Detect] Found SSL certificates for '${hostname}' on disk. Updating DB settings...`);
-          if (!db.settings) db.settings = {};
-          db.settings.domainName = hostname;
-          db.settings.sslPublicKeyPath = autoPub;
-          db.settings.sslPrivateKeyPath = autoPriv;
-          const pc = typeof db.settings.panel_config === 'string' ? JSON.parse(db.settings.panel_config || '{}') : (db.settings.panel_config || {});
-          pc.domainName = hostname;
-          pc.sslPublicKeyPath = autoPub;
-          pc.sslPrivateKeyPath = autoPriv;
-          pc.sslCertificateStatus = 'active';
-          db.settings.panel_config = JSON.stringify(pc);
-          writeSqliteDb(db);
-          hasValidCert = true;
-        }
-      }
-
-      // 1. Force Domain Redirection to secure HTTPS
-      const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-      if (hasValidCert && !isHttps) {
-        const redirectPort = (PORT === 443 || PORT === 80) ? "" : `:${PORT}`;
-        return res.redirect(301, `https://${hostname}${redirectPort}${req.originalUrl || req.url}`);
-      }
-    } else if (isIp && !isLocalOrDev) {
-      // 2. Warn users when entering via IP address if they have configured SSL / Domain
-      const configuredDomain = settings.domainName;
-      if (hasValidCert && configuredDomain && configuredDomain.trim() !== '') {
-        // Exclude API, assets, static routes to prevent breaking services
-        const isAssetOrApi = req.path.startsWith('/api') || 
-                             req.path.startsWith('/uploads') || 
-                             req.path.startsWith('/receipts') || 
-                             req.path.includes('.') || 
-                             req.path.startsWith('/@vite') || 
-                             req.path.startsWith('/src');
-
-        if (!isAssetOrApi) {
-          const bypass = req.query.bypass_ip_warning === 'true' || (req.headers.cookie && req.headers.cookie.includes('bypass_ip_warning=true'));
-          if (!bypass) {
-            const redirectPort = (PORT === 443 || PORT === 80) ? "" : `:${PORT}`;
-            res.setHeader("Content-Type", "text/html; charset=utf-8");
-            return res.status(403).send(`
-<!DOCTYPE html>
-<html lang="fa" dir="rtl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>هشدار امنیتی | دالتون استور</title>
-  <style>
-    body {
-      font-family: Tahoma, Arial, sans-serif;
-      background-color: #f8fafc;
-      color: #1e293b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      margin: 0;
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-      border: 1px solid #e2e8f0;
-      max-width: 500px;
-      width: 100%;
-      padding: 32px;
-      text-align: center;
-    }
-    .icon {
-      color: #d97706;
-      font-size: 48px;
-      margin-bottom: 16px;
-    }
-    h1 {
-      font-size: 20px;
-      font-weight: bold;
-      color: #0f172a;
-      margin-bottom: 16px;
-    }
-    p {
-      font-size: 14px;
-      line-height: 1.6;
-      color: #475569;
-      margin-bottom: 24px;
-    }
-    .btn-primary {
-      display: inline-block;
-      background-color: #2563eb;
-      color: white;
-      text-decoration: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 14px;
-      transition: background-color 0.2s;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
-    }
-    .btn-primary:hover {
-      background-color: #1d4ed8;
-    }
-    .btn-secondary {
-      display: inline-block;
-      color: #64748b;
-      text-decoration: underline;
-      font-size: 12px;
-      cursor: pointer;
-      background: none;
-      border: none;
-      font-family: inherit;
-    }
-    .btn-secondary:hover {
-      color: #334155;
-    }
-    .alert-box {
-      background-color: #fef3c7;
-      border: 1px solid #fde68a;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 12px;
-      color: #92400e;
-      margin-top: 20px;
-      text-align: right;
-    }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="icon">⚠️</div>
-    <h1>اتصال غیر امن (ورود با IP)</h1>
-    <p>
-      شما گواهی امنیتی <strong>SSL</strong> و دامنه اختصاصی برای این پنل تعریف کرده‌اید.<br>
-      جهت حفظ امنیت اطلاعات و جلوگیری از شنود داده‌ها، اکیداً توصیه می‌شود از طریق دامنه امن خود وارد شوید.
-    </p>
-    
-    <a href="https://${configuredDomain}${redirectPort}${req.originalUrl || req.url}" class="btn-primary">
-      ورود امن از طریق دامنه (${configuredDomain})
-    </a>
-    
-    <br>
-    
-    <button onclick="bypassWarning()" class="btn-secondary">
-      ادامه با آی‌پی و پذیرش ریسک امنیتی
-    </button>
-    
-    <div class="alert-box">
-      <strong>📌 نکته مهم:</strong> ورود مستقیم با آی‌پی از طریق پروتکل HTTPS به دلیل عدم تطابق آدرس آی‌پی با گواهی دامنه، باعث نمایش هشدار "Connection is not private" در مرورگر شما می‌شود. بهترین راهکار همیشه ورود از طریق دامنه امن فوق است.
-    </div>
-  </div>
-
-  <script>
-    function bypassWarning() {
-      document.cookie = "bypass_ip_warning=true; Path=/; Max-Age=86400; SameSite=Lax";
-      window.location.reload();
-    }
-  </script>
-</body>
-</html>
-            `);
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.error("[Domain SSL Enforcer Error]", err);
-  }
-  next();
-});
 console.log(`[Database] Connecting to JSON file database at: ${dbSqlitePath}`);
 
 // Define types for pure JSON database to align perfectly with schema
@@ -4023,7 +3819,7 @@ async function fetchRealClientLinks(
               Cookie: loginResult.cookie,
               Accept: "application/json",
             };
-            if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+            if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken!;
 
             const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
 
@@ -4324,9 +4120,9 @@ async function addVpnClientApi(
 
     // Fallback: fetch dynamically if none specified
     if (inboundIds.length === 0) {
-      const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+      const listHeaders: Record<string, string> = { Cookie: loginResult.cookie! };
       if (loginResult.csrfToken) {
-        listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+        listHeaders["X-Csrf-Token"] = loginResult.csrfToken!;
       }
       const listRes = await xuiFetch(
         `${cleanedUrl}/panel/api/inbounds/list`,
@@ -4386,7 +4182,7 @@ async function addVpnClientApi(
         Accept: "application/json",
       };
       if (loginResult.csrfToken) {
-        listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+        listHeaders["X-Csrf-Token"] = loginResult.csrfToken!;
       }
       const listRes = await xuiFetch(
         `${cleanedUrl}/panel/api/inbounds/list`,
@@ -4445,7 +4241,7 @@ async function addVpnClientApi(
       "Accept": "application/json"
     };
     if (loginResult.csrfToken) {
-      headers["X-Csrf-Token"] = loginResult.csrfToken;
+      headers["X-Csrf-Token"] = loginResult.csrfToken!;
     }
 
     const payload = {
@@ -4754,7 +4550,7 @@ async function extendVpnClientApi(
         Cookie: loginResult.cookie,
         Accept: "application/json",
       };
-      if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken;
+      if (loginResult.csrfToken) headers["X-Csrf-Token"] = loginResult.csrfToken!;
 
       const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
 
@@ -5024,7 +4820,7 @@ async function deleteVpnClientApi(clientEmail: string, clientUuid?: string, serv
           Accept: "application/json",
         };
         if (loginResult.csrfToken) {
-          headers["X-Csrf-Token"] = loginResult.csrfToken;
+          headers["X-Csrf-Token"] = loginResult.csrfToken!;
         }
 
         const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
@@ -5296,7 +5092,7 @@ async function toggleVpnClientApi(
           Accept: "application/json",
         };
         if (loginResult.csrfToken) {
-          headers["X-Csrf-Token"] = loginResult.csrfToken;
+          headers["X-Csrf-Token"] = loginResult.csrfToken!;
           formHeaders["X-Csrf-Token"] = loginResult.csrfToken;
         }
 
@@ -5583,7 +5379,7 @@ async function resetVpnClientUuidApi(clientEmail: string, serverId?: string) {
           Accept: "application/json",
         };
         if (loginResult.csrfToken)
-          headers["X-Csrf-Token"] = loginResult.csrfToken;
+          headers["X-Csrf-Token"] = loginResult.csrfToken!;
 
         const baseUrl = await getResolvedBaseUrl(cleanedUrl, headers);
 
@@ -5815,11 +5611,11 @@ app.post("/api/xui/test-connection", async (req, res) => {
       // Confirm read access rights on the list api
       try {
         const listHeaders: Record<string, string> = {
-          Cookie: loginResult.cookie,
+          Cookie: loginResult.cookie!,
           Accept: "application/json, text/plain, */*",
         };
         if (loginResult.csrfToken) {
-          listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+          listHeaders["X-Csrf-Token"] = loginResult.csrfToken!;
         }
         
         const listCandidates = getInboundListCandidates(cleanedUrl);
@@ -6359,8 +6155,7 @@ app.post("/api/users/adjust", async (req, res) => {
       action: "تغییر موجودی",
       details: `موجودی کاربر توسط مدیر به میزان ${finalDiff >= 0 ? "+" : ""}${finalDiff.toLocaleString()} تومان تغییر یافت. موجودی نهایی: ${nextBal.toLocaleString()} تومان.`,
     });
-    if (db.logs.length > 1000) {
-      db.logs = db.logs.slice(-1000);
+    if ((db.logs ??= []).length > 1000) { db.logs = (db.logs ??= []).slice(-1000);
     }
 
     writeSqliteDb(db);
@@ -6645,7 +6440,7 @@ app.post("/api/transactions/approve", async (req, res) => {
             tx._generatedSubLink = k.subLink;
 
             if (!db.logs) db.logs = [];
-            db.logs.push({
+            (db.logs ??= []).push({
               id: Math.random().toString(36).substring(2, 9),
               date: new Date().toISOString(),
               userId: Number(tx.userId),
@@ -6708,7 +6503,7 @@ app.post("/api/transactions/approve", async (req, res) => {
                 (a: any) => a.id === accId,
               );
               if (accIndex !== -1) {
-                const acc = db.colleague_accounts[accIndex];
+                const acc = db.colleague_accounts?.[accIndex];
                 acc.trafficGb = (acc.trafficGb || 0) + pkg.trafficGb;
                 acc.packageTitle = pkg.title;
 
@@ -7099,7 +6894,7 @@ app.post("/api/transactions/approve", async (req, res) => {
       }
 
       if (tx.type !== "PLAN_PURCHASE") {
-        db.logs.push({
+        (db.logs ??= []).push({
           id: Math.random().toString(36).substring(2, 9),
           date: new Date().toISOString(),
           userId: Number(tx.userId),
@@ -7109,8 +6904,8 @@ app.post("/api/transactions/approve", async (req, res) => {
         });
       }
 
-      if (db.logs.length > 1000) {
-        db.logs = db.logs.slice(-1000);
+      if ((db.logs ??= []).length > 1000) {
+        db.logs = (db.logs ??= []).slice(-1000);
       }
 
       writeSqliteDb(db);
@@ -11321,7 +11116,7 @@ app.get("/api/system/bot/status", (req, res) => {
     }
     try {
       const pm2list = JSON.parse(stdout);
-      const botProcess = pm2list.find((p) => p.name === "daltoon-bot");
+      const botProcess = pm2list.find((p: any) => p.name === "daltoon-bot");
       if (botProcess) {
         return res.json({ status: botProcess.pm2_env.status, isRunning: botProcess.pm2_env.status === "online" });
       }
@@ -12065,11 +11860,11 @@ async function autoCleanExpiredFreeTrials() {
 
         if (loginResult.success) {
           const headers: Record<string, string> = {
-            Cookie: loginResult.cookie,
+            Cookie: loginResult.cookie!,
             Accept: "application/json",
           };
           if (loginResult.csrfToken)
-            headers["X-Csrf-Token"] = loginResult.csrfToken;
+            headers["X-Csrf-Token"] = loginResult.csrfToken!;
 
           for (let k of keysToDelete) {
             let uuid = "";
@@ -12437,7 +12232,7 @@ async function autoSyncTrafficUsage() {
           Accept: "application/json",
         };
         if (loginResult.csrfToken) {
-          headers["X-Csrf-Token"] = loginResult.csrfToken;
+          headers["X-Csrf-Token"] = loginResult.csrfToken!;
         }
         // Try to get clientTraffics API directly for accurate unique stats
         let trafficJson = null;
@@ -12507,12 +12302,12 @@ async function autoSyncTrafficUsage() {
               clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
               const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
               if (freshLogin.success && freshLogin.cookie) {
-                const freshHeaders = {
-                  Cookie: freshLogin.cookie,
+                const freshHeaders: Record<string, string> = {
+                  Cookie: freshLogin.cookie!,
                   Accept: "application/json"
                 };
                 if (freshLogin.csrfToken) {
-                  freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                  freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken!;
                 }
                 inbRes = await xuiFetch(
                   `${cleanedUrl}/panel/api/inbounds/list`,
@@ -12535,12 +12330,12 @@ async function autoSyncTrafficUsage() {
             clearXuiPanelSession(cleanedUrl, server.panelUsername, server.panelPassword);
             const freshLogin = await loginXuiPanel(cleanedUrl, server.panelUsername, server.panelPassword, true);
             if (freshLogin.success && freshLogin.cookie) {
-              const freshHeaders = {
-                Cookie: freshLogin.cookie,
+              const freshHeaders: Record<string, string> = {
+                Cookie: freshLogin.cookie!,
                 Accept: "application/json"
               };
               if (freshLogin.csrfToken) {
-                freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken!;
               }
               const inbResRetry = await xuiFetch(
                 `${cleanedUrl}/panel/api/inbounds/list`,
@@ -12983,9 +12778,9 @@ async function autoSyncInboundsList() {
           );
 
           if (loginResult.success) {
-            const listHeaders: Record<string, string> = { Cookie: loginResult.cookie };
+            const listHeaders: Record<string, string> = { Cookie: loginResult.cookie! };
             if (loginResult.csrfToken) {
-              listHeaders["X-Csrf-Token"] = loginResult.csrfToken;
+              listHeaders["X-Csrf-Token"] = loginResult.csrfToken!;
             }
 
             const listCandidates = getInboundListCandidates(cleanedUrl);
@@ -13012,7 +12807,7 @@ async function autoSyncInboundsList() {
                       loginResult = freshLogin;
                       const freshHeaders: Record<string, string> = { Cookie: freshLogin.cookie };
                       if (freshLogin.csrfToken) {
-                        freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken;
+                        freshHeaders["X-Csrf-Token"] = freshLogin.csrfToken!;
                       }
                       listRes = await xuiFetch(
                         candidateUrl,
