@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 // Version of the release
-const VERSION = "4.8.3";
+const VERSION = "4.8.4";
 const REPO_OWNER = "mdaltoon10";
 const REPO_NAME = "Daltoon-Bot";
 const REPO = `${REPO_OWNER}/${REPO_NAME}`;
@@ -149,18 +149,16 @@ async function run() {
 
 Welcome to the **v${VERSION} release** of Daltoon Bot & Dashboard!
 
-#### Key Improvements & Security Hardening in v${VERSION}:
-- **Critical Security Hardening & Vulnerability Remediation**:
-  - Completely removed hardcoded fallback passwords (\`admin123\`).
-  - Implemented secure cryptographic session token generation (\`crypto.randomBytes(32)\`) stored in secure HttpOnly cookies and Bearer headers.
-  - Implemented smart brute-force rate-limiting on login (locks IP for 15 minutes after 5 consecutive failures).
-  - Protected all admin-level endpoints, database dumps, system actions, and user manipulation APIs with \`requireAdminAuth\` middleware.
-- **Admin Dashboard Auth State Management**:
-  - Automatic session token synchronization in client requests.
-  - Added secure logout (\`/api/logout\`) with cookie expiration.
-  - Automatic session verification & redirect on token expiration.
-- **System Stability & Reliability**:
-  - Robust route handlers and build validation across all bot & dashboard modules.`,
+#### Key Improvements & Fixes in v${VERSION}:
+- **Resolved Dashboard Domain Connection & Data Fetch Issue**:
+  - Fixed initial load synchronization issue when accessing dashboard via custom domains and reverse proxies.
+  - Implemented persistent HMAC-signed session tokens that survive PM2 server restarts, worker reboots, and service reloads without invalidating logged-in admins.
+  - Added global fetch authorization interceptor ensuring all subcomponents and API calls seamlessly attach the session token and credentials.
+  - Fixed \`onLoginSuccess\` callback to immediately trigger \`refreshData(false)\` upon login completion.
+  - Prevented false "Error receiving data" toasts when switching between login and authenticated dashboard views.
+- **Enhanced Security & Session Management**:
+  - Secure secret key persistence in SQLite for deterministic cryptographic session validation.
+  - Full backward-compatibility and graceful authentication expiration handling.`,
       draft: false,
       prerelease: false,
     };

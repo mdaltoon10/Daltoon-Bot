@@ -3,7 +3,55 @@ import { createRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Global API authorization and credentials interceptor
+if (typeof window !== "undefined") {
+  const originalFetch = window.fetch;
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    
+    // Only intercept relative or local /api/ calls
+    if (url.startsWith("/api/") || url.includes("/api/")) {
+      const token = localStorage.getItem("daltoon_auth_token");
+      const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : {}));
+
+      if (token && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+
+      const updatedInit: RequestInit = {
+        ...init,
+        headers,
+        credentials: init?.credentials || "same-origin",
+      };
+
+      try {
+        const response = await originalFetch(input, updatedInit);
+        // If an admin endpoint returns 401 unauthorized on custom domain
+        if (
+          response.status === 401 &&
+          !url.includes("/api/login") &&
+          !window.location.hostname.includes("run.app") &&
+          !window.location.hostname.includes("localhost")
+        ) {
+          if (localStorage.getItem("daltoon_dashboard_auth") === "true") {
+            console.warn("[Auth Interceptor] Session invalid or expired. Resetting auth state.");
+            localStorage.removeItem("daltoon_dashboard_auth");
+            localStorage.removeItem("daltoon_auth_token");
+            window.dispatchEvent(new Event("daltoon_auth_expired"));
+          }
+        }
+        return response;
+      } catch (err) {
+        throw err;
+      }
+    }
+
+    return originalFetch(input, init);
+  };
+}
+
 interface ErrorBoundaryProps {
+
   children: React.ReactNode;
 }
 

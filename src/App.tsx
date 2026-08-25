@@ -889,7 +889,7 @@ export default function App() {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      const response = await fetch("/api/data", { headers });
+      const response = await fetch("/api/data", { headers, credentials: "same-origin" });
       if (response.status === 401 && !isDemoEnv) {
         localStorage.removeItem("daltoon_dashboard_auth");
         localStorage.removeItem("daltoon_auth_token");
@@ -969,7 +969,7 @@ export default function App() {
         "[Full-Stack Sync] Failed connecting to Express Database.",
         err,
       );
-      if (!isAuto) {
+      if (!isAuto && isAuthenticated) {
         setToastMessage(curAppT("refreshError"));
         setTimeout(() => {
           setToastMessage(null);
@@ -980,10 +980,19 @@ export default function App() {
     }
   };
 
+  // Auth event listener & mount sync
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setIsAuthenticated(false);
+    };
+    window.addEventListener("daltoon_auth_expired", handleAuthExpired);
+    return () => window.removeEventListener("daltoon_auth_expired", handleAuthExpired);
+  }, []);
+
   // Fetch complete SQLite database state on mount and update automatically
   useEffect(() => {
     refreshData(false);
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (settings?.autoRefreshInterval && settings.autoRefreshInterval > 0) {
@@ -1478,7 +1487,10 @@ export default function App() {
   if (!isAuthenticated && !isDemoEnv) {
     return (
       <LoginScreen
-        onLoginSuccess={() => setIsAuthenticated(true)}
+        onLoginSuccess={() => {
+          setIsAuthenticated(true);
+          refreshData(false);
+        }}
         lang={lang}
         setLang={setLang}
         appVersion={appVersion}
