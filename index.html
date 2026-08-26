@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>دالتون بات - پنل مدیریت</title>
+    
+    <!-- Telegram WebApp SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- PWA Manifest & App Icons -->
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    
+    <!-- PWA Meta Tags for Mobile / iOS / Standalone App -->
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="دالتون بات" />
+    <meta name="application-name" content="دالتون بات" />
+  </head>
+  <body style="margin: 0; background-color: #0d1117;">
+    <div id="root">
+      <div id="initial-splash" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 99999; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;">
+        <div id="splash-inner" style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;">
+          <div id="splash-logo-box" style="padding: 12px; background-color: transparent; border-radius: 32px; transition: background-color 0.3s ease; display: flex; align-items: center; justify-content: center;">
+            <img id="splash-logo-img" src="/icon.svg" alt="App Logo" style="width: 180px; height: 180px; object-fit: contain; border-radius: 24px;" />
+          </div>
+          <div id="splash-bot-nickname" style="font-weight: 700; font-size: 18px; margin-top: 16px; letter-spacing: 0.05em; text-transform: uppercase;">Telegram Daltoon Bot</div>
+          <div id="splash-subtext" style="font-size: 12px; margin-top: 8px; opacity: 0.8; display: none;"></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        try {
+          var isMiniApp = (
+            window.location.pathname.startsWith('/miniapp') ||
+            window.location.hash.indexOf('miniapp') !== -1 ||
+            window.location.search.indexOf('miniapp') !== -1 ||
+            window.location.search.indexOf('tgWebApp') !== -1 ||
+            window.location.hash.indexOf('tgWebApp') !== -1 ||
+            window.location.search.indexOf('tgWebAppData') !== -1 ||
+            window.location.hash.indexOf('tgWebAppData') !== -1 ||
+            Boolean(window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData)
+          );
+
+          var splashContainer = document.getElementById("initial-splash");
+          var imgEl = document.getElementById("splash-logo-img");
+          var nickEl = document.getElementById("splash-bot-nickname");
+          var boxEl = document.getElementById("splash-logo-box");
+          var subEl = document.getElementById("splash-subtext");
+
+          if (!isMiniApp) {
+            // Dashboard Splash Screen (Strict v4.4.0 classic design)
+            if (splashContainer) splashContainer.style.backgroundColor = "#ffffff";
+            if (imgEl) {
+              imgEl.src = "/icon.svg";
+              imgEl.style.width = "220px";
+              imgEl.style.height = "220px";
+              imgEl.style.objectFit = "cover";
+              imgEl.style.borderRadius = "24px";
+              imgEl.style.boxShadow = "0 16px 40px rgba(0,0,0,0.25)";
+              imgEl.style.border = "1px solid rgba(229,231,235,0.8)";
+            }
+            if (boxEl) {
+              boxEl.style.backgroundColor = "transparent";
+              boxEl.style.boxShadow = "none";
+              boxEl.style.padding = "0";
+            }
+            if (nickEl) {
+              nickEl.innerText = "Telegram Daltoon Bot";
+              nickEl.style.color = "#4d0404";
+              nickEl.style.fontSize = "20px";
+              nickEl.style.fontWeight = "700";
+              nickEl.style.marginTop = "24px";
+            }
+          } else {
+            // Telegram MiniApp Splash Screen
+            if (splashContainer) splashContainer.style.backgroundColor = "#0d1117";
+
+            var customLogo = localStorage.getItem("daltoon_mini_app_splash_logo");
+            var splashEnabled = localStorage.getItem("daltoon_mini_app_splash_enabled") !== "false";
+            var nickname = "Telegram Daltoon Bot";
+
+            var savedSettings = localStorage.getItem("daltoon_settings");
+            if (savedSettings) {
+              try {
+                var parsed = JSON.parse(savedSettings);
+                if (parsed) {
+                  if (customLogo === null && parsed.miniAppSplashLogo) {
+                    customLogo = parsed.miniAppSplashLogo;
+                  }
+                  if (parsed.miniAppSplashEnabled !== undefined) {
+                    splashEnabled = parsed.miniAppSplashEnabled !== false;
+                  }
+                  if (parsed.botNickname) {
+                    nickname = parsed.botNickname;
+                  }
+                }
+              } catch (err) {}
+            }
+
+            var hasCustomLogo = Boolean(splashEnabled && customLogo && customLogo.trim());
+
+            if (hasCustomLogo) {
+              if (imgEl) {
+                imgEl.src = customLogo.trim();
+                imgEl.style.width = "144px";
+                imgEl.style.height = "144px";
+                imgEl.style.objectFit = "contain";
+                imgEl.style.borderRadius = "16px";
+                imgEl.style.boxShadow = "none";
+                imgEl.style.border = "none";
+              }
+              if (boxEl) {
+                boxEl.style.backgroundColor = "#ffffff";
+                boxEl.style.boxShadow = "0 20px 50px rgba(0,0,0,0.6)";
+                boxEl.style.padding = "12px";
+                boxEl.style.borderRadius = "24px";
+              }
+            } else {
+              // Default MiniApp Splash (Uses /icon.svg default preview)
+              if (imgEl) {
+                imgEl.src = "/icon.svg";
+                imgEl.style.width = "144px";
+                imgEl.style.height = "144px";
+                imgEl.style.objectFit = "contain";
+                imgEl.style.borderRadius = "24px";
+                imgEl.style.boxShadow = "0 20px 50px rgba(0,0,0,0.5)";
+                imgEl.style.border = "1px solid rgba(255,255,255,0.1)";
+              }
+              if (boxEl) {
+                boxEl.style.backgroundColor = "transparent";
+                boxEl.style.boxShadow = "none";
+                boxEl.style.padding = "0";
+              }
+            }
+
+            if (nickEl) {
+              if (hasCustomLogo) {
+                nickEl.innerText = (nickname && nickname.trim() && nickname !== "Telegram Daltoon Bot") ? nickname.trim() : "دالتون";
+              } else {
+                nickEl.innerText = "Telegram Daltoon Bot";
+              }
+              nickEl.style.color = "#ffffff";
+              nickEl.style.fontSize = "16px";
+              nickEl.style.fontWeight = "700";
+              nickEl.style.marginTop = "16px";
+            }
+            if (subEl) {
+              subEl.innerText = "در حال دریافت آخرین اطلاعات سرورها و پکیج‌ها...";
+              subEl.style.color = "#94a3b8";
+              subEl.style.display = "block";
+            }
+          }
+        } catch(e) {}
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').then((reg) => {
+            console.log('[PWA] ServiceWorker registered successfully:', reg.scope);
+            // Check for updates on load
+            reg.update().catch(() => {});
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('[PWA] New version installed. Reloading page...');
+                    window.location.reload();
+                  }
+                });
+              }
+            });
+          }).catch((err) => {
+            console.warn('[PWA] ServiceWorker registration failed:', err);
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
+
