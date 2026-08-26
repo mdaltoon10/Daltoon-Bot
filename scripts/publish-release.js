@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 // Version of the release
-const VERSION = "5.0.0";
+const VERSION = "5.0.1";
 const REPO_OWNER = "mdaltoon10";
 const REPO_NAME = "Daltoon-Bot";
 const REPO = `${REPO_OWNER}/${REPO_NAME}`;
