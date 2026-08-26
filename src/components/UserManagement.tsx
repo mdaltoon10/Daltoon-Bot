@@ -584,7 +584,7 @@ export default function UserManagement({
               ) : (
                 filteredUsers.map((user) => {
                   const userKeys = keys.filter(k => String(k.userId) === String(user.userId));
-                  const isExpanded = String(expandedUserId) === String(user.userId);
+                  const isExpanded = expandedUserId === user.userId;
                   return (
                     <React.Fragment key={user.userId}>
                     <tr className={`transition ${isExpanded ? 'bg-slate-900/60' : 'hover:bg-slate-900/40'}`}>
@@ -633,7 +633,7 @@ export default function UserManagement({
                       
                       <td className="px-5 py-4 text-end">
                          <button
-                           onClick={() => setExpandedUserId(isExpanded ? null : String(user.userId))}
+                           onClick={() => setExpandedUserId(isExpanded ? null : user.userId)}
                            className="p-2 bg-slate-800 hover:bg-slate-700 text-gray-300 rounded-lg transition inline-flex items-center justify-center cursor-pointer"
                          >
                            {isExpanded ? <ChevronUp className="w-5 h-5" /> : <Info className="w-5 h-5 text-indigo-400" />}

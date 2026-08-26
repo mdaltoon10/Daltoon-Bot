@@ -153,6 +153,9 @@ const PUBLIC_API_PREFIXES = [
   "/api/system/check-update",
   "/api/miniapp",
   "/api/sub",
+  "/api/subscription-keys",
+  "/api/tickets",
+  "/api/sync",
   "/copy",
 ];
 

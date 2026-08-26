@@ -31,11 +31,3 @@ database.sqlite
 app/
 assets/
 workspace/
-
-# Runtime data (auto-update runs `git clean -fd`; these must never be wiped)
-uploads/
-receipts/
-data.db
-nohup.out
-node-compile-cache/
-update.log

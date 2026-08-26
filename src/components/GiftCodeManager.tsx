@@ -558,19 +558,17 @@ export default function GiftCodeManager({
                       {servers.map((srv) => {
                         const srvIdStr = String(srv.id);
                         const isChecked = promoAllowedServerIds.includes(srvIdStr);
-                        const srvFlag = srv.flag || "🖥️";
                         const srvName = srv.name || srv.remark || srv.title || `سرور ${srv.id}`;
-                        const srvHost = srv.address || srv.host || srv.ip || "";
                         return (
                           <label
                             key={srv.id}
-                            className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition text-xs ${
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition text-xs ${
                               isChecked
                                 ? "bg-indigo-600/25 border border-indigo-500/50 text-indigo-200 font-semibold"
-                                : "bg-[#161c2a] border border-gray-800 text-gray-300 hover:text-white"
+                                : "bg-[#161c2a] border border-gray-800 text-gray-400 hover:text-gray-200"
                             }`}
                           >
-                            <div className="flex items-center gap-2.5 overflow-hidden">
+                            <div className="flex items-center gap-2 overflow-hidden">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
@@ -581,16 +579,11 @@ export default function GiftCodeManager({
                                     setPromoAllowedServerIds((prev) => prev.filter((id) => id !== srvIdStr));
                                   }
                                 }}
-                                className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                                className="rounded border-gray-700 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 cursor-pointer"
                               />
-                              <div className="flex items-center gap-1.5 truncate">
-                                <span>{srvFlag}</span>
-                                <span className="truncate font-medium">{srvName}</span>
-                              </div>
+                              <span className="truncate">{srvName}</span>
                             </div>
-                            {srvHost && (
-                              <span className="text-[10px] text-gray-500 dir-ltr font-mono truncate max-w-[120px]">{srvHost}</span>
-                            )}
+                            <span className="text-[9px] text-gray-500 dir-ltr font-mono">{srv.type || "v2ray"}</span>
                           </label>
                         );
                       })}

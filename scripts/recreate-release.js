@@ -17,8 +17,6 @@ try {
   console.error("Error reading git remote URL:", err);
 }
 
-const pkg = JSON.parse(fs.readFileSync("./package.json", "utf8"));
-const VERSION = `v${pkg.version}`;
 const REPO = "mdaltoon10/Daltoon-Bot";
 
 async function run() {
@@ -27,7 +25,7 @@ async function run() {
     return;
   }
 
-  console.log(`=== STARTING SAFE GITHUB RELEASE CLEANUP AND PUBLISH FOR ${VERSION} ===`);
+  console.log("=== STARTING SAFE GITHUB RELEASE CLEANUP AND RE-PUBLISH ===");
 
   const headers = {
     Authorization: `token ${TOKEN}`,
@@ -35,6 +33,8 @@ async function run() {
     "User-Agent": "Daltoon-Dashboard-Release-Script",
   };
 
+  // 1. Delete releases v2.3.2, v2.3.2, v2.3.2 if they exist
+  // We'll query all releases first to dynamically find any release IDs matching these tags
   console.log("Fetching existing releases to find IDs...");
   let releases = [];
   try {
@@ -48,7 +48,7 @@ async function run() {
     console.error("Error fetching releases:", err);
   }
 
-  const tagsToDelete = [VERSION];
+  const tagsToDelete = ["v3.9.34"];
   for (const rel of releases) {
     if (tagsToDelete.includes(rel.tag_name)) {
       try {
@@ -67,13 +67,13 @@ async function run() {
   // 2. Delete tags locally and on remote
   console.log("Deleting git tags locally and remotely...");
   try {
-    execSync(`git tag -d ${VERSION}`, { stdio: "inherit" });
+    execSync("git tag -d v3.9.34", { stdio: "inherit" });
   } catch (err) {
     console.log("Some local tags did not exist or failed to delete locally.");
   }
 
   try {
-    execSync(`git push origin :refs/tags/${VERSION}`, { stdio: "inherit" });
+    execSync(`git push origin :refs/tags/v3.9.34`, { stdio: "inherit" });
     console.log("Remote tags deleted successfully.");
   } catch (err) {
     console.log("Some remote tags could not be deleted or were already deleted.");
@@ -83,19 +83,19 @@ async function run() {
   console.log("Staging and committing files...");
   try {
     execSync("git add .", { stdio: "inherit" });
-    execSync(`git commit -m "release: ${VERSION} - Permanent fix for in-memory cache corruption during partial updates" || echo "No changes to commit"`, { stdio: "inherit" });
+    execSync('git commit -m "release: v3.9.34 - Fix receipt approval callback, optimize receipt image storage, resolve linter dashboard imports and datetime types" || echo "No changes to commit"', { stdio: "inherit" });
     console.log("Pushing latest commit to main branch...");
     execSync("git push origin HEAD:main --force", { stdio: "inherit" });
   } catch (err) {
     console.error("Git commit/push failed:", err);
   }
 
-  // 4. Create and push the tag
-  console.log(`Creating and pushing local ${VERSION} tag...`);
+  // 4. Create and push the v3.9.34 tag
+  console.log("Creating and pushing local v3.9.34 tag...");
   try {
-    execSync(`git tag ${VERSION}`, { stdio: "inherit" });
-    execSync(`git push origin ${VERSION}`, { stdio: "inherit" });
-    console.log(`Tag ${VERSION} pushed successfully.`);
+    execSync("git tag v3.9.34", { stdio: "inherit" });
+    execSync("git push origin v3.9.34", { stdio: "inherit" });
+    console.log("Tag v3.9.34 pushed successfully.");
   } catch (err) {
     console.error("Tagging failed:", err);
   }
@@ -103,9 +103,11 @@ async function run() {
   // 5. Package the tarball assets
   console.log("Packaging release tarball assets...");
   try {
+    // Make sure old tarballs are deleted before packaging
     try { fs.unlinkSync("./daltoon-bot-linux-amd64.tar.gz"); } catch {}
     try { fs.unlinkSync("./daltoon-bot-linux-arm64.tar.gz"); } catch {}
     
+    // Use || true to prevent exit code 1 if files change during tar
     execSync("tar -czf daltoon-bot-linux-amd64.tar.gz --exclude=node_modules --exclude=.git --exclude=.github --exclude=dist/server.cjs.map --exclude=*.tar.gz . || true", { stdio: "inherit" });
     execSync("cp daltoon-bot-linux-amd64.tar.gz daltoon-bot-linux-arm64.tar.gz", { stdio: "inherit" });
     console.log("Tarball assets packaged successfully.");
@@ -114,14 +116,14 @@ async function run() {
   }
 
   // 6. Create the new release on GitHub
-  console.log(`Creating new GitHub release for ${VERSION}...`);
+  console.log("Creating new GitHub release for v3.9.34...");
   let newReleaseId = "";
   try {
     const payload = {
-      tag_name: VERSION,
+      tag_name: "v3.9.34",
       target_commitish: "main",
-      name: VERSION,
-      body: `### Changes in ${VERSION} (Critical Data Persistence Fix)\n\n- **Fix Memory DB Cache Corruption during Partial Writes**: Fixed a bug where partial writes (e.g. updating inbounds or settings) overwrote \`memoryDbCache\` with a partial object lacking the \`users\` array. Now partial data is safely merged with the existing cache snapshot, ensuring user lists are never wiped on MiniApp refresh or concurrent sync operations.`,
+      name: "v3.9.34",
+      body: "### Changes in v3.9.34\n\n- **Fix Receipt Approval**: Fixed the local proxy/loopback routing inside `bot.py` so callback handlers successfully reach the Node backend and approve card-to-card manual transactions.\n- **Optimized Receipt Image Storage**: Receipts are now saved as physical files (`receipts/{tx_id}.jpg`) on disk instead of encoding entire files into raw base64 data URIs in the SQLite database, preventing database bloating and process buffer overflows.\n- **Statically Serves Receipts**: Express now mounts `/receipts` dynamically as a static route so images load fast and reliably inside the dashboard.\n- **Full Dashboard Linter Fixes**: Added the missing `MonitoringDashboard.tsx` component, restored complete exports in `dateTimeUtils.ts` (like CalendarSystem and COMMON_TIMEZONES), and updated settings panel interfaces in `types.ts` so the dashboard compiles and lints perfectly.",
       draft: false,
       prerelease: false,
     };

@@ -505,6 +505,7 @@ export function writeSqliteDb(data: DbSchema, isRestore: boolean = false): boole
     }
     memoryDbCacheTimestamp = Date.now();
     clearMiniappDataCache();
+    broadcastSyncChange("db_write");
     return true;
   } catch (err: any) {
     console.error("[Database SQLite Write Error]", err.message);
@@ -718,3 +719,19 @@ export function getSystemSettings(db?: any) {
 // Cached miniapp data per-user (cleared on any DB write to stay fresh)
 export const miniappDataCacheMap = new Map<number, { data: any; timestamp: number }>();
 export const clearMiniappDataCache = () => { miniappDataCacheMap.clear(); };
+
+// Real-time synchronization version counter and active SSE client connections
+export let globalSyncVersion: number = Date.now();
+export const syncSseClients: Set<(data: { version: number; event: string; payload?: any }) => void> = new Set();
+
+export function broadcastSyncChange(event: string = "db_changed", payload?: any) {
+  globalSyncVersion = Date.now();
+  clearMiniappDataCache();
+  syncSseClients.forEach((clientCallback) => {
+    try {
+      clientCallback({ version: globalSyncVersion, event, payload });
+    } catch (err) {
+      // Ignored client error
+    }
+  });
+}

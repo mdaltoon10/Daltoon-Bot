@@ -944,9 +944,6 @@ export default function MultiServerConfig({
                   {translateText("Inbounds", "اینباندها", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap">
-                  {translateText("Delivery Format", "نحوه تحویل کانفیگ", lang)}
-                </th>
-                <th className="py-4 px-6 font-medium whitespace-nowrap">
                   {translateText("Payment Methods", "روش‌های پرداخت", lang)}
                 </th>
                 <th className="py-4 px-6 font-medium whitespace-nowrap text-center">
@@ -1006,24 +1003,6 @@ export default function MultiServerConfig({
                       {srv.activeInboundIds && srv.activeInboundIds.length > 0 && (
                         <span className="font-mono text-[10px] text-indigo-400/80">
                           [{srv.activeInboundIds.join(", ")}]
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-6 whitespace-nowrap">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-semibold text-purple-300">
-                        {!srv.deliveryMode || srv.deliveryMode === ("use_default" as any)
-                          ? translateText("Global Default", "پیش‌فرض کل ربات", lang)
-                          : srv.deliveryMode === "both"
-                          ? translateText("Subscription + Direct", "سابسکریپشن + مستقیم", lang)
-                          : srv.deliveryMode === "subscription_only"
-                          ? translateText("Subscription Only", "فقط سابسکریپشن", lang)
-                          : translateText("Direct Only", "فقط مستقیم", lang)}
-                      </span>
-                      {srv.deliveryMode && srv.deliveryMode !== ("use_default" as any) && (
-                        <span className="text-[10px] text-purple-400/80">
-                          {translateText("Custom Override", "شخصی‌سازی اختصاصی", lang)}
                         </span>
                       )}
                     </div>

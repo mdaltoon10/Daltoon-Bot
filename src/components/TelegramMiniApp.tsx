@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { CustomSelect } from "./CustomSelect";
 import { getThemeStyles } from "../utils/theme";
 import { formatDateTime } from "../utils/dateTimeUtils";
+import { globalSyncBus } from "../utils/syncBus";
 import {
   ShoppingBag,
   CreditCard,
@@ -69,8 +70,6 @@ interface TelegramMiniAppProps {
   onBack?: () => void;
 }
 
-import { MiniAppBottomNav } from "./MiniAppBottomNav";
-import { ThemedModal } from "./ThemedModal";
 export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
   // Main Navigation Tabs
   const [activeTab, setActiveTab] = useState<"plans" | "subs" | "wallet" | "colleagues" | "profile" | "support">("plans");
@@ -538,6 +537,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           "شناسه (UUID) و لینک ساب اشتراک شما با موفقیت در پنل سرور، ربات و سیستم بازنشانی شد. لینک جدید را کپی و در نرم‌افزار خود اعمال نمایید.",
           "success"
         );
+        globalSyncBus.emit("key_updated", { subId, newUuid });
       } else {
         showThemedModal(
           "خطا در تغییر لینک",
@@ -654,6 +654,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
 
         setRenewModalKey(null);
         setRenewCardReceiptImage("");
+        globalSyncBus.emit("key_renewed", { subId, addGb, addDays });
 
         if (isColleagueKey || data.isColleagueRenew) {
           showThemedModal(
@@ -787,6 +788,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
             : "دسترسی اشتراک شما در سرور، پنل و ربات موقتاً به حالت تعلیق درآمد.",
           "success"
         );
+        globalSyncBus.emit("key_toggled", { subId, targetStatus });
       } else {
         showThemedModal("خطا در تغییر وضعیت", data.error || "تغییر وضعیت اشتراک انجام نشد.", "error");
       }
@@ -835,6 +837,8 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         setSubscriptions((prev) => [targetKey, ...prev]);
         setColleagueClients((prev) => [targetKey, ...prev]);
         showThemedModal("خطا در حذف کانفیگ", data.error || "حذف کانفیگ با خطا مواجه شد.", "error");
+      } else {
+        globalSyncBus.emit("key_deleted", { subId });
       }
     } catch (err: any) {
       setSubscriptions((prev) => [targetKey, ...prev]);
@@ -868,44 +872,23 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     if (typeof window !== "undefined") {
       if (window.Telegram?.WebApp) {
         const wa = window.Telegram.WebApp;
-        try { wa.ready(); } catch (e) {}
-        try { wa.expand(); } catch (e) {}
+        wa.ready();
+        wa.expand();
         if (wa.initDataUnsafe?.user) {
           detectedUser = wa.initDataUnsafe.user;
-        } else if (wa.initData) {
-          try {
-            const parsedInitData = new URLSearchParams(wa.initData);
-            const userJson = parsedInitData.get("user");
-            if (userJson) {
-              detectedUser = JSON.parse(userJson);
-            }
-          } catch (e) {}
         }
       }
 
       // Check URL search params for fallback
       const urlParams = new URLSearchParams(window.location.search);
-      const tgIdParam = urlParams.get("tg_id") || urlParams.get("userId") || urlParams.get("id");
+      const tgIdParam = urlParams.get("tg_id") || urlParams.get("userId");
       if (tgIdParam && !detectedUser) {
         detectedUser = {
           id: Number(tgIdParam),
           username: urlParams.get("username") || `user_${tgIdParam}`,
-          first_name: urlParams.get("first_name") || urlParams.get("name") || "کاربر",
+          first_name: urlParams.get("first_name") || "کاربر",
           last_name: urlParams.get("last_name") || "",
         };
-      }
-
-      // Check localStorage for previously authenticated real Telegram user
-      if (!detectedUser) {
-        try {
-          const cachedUser = localStorage.getItem("daltoon_saved_tg_user");
-          if (cachedUser) {
-            const parsedCached = JSON.parse(cachedUser);
-            if (parsedCached && parsedCached.id && parsedCached.id !== 100001) {
-              detectedUser = parsedCached;
-            }
-          }
-        } catch (e) {}
       }
 
       if (!detectedUser) {
@@ -915,13 +898,7 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
           username: "daltoon_guest",
           first_name: "کاربر",
           last_name: "مهمان",
-          isGuest: true,
         };
-      } else if (detectedUser.id && detectedUser.id !== 100001) {
-        // Persist real user so refreshes in WebApp/Browser never lose user identity
-        try {
-          localStorage.setItem("daltoon_saved_tg_user", JSON.stringify(detectedUser));
-        } catch (e) {}
       }
     }
 
@@ -1118,14 +1095,60 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
     }
   };
 
-  // Background poller effect
+  // Background poller & real-time SSE listener
   useEffect(() => {
     if (!tgUser?.id) return;
-    const intervalMs = pendingReceiptPurchase ? 3000 : 8000;
+
+    // 1. Listen to Local Event Bus (for immediate cross-component triggers)
+    const unsubscribeBus = globalSyncBus.subscribe((event) => {
+      console.log("[MiniApp] Instant sync triggered via local bus:", event);
+      silentFetchMiniAppData();
+    });
+
+    // 2. Setup SSE connection for instant sync from Dashboard / Bot / Panel changes
+    let eventSource: EventSource | null = null;
+    let sseRetryTimer: any = null;
+
+    const connectSSE = () => {
+      try {
+        eventSource = new EventSource("/api/sync/events");
+        eventSource.onmessage = (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed && (parsed.event === "db_write" || parsed.event === "db_changed" || parsed.event === "key_deleted" || parsed.event === "key_renewed" || parsed.event === "key_toggled" || parsed.event === "key_updated")) {
+              console.log("[MiniApp] Live sync SSE notification received:", parsed.event);
+              silentFetchMiniAppData();
+            }
+          } catch (err) {}
+        };
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          clearTimeout(sseRetryTimer);
+          sseRetryTimer = setTimeout(connectSSE, 6000);
+        };
+      } catch (e) {
+        clearTimeout(sseRetryTimer);
+        sseRetryTimer = setTimeout(connectSSE, 6000);
+      }
+    };
+
+    connectSSE();
+
+    // 3. Fallback interval
+    const intervalMs = pendingReceiptPurchase ? 3000 : 7000;
     const timer = setInterval(() => {
       silentFetchMiniAppData();
     }, intervalMs);
-    return () => clearInterval(timer);
+
+    return () => {
+      unsubscribeBus();
+      if (eventSource) eventSource.close();
+      clearTimeout(sseRetryTimer);
+      clearInterval(timer);
+    };
   }, [tgUser?.id, pendingReceiptPurchase]);
 
   const copyToClipboard = (text: string, id: string) => {
@@ -5583,14 +5606,49 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
         )}
       </main>
 
-      <ThemedModal
-        isOpen={customModal.isOpen}
-        type={customModal.type}
-        title={customModal.title}
-        message={customModal.message}
-        buttonText={customModal.buttonText}
-        onClose={closeThemedModal}
-      />
+      {/* ========================================================================= */}
+      {/* THEMED NOTIFICATION MODAL (Harmonized with Theme, Replaces Native Alert)   */}
+      {/* ========================================================================= */}
+      {customModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] top-0 left-0 w-full h-[100dvh] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-purple-500/40 rounded-3xl p-5 max-w-xs w-full space-y-4 shadow-2xl shadow-purple-950/60 text-center animate-fade-in my-auto">
+            <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg">
+              {customModal.type === "success" && (
+                <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "error" && (
+                <div className="bg-rose-500/20 text-rose-400 border border-rose-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <XCircle className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "warning" && (
+                <div className="bg-amber-500/20 text-amber-400 border border-amber-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+              )}
+              {customModal.type === "info" && (
+                <div className="bg-purple-500/20 text-purple-400 border border-purple-500/30 w-full h-full rounded-2xl flex items-center justify-center">
+                  <Info className="w-6 h-6" />
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <h4 className="font-extrabold text-sm text-white">{customModal.title}</h4>
+              <p className="text-xs text-slate-300 leading-relaxed">{customModal.message}</p>
+            </div>
+
+            <button
+              onClick={closeThemedModal}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white py-2.5 rounded-xl font-bold text-xs shadow-lg shadow-purple-600/30 active:scale-95 transition-all"
+            >
+              {customModal.buttonText || "متوجه شدم"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* QR CODE MODAL                                                             */}
@@ -6304,6 +6362,50 @@ export const TelegramMiniApp: React.FC<TelegramMiniAppProps> = ({ onBack }) => {
       {/* ========================================================================= */}
       {/* BOTTOM NAVIGATION DOCK                                                    */}
       {/* ========================================================================= */}
-      <MiniAppBottomNav activeTab={activeTab} setActiveTab={setActiveTab} />    </div>
+      <nav
+        id="miniapp-bottom-nav"
+        className="shrink-0 w-full z-[99999] bg-slate-900/95 backdrop-blur-2xl border-t border-slate-800/90 py-2.5 px-2 shadow-[0_-10px_25px_rgba(0,0,0,0.6)]"
+        style={{
+          paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))"
+        }}
+      >
+        <div className="max-w-md mx-auto flex items-center justify-around">
+          {[
+            { id: "plans", label: "خرید پلن", icon: ShoppingBag },
+            { id: "subs", label: "سرویس‌های من", icon: HardDrive },
+            { id: "colleagues", label: "همکاران", icon: Users },
+            { id: "wallet", label: "کیف پول", icon: CreditCard },
+            { id: "profile", label: "پروفایل", icon: User },
+            { id: "support", label: "پشتیبانی", icon: Headphones },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                id={`tab-nav-${tab.id}`}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (window.Telegram?.WebApp?.HapticFeedback) {
+                    window.Telegram.WebApp.HapticFeedback.selectionChanged();
+                  }
+                }}
+                className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
+                  isActive
+                    ? "text-purple-400 font-extrabold"
+                    : "text-slate-400 hover:text-slate-200 font-medium"
+                }`}
+              >
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? "scale-110 stroke-[2.5]" : "scale-100"}`} />
+                <span className="text-[10px] mt-1 whitespace-nowrap">{tab.label}</span>
+                {isActive && (
+                  <span className="absolute -bottom-1 w-5 h-1 bg-purple-500 rounded-full shadow-md shadow-purple-500" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+    </div>
   );
 };

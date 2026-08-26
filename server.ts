@@ -42,7 +42,7 @@ process.on("uncaughtException", (err: Error) => {
 
 // Disable SSL verification for outgoing requests to 3x-ui panels
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-import { readSqliteDb, writeSqliteDb, getSystemSettings, extractDbFromSqliteBuffer, isKeyForColleague, sqliteDb, dbSqlitePath, clearMiniappDataCache, miniappDataCacheMap } from "./src/db/database.js";
+import { readSqliteDb, writeSqliteDb, getSystemSettings, extractDbFromSqliteBuffer, isKeyForColleague, sqliteDb, dbSqlitePath, clearMiniappDataCache, miniappDataCacheMap, broadcastSyncChange, globalSyncVersion, syncSseClients } from "./src/db/database.js";
 import { createSslMiddleware } from "./src/middleware/ssl.js";
 import { requireAdminAuth, generateAdminToken, setAuthCookie, clearAuthCookie, extractTokenFromRequest, verifyAdminToken } from "./src/middleware/auth.js";
 import { registerAdminRoutes } from "./src/routes/admin.js";
@@ -597,11 +597,51 @@ app.get("/api/data", async (req, res) => {
       logs: db.logs || [],
       settings,
       isNewInstall: db.isNewInstall === true,
+      syncVersion: globalSyncVersion,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// SSE endpoint for instant real-time synchronization across Dashboard, MiniApp, and Bot
+app.get("/api/sync/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  const sendEvent = (payload: { version: number; event: string; payload?: any }) => {
+    try {
+      res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    } catch (e) {}
+  };
+
+  // Register client
+  syncSseClients.add(sendEvent);
+
+  // Send initial state version
+  sendEvent({ version: globalSyncVersion, event: "connected" });
+
+  // Keep-alive heartbeat ping every 15s
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(`: heartbeat ${Date.now()}\n\n`);
+    } catch (e) {}
+  }, 15000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    syncSseClients.delete(sendEvent);
+  });
+});
+
+// Check current sync version quickly
+app.get("/api/sync/version", (req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.json({ success: true, version: globalSyncVersion });
+});
+
 
 // 2. Save panel configuration
 // --- Colleague Endpoints ---

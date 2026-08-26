@@ -44,6 +44,7 @@ import {
   PlanCategory,
   Ticket,
 } from "./types";
+import { globalSyncBus } from "./utils/syncBus";
 
 import { Language, translations, translateText } from "./lang/locales";
 import {
@@ -983,13 +984,72 @@ export default function App() {
     refreshData(false);
   }, []);
 
+  // Real-time synchronization via SSE and Local Event Bus
   useEffect(() => {
-    if (settings?.autoRefreshInterval && settings.autoRefreshInterval > 0) {
-      const interval = setInterval(() => {
+    // 1. Listen to Local Event Bus (for immediate in-app actions from MiniApp or other tabs)
+    const unsubscribeBus = globalSyncBus.subscribe((event, data) => {
+      console.log("[App.tsx] Instant sync triggered via local bus:", event);
+      refreshData(true);
+    });
+
+    // 2. Setup Server-Sent Events (SSE) for server-side / Bot / Panel changes
+    let eventSource: EventSource | null = null;
+    let sseRetryTimer: any = null;
+
+    const connectSSE = () => {
+      try {
+        eventSource = new EventSource("/api/sync/events");
+        eventSource.onmessage = (e) => {
+          try {
+            const parsed = JSON.parse(e.data);
+            if (parsed && (parsed.event === "db_write" || parsed.event === "db_changed" || parsed.event === "key_deleted" || parsed.event === "key_renewed" || parsed.event === "key_toggled" || parsed.event === "key_updated")) {
+              console.log("[App.tsx] Live sync SSE notification received:", parsed.event);
+              refreshData(true);
+            }
+          } catch (err) {}
+        };
+        eventSource.onerror = () => {
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          // Reconnect in 5 seconds
+          clearTimeout(sseRetryTimer);
+          sseRetryTimer = setTimeout(connectSSE, 5000);
+        };
+      } catch (e) {
+        clearTimeout(sseRetryTimer);
+        sseRetryTimer = setTimeout(connectSSE, 5000);
+      }
+    };
+
+    connectSSE();
+
+    // 3. Focus/visibility change sync (when user returns from MiniApp or Telegram bot)
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === "visible") {
         refreshData(true);
-      }, settings.autoRefreshInterval * 1000);
-      return () => clearInterval(interval);
-    }
+      }
+    };
+    window.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+
+    return () => {
+      unsubscribeBus();
+      if (eventSource) eventSource.close();
+      clearTimeout(sseRetryTimer);
+      window.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Fallback polling interval (defaults to 6 seconds if not specified)
+    const pollSeconds = settings?.autoRefreshInterval && settings.autoRefreshInterval > 0 ? settings.autoRefreshInterval : 6;
+    const interval = setInterval(() => {
+      refreshData(true);
+    }, pollSeconds * 1000);
+    return () => clearInterval(interval);
   }, [settings?.autoRefreshInterval]);
 
   // Database mutations & action handlers (with API sync triggers)

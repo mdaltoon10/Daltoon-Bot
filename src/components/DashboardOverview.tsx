@@ -247,7 +247,7 @@ export default function DashboardOverview({
     return () => clearInterval(interval);
   }, []);
 
-  const handleBotAction = async (action: string) => {
+  const handleBotAction = async (action) => {
     try {
       setBotActionLoading(true);
       const res = await fetch("/api/system/bot/action", {
