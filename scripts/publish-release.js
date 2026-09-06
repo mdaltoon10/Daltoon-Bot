@@ -3,7 +3,7 @@ import path from "path";
 import { execSync } from "child_process";
 
 // Version of the release - dynamically read from package.json or fallback
-let packageVersion = "5.1.2";
+let packageVersion = "5.1.5";
 try {
   const pkg = JSON.parse(fs.readFileSync("./package.json", "utf-8"));
   if (pkg.version) packageVersion = pkg.version;
@@ -101,7 +101,7 @@ async function run() {
     // Stage changes (excluding big temp files if any)
     execSync("git add -A", { stdio: "inherit" });
     try {
-      execSync(`git commit -m "release: v${VERSION} - fix initial setup modal appearance and fresh install detection"`);
+      execSync(`git commit -m "release: v${VERSION} - instant dashboard refresh, async notifications & unified renewal flow"`);
     } catch {
       console.log("No new changes to commit, proceeding...");
     }
@@ -149,20 +149,21 @@ async function run() {
     const payload = {
       tag_name: `v${VERSION}`,
       target_commitish: "main",
-      name: `v${VERSION} - Daltoon Bot Release`,
+      name: `v${VERSION} - Optimized Instant Refresh & Unified Renewal Flow`,
       body: `### Daltoon Bot & Dashboard v${VERSION} Release 🚀
 
 Welcome to the **v${VERSION} release** of Daltoon Bot & Dashboard!
 
 #### Major Additions & Improvements in v${VERSION}:
-- **⚙️ Initial Setup Modal Automatic Prompt:**
-  - Guaranteed automatic appearance of the setup dialog (Nickname, Telegram Bot Token, Admin/Owner Numeric ID, Currency, and Receipt Bot Token) immediately after initial login.
-- **🔍 Fresh Install & Unconfigured Bot Detection:**
-  - System dynamically detects whether the bot is newly installed or missing credentials, guiding the administrator through seamless initial setup.
-- **🛡️ Human Verification & Security:**
-  - Robust mathematical & interactive captcha challenge support before accessing core actions.
-- **🔒 Production Performance & DB Stability:**
-  - Clean SQLite sync, optimized transaction logs, and enhanced real-time dashboard events.`,
+- **⚡ Instant Dashboard Refresh:**
+  - Removed browser thread-blocking storage serialization and optimized database state sync down to sub-25ms.
+  - Added a direct quick-refresh action button in the top navigation header with animated spin indicators.
+- **🔄 Unified Subscription Key Renewal Flow:**
+  - Both Telegram Bot and MiniApp now share the standardized \`/api/subscription-keys/renew\` flow with colleague quota deductions and automatic panel client recreation.
+- **⚡ Async Telegram Notifications:**
+  - Background asynchronous task dispatching for instant bot responsiveness without network lags.
+- **🔍 Multi-field Search & Numeral Normalization:**
+  - Instant user lookup supporting names, usernames, phone numbers, and Telegram IDs with Persian/Arabic digit normalization.`,
       draft: false,
       prerelease: false,
     };
