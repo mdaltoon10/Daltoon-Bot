@@ -372,23 +372,51 @@ export default function UserManagement({
     setShowAddForm(false);
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.userId.toString().includes(searchTerm);
-    if (!matchesSearch) return false;
+  const normalizeDigits = (str: string) => {
+    return str
+      .replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d)))
+      .replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+  };
 
-    if (filterTab === "active") return user.status === "active";
-    if (filterTab === "has_service") return keys.some(k => k.userId === user.userId);
-    if (filterTab === "has_balance") return user.walletBalance > 0;
+  const filteredUsers = (users || []).filter((user: any) => {
+    if (!user) return false;
+    const cleanSearch = normalizeDigits(searchTerm.trim().toLowerCase().replace(/^@/, ""));
+    if (cleanSearch) {
+      const uName = (user.username || "").toLowerCase().replace(/^@/, "");
+      const fName = (user.firstName || user.first_name || "").toLowerCase();
+      const lName = (user.lastName || user.last_name || "").toLowerCase();
+      const fullName = `${fName} ${lName}`.trim();
+      const phone = normalizeDigits(String(user.phone || "").toLowerCase());
+      const uId = normalizeDigits(String(user.userId ?? user.user_id ?? user.telegram_id ?? user.id ?? ""));
+
+      const matchesSearch =
+        uName.includes(cleanSearch) ||
+        fName.includes(cleanSearch) ||
+        lName.includes(cleanSearch) ||
+        fullName.includes(cleanSearch) ||
+        phone.includes(cleanSearch) ||
+        uId.includes(cleanSearch);
+
+      if (!matchesSearch) return false;
+    }
+
+    const uStatus = String(user.status || "active").toLowerCase();
+    const uIdNum = Number(user.userId ?? user.user_id ?? user.telegram_id ?? user.id);
+    const uBal = Number(user.walletBalance ?? user.balance ?? 0);
+
+    if (filterTab === "active") return uStatus === "active";
+    if (filterTab === "has_service") return (keys || []).some((k: any) => Number(k.userId) === uIdNum);
+    if (filterTab === "has_balance") return uBal > 0;
     if (filterTab === "verified") return !!user.isHumanVerified || !!user.captchaPassed;
-    if (filterTab === "banned") return user.status === "banned";
+    if (filterTab === "banned") return uStatus === "banned";
     return true; // "all"
-  }).sort((a, b) => {
+  }).sort((a: any, b: any) => {
+    const balA = Number(a.walletBalance ?? a.balance ?? 0);
+    const balB = Number(b.walletBalance ?? b.balance ?? 0);
     if (sortOrder === "newest") return new Date(b.joinDate || 0).getTime() - new Date(a.joinDate || 0).getTime();
     if (sortOrder === "oldest") return new Date(a.joinDate || 0).getTime() - new Date(b.joinDate || 0).getTime();
-    if (sortOrder === "highest_balance") return b.walletBalance - a.walletBalance;
-    if (sortOrder === "lowest_balance") return a.walletBalance - b.walletBalance;
+    if (sortOrder === "highest_balance") return balB - balA;
+    if (sortOrder === "lowest_balance") return balA - balB;
     return 0;
   });
 

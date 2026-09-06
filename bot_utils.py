@@ -107,6 +107,22 @@ def extract_inbound_list(rj):
                         return v2
     return None
 
+class ApiResponse(dict):
+    def __init__(self, status_code=200, data=None, text="", error=None):
+        if data is None:
+            data = {}
+        super().__init__(data)
+        self.status_code = status_code
+        self.ok = (200 <= status_code < 300)
+        self.text = text or json.dumps(data)
+        self._data = data
+        if error and "error" not in self:
+            self["error"] = error
+            self["success"] = False
+
+    def json(self):
+        return self._data
+
 def get_local_server_port():
     if os.environ.get("PORT") and os.environ.get("PORT").isdigit():
         return int(os.environ["PORT"])
@@ -120,11 +136,10 @@ def call_local_api(endpoint_path, method="POST", json_payload=None, timeout=30):
             resp = requests.post(url, json=json_payload, timeout=timeout)
         else:
             resp = requests.get(url, timeout=timeout)
-        if resp.status_code == 200:
-            try:
-                return resp.json()
-            except Exception:
-                return {"success": False, "error": "Invalid JSON response"}
-        return {"success": False, "error": f"HTTP {resp.status_code}"}
+        try:
+            data = resp.json()
+        except Exception:
+            data = {"success": resp.ok, "text": resp.text}
+        return ApiResponse(status_code=resp.status_code, data=data, text=resp.text)
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return ApiResponse(status_code=500, data={"success": False, "error": str(e)}, error=str(e))

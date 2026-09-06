@@ -190,6 +190,17 @@ def write_sqlite_db(data):
             conn.commit()
             conn.close()
             invalidate_db_cache()
+            try:
+                import threading
+                def _notify_server_sync():
+                    try:
+                        from bot_utils import call_local_api
+                        call_local_api("/api/sync/notify", method="POST", json_payload={"event": "db_write"}, timeout=2)
+                    except Exception:
+                        pass
+                threading.Thread(target=_notify_server_sync, daemon=True).start()
+            except Exception:
+                pass
             return True
         except Exception as e:
             print(f"[SQLite Database Write Error] {e}")

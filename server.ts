@@ -574,18 +574,13 @@ app.get("/api/data", async (req, res) => {
       settings.admins = [];
     }
 
-    console.log(
-      "[DEBUG] /api/data returned settings.botToken:",
-      settings.botToken,
-    );
-
     res.json({
       success: true,
-      users: db.users,
-      transactions: db.transactions,
-      keys: db.subscription_keys,
-      inbounds: db.inbounds,
-      customButtons: db.custom_buttons,
+      users: db.users || [],
+      transactions: db.transactions || [],
+      keys: db.subscription_keys || [],
+      inbounds: db.inbounds || [],
+      customButtons: db.custom_buttons || [],
       vpnPlans: db.vpn_plans || [],
       giftCodes: db.gift_codes || [],
       promoCodes: db.promo_codes || [],
@@ -594,7 +589,7 @@ app.get("/api/data", async (req, res) => {
       colleagueAccounts: db.colleague_accounts || [],
       colleagueCategories: db.colleague_categories || [],
       plan_categories: db.plan_categories || [],
-      logs: db.logs || [],
+      logs: Array.isArray(db.logs) ? db.logs.slice(-300) : [],
       settings,
       isNewInstall:
         db.isNewInstall === true ||
@@ -644,6 +639,14 @@ app.get("/api/sync/events", (req, res) => {
 // Check current sync version quickly
 app.get("/api/sync/version", (req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.json({ success: true, version: globalSyncVersion });
+});
+
+// Trigger sync broadcast externally (e.g. from Python bot)
+app.post("/api/sync/notify", (req, res) => {
+  const event = req.body?.event || "db_write";
+  const payload = req.body?.payload || {};
+  broadcastSyncChange(event, payload);
   res.json({ success: true, version: globalSyncVersion });
 });
 
@@ -5941,32 +5944,63 @@ app.post("/api/users/adjust", async (req, res) => {
     const { userId, amount } = req.body;
     const db = readSqliteDb();
 
-    const user = db.users.find((u) => u.userId === Number(userId));
+    const targetIdStr = String(userId ?? "").trim();
+    if (!targetIdStr) {
+      return res.status(400).json({ success: false, message: "شناسه کاربر نامعتبر است." });
+    }
+
+    const user = (db.users || []).find(
+      (u: any) =>
+        String(u.userId ?? u.user_id ?? u.telegram_id ?? u.id ?? "").trim() === targetIdStr ||
+        (u.username && String(u.username).trim().toLowerCase() === targetIdStr.toLowerCase())
+    );
+
     if (!user) {
       return res
         .status(404)
-        .json({ success: false, message: "User not found." });
+        .json({ success: false, message: "کاربر یافت نشد." });
     }
 
-    const nextBal = Math.max(0, Number(user.walletBalance) + Number(amount));
-    const finalDiff = nextBal - Number(user.walletBalance);
+    const currentBal = Number(user.walletBalance ?? user.wallet_balance ?? user.balance ?? 0) || 0;
+    const nextBal = Math.max(0, currentBal + Number(amount));
+    const finalDiff = nextBal - currentBal;
+
     user.walletBalance = nextBal;
+    user.wallet_balance = nextBal;
+    user.balance = nextBal;
+    user.credit = nextBal;
 
     if (!db.logs) db.logs = [];
     db.logs.push({
       id: Math.random().toString(36).substring(2, 9),
       date: new Date().toISOString(),
-      userId: Number(userId),
+      userId: Number(user.userId ?? user.id ?? userId),
       username: user.username || `user_${userId}`,
       action: "تغییر موجودی",
       details: `موجودی کاربر توسط مدیر به میزان ${finalDiff >= 0 ? "+" : ""}${finalDiff.toLocaleString()} تومان تغییر یافت. موجودی نهایی: ${nextBal.toLocaleString()} تومان.`,
     });
-    if ((db.logs ??= []).length > 1000) { db.logs = (db.logs ??= []).slice(-1000);
+    if ((db.logs ??= []).length > 1000) {
+      db.logs = (db.logs ??= []).slice(-1000);
     }
 
     writeSqliteDb(db);
 
-    res.json({ success: true, nextBal });
+    // Optionally notify user via Telegram in background
+    try {
+      const uTgId = user.userId ?? user.user_id ?? user.telegram_id ?? user.id;
+      if (uTgId && !isNaN(Number(uTgId))) {
+        const settings = getSystemSettings(db);
+        const actionText = finalDiff >= 0 ? "افزایش یافت" : "کسر شد";
+        const sign = finalDiff >= 0 ? "➕" : "➖";
+        const notifMsg =
+          `💰 <b>تغییر موجودی کیف پول</b>\n\n` +
+          `${sign} موجودی کیف پول شما توسط مدیریت <b>${Math.abs(finalDiff).toLocaleString("fa-IR")} تومان</b> ${actionText}.\n\n` +
+          `💵 <b>موجودی فعلی:</b> <code>${nextBal.toLocaleString("fa-IR")} تومان</code>`;
+        sendTelegramMessage(Number(uTgId), notifMsg, settings).catch(() => {});
+      }
+    } catch (e) {}
+
+    res.json({ success: true, nextBal, user });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -6779,16 +6813,19 @@ app.post("/api/transactions/approve", async (req, res) => {
             };
           }
 
-          const sendOk = await sendTelegramMessage(botToken, tx.userId, messageTextForNotif, replyMarkupObj);
-          if (sendOk) notifiedUser = true;
+          // Send user notification in background without blocking API response
+          sendTelegramMessage(botToken, tx.userId, messageTextForNotif, replyMarkupObj)
+            .then((ok) => {
+              if (ok && tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
+                setTimeout(() => {
+                  sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
+                }, 1000);
+              }
+            })
+            .catch((err) => console.warn("Error sending approval message to user:", err));
+          notifiedUser = true;
 
-          // Also attach purchase success note if delivering exactly a newly built purchase config
-          if (tx.type === "PLAN_PURCHASE" && tx._generatedSubLink) {
-            setTimeout(() => {
-              sendPurchaseSuccessNoteIfAnyServer(botToken, tx.userId, cfg);
-            }, 1000);
-          }
-          // Notify Admin of successful delivery
+          // Notify Admin of successful delivery asynchronously
           try {
             const ownerId = Number(cfg.ownerId || cfg.OWNER_ID || 0);
             if (ownerId > 0 && isBotNotificationEnabled(db, "notifyAdminPaymentSuccess", true)) {
@@ -6806,10 +6843,12 @@ app.post("/api/transactions/approve", async (req, res) => {
                   `💰 <b>مبلغ افزوده شده:</b> <b>${Number(tx.amount || 0).toLocaleString()} تومان</b>\n` +
                   `💰 <b>موجودی جدید کاربر:</b> <b>${user ? Number(user.walletBalance).toLocaleString() : "0"} تومان</b>`;
               }
-              await sendTelegramMessage(botToken, ownerId, adminDeliveryMsg);
+              sendTelegramMessage(botToken, ownerId, adminDeliveryMsg).catch((admErr) => {
+                console.warn("Error notifying admin of delivery:", admErr);
+              });
             }
           } catch (admErr) {
-            console.warn("Error notifying admin of delivery:", admErr);
+            console.warn("Error scheduling admin notification:", admErr);
           }
         }
       } catch (notifyErr) {
@@ -6910,7 +6949,9 @@ app.post("/api/transactions/reject", async (req, res) => {
 
         if (botToken && botToken !== "DUMMY_TOKEN" && isBotNotificationEnabled(db, "notifyUserReceiptRejected", true)) {
           const messageText = `❌ <b>تراکنش شما پذیرفته نشد!</b>\n\nفیش ارسالی شما با شناسه <code>${tx.id}</code> توسط مدیریت بررسی و رد گردید.\n\n⚠️ علت رد تراکنش ممکن است ناخوانا بودن رسید، مغایرت مبلغ و یا تکراری بودن فیش باشد. لطفا در صورت بروز مشکل با پشتیبان ارتباط برقرار کنید.`;
-          await sendTelegramMessage(botToken, tx.userId, messageText);
+          sendTelegramMessage(botToken, tx.userId, messageText).catch((err) => {
+            console.warn("Error sending rejection message to user:", err);
+          });
         }
       } catch (notifyErr) {
         console.warn("Error notifying user of rejection:", notifyErr);

@@ -5434,6 +5434,19 @@ def get_notification_bot():
 
 def notify_admins_of_event(event_type_emoji, title, details, user_info=None):
     """
+    Dispatches admin notification in a background daemon thread to ensure zero latency for user interactions.
+    """
+    try:
+        threading.Thread(
+            target=_notify_admins_of_event_worker,
+            args=(event_type_emoji, title, details, user_info),
+            daemon=True
+        ).start()
+    except Exception as e:
+        print(f"[notify_admins_of_event dispatch error] {e}")
+
+def _notify_admins_of_event_worker(event_type_emoji, title, details, user_info=None):
+    """
     Sends notification to admin(s) in PV using the second bot (if configured) or main bot (fallback).
     Replies to the previous notification message to create a single continuous thread/subject
     so notifications are never lost or scattered.
@@ -8794,6 +8807,21 @@ def callback_handler(call):
         sub_action = parts[1]
         target_sub_id = parts[2]
         
+        actual_sub_id = target_sub_id
+        selected_quick_gb = None
+        selected_quick_days = None
+        if sub_action == "renewdays":
+            sub_parts = target_sub_id.split("_")
+            if len(sub_parts) >= 3:
+                actual_sub_id = sub_parts[0]
+                selected_quick_gb = int(sub_parts[1])
+                selected_quick_days = int(sub_parts[2])
+        elif sub_action == "renewgb":
+            sub_parts = target_sub_id.split("_")
+            if len(sub_parts) >= 2:
+                actual_sub_id = sub_parts[0]
+                selected_quick_gb = int(sub_parts[1])
+        
         cfg = get_config()
         is_owner = bool(cfg.get("OWNER_ID") and int(tg_id) == int(cfg["OWNER_ID"]))
         is_admin = bool(cfg.get("ADMINS") and int(tg_id) in cfg["ADMINS"])
@@ -8802,9 +8830,9 @@ def callback_handler(call):
         db = read_sqlite_db()
         subscription_keys = db.get("subscription_keys", [])
         # Always prioritize key belonging to current user first
-        k = next((sub for sub in subscription_keys if str(sub.get("id")) == str(target_sub_id) and str(sub.get("userId")) == str(tg_id)), None)
+        k = next((sub for sub in subscription_keys if str(sub.get("id")) == str(actual_sub_id) and str(sub.get("userId")) == str(tg_id)), None)
         if not k and is_privileged:
-            k = next((sub for sub in subscription_keys if str(sub.get("id")) == str(target_sub_id)), None)
+            k = next((sub for sub in subscription_keys if str(sub.get("id")) == str(actual_sub_id)), None)
         
         if not k:
             edit_or_reply_message(call, "❌ خطا: این کلید اشتراک یافت نشد یا متعلق به شما نیست.")
@@ -9096,15 +9124,48 @@ def callback_handler(call):
             return
 
         elif sub_action == "renew":
+            markup = types.InlineKeyboardMarkup(row_width=2)
+            markup.add(
+                types.InlineKeyboardButton("+10 گیگابایت", callback_data=f"mysub_renewgb_{actual_sub_id}_10"),
+                types.InlineKeyboardButton("+20 گیگابایت", callback_data=f"mysub_renewgb_{actual_sub_id}_20"),
+                types.InlineKeyboardButton("+30 گیگابایت", callback_data=f"mysub_renewgb_{actual_sub_id}_30"),
+                types.InlineKeyboardButton("+50 گیگابایت", callback_data=f"mysub_renewgb_{actual_sub_id}_50"),
+            )
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{actual_sub_id}"))
+            
             msg = bot.send_message(
                 call.message.chat.id,
-                f"🔄 <b>تمدید اشتراک <code>{client_name}</code> با ترافیک و روز دلخواه:</b>\n\n"
-                "🔻 لطفاً مقدار ترافیک اضافی مورد نیاز خود را به <b>گیگابایت (GB)</b> وارد کنید:\n"
-                "⚠️ عدد ارسال شده باید یک عدد انگلیسی مثبت باشد (مثلاً <code>30</code>)",
+                f"🔄 <b>تمدید اشتراک <code>{client_name}</code>:</b>\n\n"
+                "🔻 یکی از بسته‌های ترافیک زیر را انتخاب کنید یا مقدار گیگابایت اضافی مورد نظر خود را در چت تایپ و ارسال کنید (مثلاً <code>30</code>):",
                 parse_mode="HTML",
-                reply_markup=get_cancel_keyboard(back_callback=f"mysub_manage_{target_sub_id}")
+                reply_markup=markup
             )
-            bot.register_next_step_handler(msg, process_renew_gb, target_sub_id)
+            bot.register_next_step_handler(msg, process_renew_gb, actual_sub_id)
+            return
+
+        elif sub_action == "renewgb":
+            markup = types.InlineKeyboardMarkup(row_width=3)
+            markup.add(
+                types.InlineKeyboardButton("30 روز", callback_data=f"mysub_renewdays_{actual_sub_id}_{selected_quick_gb}_30"),
+                types.InlineKeyboardButton("60 روز", callback_data=f"mysub_renewdays_{actual_sub_id}_{selected_quick_gb}_60"),
+                types.InlineKeyboardButton("90 روز", callback_data=f"mysub_renewdays_{actual_sub_id}_{selected_quick_gb}_90"),
+            )
+            markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"mysub_renew_{actual_sub_id}"))
+            
+            msg = bot.edit_message_text(
+                f"⏳ <b>انتخاب مدت زمان تمدید (+{selected_quick_gb} گیگابایت):</b>\n\n"
+                f"👤 سرویس: <code>{client_name}</code>\n"
+                "یکی از گزینه‌های زیر را انتخاب کنید یا تعداد روز دلخواه خود را در چت ارسال فرمایید (مثلاً <code>30</code>):",
+                chat_id=call.message.chat.id,
+                message_id=call.message.message_id,
+                parse_mode="HTML",
+                reply_markup=markup
+            )
+            bot.register_next_step_handler(msg, process_renew_days, actual_sub_id, selected_quick_gb)
+            return
+
+        elif sub_action == "renewdays":
+            render_renew_invoice(call.message.chat.id, actual_sub_id, selected_quick_gb, selected_quick_days, message_id=call.message.message_id, user_id=tg_id)
             return
 
         elif sub_action == "renewconfirm":
@@ -10538,80 +10599,70 @@ def callback_handler(call):
             return
 
         bot.answer_callback_query(call.id)
-        if not is_privileged and (not user or user.get("walletBalance", 0) < price):
+        if not is_privileged and (not user or user.get("walletBalance", 0) < price) and price > 0:
             bot.send_message(call.message.chat.id, "❌ موجودی کیف پول شما کافی نیست! لطفا ابتدا حساب خود را شارژ کنید.")
             return
             
-        bot.edit_message_text("✅ در حال تمدید اشتراک... لطفا صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
-        
-        # Check for double-processing
         if tg_id in active_purchases:
             bot.send_message(call.message.chat.id, "یک درخواست خرید یا تمدید برای شما در حال پردازش است.")
             return
             
         active_purchases.add(tg_id)
         try:
-            if not is_privileged:
-                new_balance = user.get("walletBalance", 0) - price
-                update_user_balance(tg_id, new_balance)
-                log_action(tg_id, user.get("username", str(tg_id)), "تمدید اشتراک دلخواه", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز به مبلغ {price:,} تومان کسر شد.")
-            else:
-                log_action(tg_id, user.get("username", str(tg_id)) if user else str(tg_id), "تمدید مستقیم ادمین", f"سرویس '{client_name}' تمدید {gb}GB/{days}روز شد.")
-                
-            from datetime import datetime, timedelta
-            try:
-                exp_dt = datetime.strptime(k['expireDate'], '%Y-%m-%d')
-                if exp_dt < datetime.now():
-                    new_exp_dt = datetime.now() + timedelta(days=days)
+            bot.edit_message_text("⏳ در حال پردازش و اعمال تمدید اشتراک روی سرور... لطفاً چند لحظه صبور باشید.", chat_id=call.message.chat.id, message_id=call.message.message_id, parse_mode="HTML")
+            
+            payload = {
+                "id": target_sub_id,
+                "addGb": gb,
+                "addDays": days,
+                "userId": tg_id,
+                "paymentMethod": "admin_free" if is_privileged else "wallet",
+            }
+            resp = call_local_api("/api/subscription-keys/renew", json_payload=payload, timeout=45)
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data.get("success"):
+                    updated_key = data.get("key", {})
+                    new_expire_date_str = updated_key.get("expireDate", "نامشخص")
+                    new_limit_gb = updated_key.get("trafficLimitGb", gb)
+                    new_sub_link = updated_key.get("subLink", "")
+                    
+                    markup = types.InlineKeyboardMarkup()
+                    if new_sub_link:
+                        markup.add(types.InlineKeyboardButton("🔗 دریافت لینک اشتراک", callback_data=f"mysub_link_{target_sub_id}"))
+                    markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
+                    markup.add(types.InlineKeyboardButton("🏠 منوی اصلی", callback_data="btn_back_home"))
+                    
+                    success_text = (
+                        f"🎉 <b>اشتراک شما با موفقیت تمدید شد!</b>\n\n"
+                        f"👤 سرویس: <code>{client_name}</code>\n"
+                        f"➕ حجم ترافیک افزوده شده: <b>{gb} گیگابایت</b>\n"
+                        f"➕ مدت زمان افزوده شده: <b>{days} روز</b>\n\n"
+                        f"📅 تاریخ انقضای جدید: <b>{new_expire_date_str}</b>\n"
+                        f"📊 حجم کل جدید: <b>{new_limit_gb} گیگابایت</b>"
+                    )
+                    if data.get("isColleagueRenew"):
+                        success_text += f"\n\n👥 <i>کسر از سهمیه بسته همکار (باقیمانده: {data.get('remainingTrafficGb', 0)} GB)</i>"
+                        
+                    bot.send_message(tg_id, success_text, parse_mode="HTML", reply_markup=markup)
+                    return
                 else:
-                    new_exp_dt = exp_dt + timedelta(days=days)
-            except:
-                new_exp_dt = datetime.now() + timedelta(days=days)
-                
-            new_expire_date_str = new_exp_dt.strftime('%Y-%m-%d')
-            new_limit_gb = float(k.get('trafficLimitGb', 0)) + float(gb)
-            
-            new_exp_days = (new_exp_dt - datetime.now()).days
-            new_exp_days = max(1, new_exp_days)
-            
-            # Use extend_vpn_client_api instead of delete/add
-            extended = extend_vpn_client_api(client_name, gb, days, client_uuid=k.get("clientUuid"), server_id=k.get("serverId"), sub_link=k.get("subLink"))
-            sub_link = k.get("subLink", "")
-            if not extended:
-                sub_link = None
-            
-            if not extended:
-                if not is_privileged:
-                    refunded_bal = user.get("walletBalance", 0) + price
-                    update_user_balance(tg_id, refunded_bal)
-                
-                bot.send_message(
-                    tg_id,
-                    "❌ <b>خطا در تمدید اشتراک!</b>\n\n"
-                    "متاسفانه در ارتباط با سرور و اعمال تمدید خطایی رخ داد.\n"
-                    "✅ مبلغ کسر شده فوراً به کیف پول شما بازگردانده شد.",
-                    parse_mode="HTML"
-                )
-                return
-                
-            k['expireDate'] = new_expire_date_str
-            k['trafficLimitGb'] = new_limit_gb
-            if sub_link:
-                k['subLink'] = sub_link
-                
-            write_sqlite_db(db)
-            
-            notify_admins_of_purchase(tg_id, "تمدید اشتراک دلخواه (کیف پول)", f"افزودن: {gb}GB / {days} روز برای سرویس {client_name}", price, target_sub_id)
-            
-            success_text = (
-                f"🎉 <b>اشتراک شما با موفقیت تمدید شد!</b>\n\n"
-                f"👤 سرویس: <code>{client_name}</code>\n"
-                f"➕ حجم ترافیک افزوده شده: <b>{gb} گیگابایت</b>\n"
-                f"➕ مدت زمان افزوده شده: <b>{days} روز</b>\n\n"
-                f"📅 تاریخ انقضای جدید: <b>{new_expire_date_str}</b>\n"
-                f"📊 حجم کل جدید: <b>{new_limit_gb} گیگابایت</b>"
-            )
-            bot.send_message(tg_id, success_text, parse_mode="HTML")
+                    err_msg = data.get("error", "متاسفانه در اعمال تمدید خطایی رخ داد.")
+                    bot.send_message(tg_id, f"❌ <b>خطا در تمدید اشتراک:</b>\n\n{err_msg}", parse_mode="HTML")
+                    return
+            else:
+                err_text = "❌ خطا در برقراری ارتباط با سرور جهت تمدید اشتراک. لطفاً دقایقی دیگر مجدداً تلاش فرمایید."
+                if resp:
+                    try:
+                        err_json = resp.json()
+                        if err_json.get("error"):
+                            err_text = f"❌ <b>خطا در تمدید اشتراک:</b>\n{err_json['error']}"
+                    except Exception:
+                        pass
+                bot.send_message(tg_id, err_text, parse_mode="HTML")
+        except Exception as e:
+            print(f"[mysub_renewcustconfirm Error] {e}")
+            bot.send_message(tg_id, f"❌ خطا در پردازش تمدید: {e}", parse_mode="HTML")
         finally:
             active_purchases.discard(tg_id)
         return
@@ -13095,100 +13146,35 @@ def process_custom_vol_promo_input(message, server_id, username_input, gb, days)
 def main_menu_message(message):
     start_cmd(message)
 
-def process_renew_gb(message, target_sub_id):
+def render_renew_invoice(chat_id, target_sub_id, gb, days, message_id=None, user_id=None):
     try:
-        text = message.text.strip() if message.text else ""
-        if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
-            start_cmd(message)
-            return
-            
         db = read_sqlite_db()
-        tg_id = message.from_user.id
+        tg_id = user_id or chat_id
         user_subs = [s for s in db.get("subscription_keys", []) if str(s.get("userId")) == str(tg_id)]
         k = next((s for s in user_subs if str(s.get("id")) == str(target_sub_id)), None)
         if not k:
             k = next((s for s in db.get("subscription_keys", []) if str(s.get("id")) == str(target_sub_id)), None)
-        server_id = k.get("serverId") if k else None
-        if not server_id:
-            cfg = get_config()
-            servers = get_all_servers(include_colleague=False)
-            active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
-            if active:
-                server_id = active.get("id")
-                
-        try:
-            gb = int(text)
-            min_gb, _ = get_custom_pricing_limits(server_id)
-            if gb < int(min_gb) or gb > 1000:
-                raise ValueError()
-        except ValueError:
-            min_gb, _ = get_custom_pricing_limits(server_id)
-            msg = bot.reply_to(
-                message,
-                f"❌ <b>خطا: ترافیک نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
-                f"حداقل حجم تمدید روی این سرور <b>{int(min_gb)} گیگابایت</b> می‌باشد. لطفاً یک عدد بین {int(min_gb)} تا ۱۰۰۰ وارد کنید:",
-                parse_mode="HTML",
-                reply_markup=get_cancel_keyboard()
-            )
-            bot.register_next_step_handler(msg, process_renew_gb, target_sub_id)
-            return
             
-        msg = bot.send_message(
-            message.chat.id,
-            "⏳ <b>انتخاب مدت زمان تمدید:</b>\n\n"
-            "لطفاً تعداد روزهای اضافی جهت تمدید اشتراک را به <b>روز (Days)</b> وارد کنید (مثلاً <code>30</code>):",
-            parse_mode="HTML",
-            reply_markup=get_cancel_keyboard(back_callback=f"mysub_renew_{target_sub_id}")
-        )
-        bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
-    except Exception as e:
-        print(f"[process_renew_gb Error] {e}")
-        bot.send_message(message.chat.id, f"❌ خطا در پردازش حجم تمدید: {e}", reply_markup=get_cancel_keyboard())
+        if not k:
+            bot.send_message(chat_id, "❌ خطا: اشتراک یافت نشد.")
+            return
 
-def process_renew_days(message, target_sub_id, gb):
-    try:
-        text = message.text.strip() if message.text else ""
-        if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
-            start_cmd(message)
-            return
-            
-        db = read_sqlite_db()
-        tg_id = message.from_user.id
-        user_subs = [s for s in db.get("subscription_keys", []) if str(s.get("userId")) == str(tg_id)]
-        k = next((s for s in user_subs if str(s.get("id")) == str(target_sub_id)), None)
-        if not k:
-            k = next((s for s in db.get("subscription_keys", []) if str(s.get("id")) == str(target_sub_id)), None)
-        server_id = k.get("serverId") if k else None
+        server_id = k.get("serverId")
         if not server_id:
-            cfg = get_config()
             servers = get_all_servers(include_colleague=False)
             active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
             if active:
                 server_id = active.get("id")
-                
-        try:
-            days = int(text)
-            _, min_days = get_custom_pricing_limits(server_id)
-            if days < int(min_days) or days > 365:
-                raise ValueError()
-        except ValueError:
-            min_gb, min_days = get_custom_pricing_limits(server_id)
-            msg = bot.reply_to(
-                message,
-                f"❌ <b>خطا: تعداد روزها نامعتبر یا کمتر از حد مجاز است!</b>\n\n"
-                f"حداقل مدت تمدید روی این سرور <b>{int(min_days)} روز</b> می‌باشد. لطفاً یک عدد بین {int(min_days)} تا ۳۶۵ وارد کنید:",
-                parse_mode="HTML",
-                reply_markup=get_cancel_keyboard()
-            )
-            bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
-            return
-            
-        if not k:
-            bot.send_message(message.chat.id, "❌ خطا: اشتراک یافت نشد.")
-            return
-            
+
         cfg = get_config()
         settings_data = db.get("settings", {})
+        
+        # Check if colleague account
+        colleague_accounts = db.get("colleague_accounts", [])
+        is_colleague = any(
+            str(ca.get("telegramId", "")) == str(tg_id) or str(ca.get("userId", "")) == str(tg_id)
+            for ca in colleague_accounts
+        ) or bool(k.get("colleagueAccountId"))
         
         import json
         panel_config_str = settings_data.get("panel_config", "{}")
@@ -13215,27 +13201,12 @@ def process_renew_days(message, target_sub_id, gb):
                         price_day = 2000
                     break
                     
-        try:
-            total_price = (int(gb) * int(price_gb)) + (int(days) * int(price_day))
-        except Exception as e:
-            print(f"Error calculating renewal price: {e}")
+        total_price = (int(gb) * int(price_gb)) + (int(days) * int(price_day))
+        if is_colleague:
             total_price = 0
             
         client_name = k.get('clientName') or k.get('planName') or "سرویس بدون نام"
-        import html
         safe_client_name = safe_html_escape(str(client_name))
-        
-        invoice_text = (
-            "🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n"
-            f"👤 نام کاربری سرویس: <code>{safe_client_name}</code>\n"
-            f"➕ حجم ترافیک اضافی: <b>{gb} گیگابایت</b>\n"
-            f"➕ مدت زمان تمدید: <b>{days} روز</b>\n\n"
-            f"💵 قیمت هر گیگابایت: {int(price_gb):,} تومان\n"
-            f"💵 قیمت هر روز: {int(price_day):,} تومان\n"
-            "──────────────────\n"
-            f"💰 <b>جمع کل هزینه تمدید: {int(total_price):,} تومان</b>\n\n"
-            "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
-        )
         
         is_owner = False
         is_admin = False
@@ -13250,11 +13221,39 @@ def process_renew_days(message, target_sub_id, gb):
             pass
             
         is_privileged = is_owner or is_admin
-
+        
+        if is_colleague:
+            invoice_text = (
+                "🔄 <b>پیش‌فاکتور تمدید اشتراک همکار</b>\n\n"
+                f"👤 نام کاربری سرویس: <code>{safe_client_name}</code>\n"
+                f"➕ حجم ترافیک اضافی: <b>{gb} گیگابایت</b>\n"
+                f"➕ مدت زمان تمدید: <b>{days} روز</b>\n\n"
+                "👥 <b>نحوه پرداخت:</b> کسر مستقیم از سهمیه ترافیک بسته همکاری (رایگان)\n"
+                "──────────────────\n"
+                "💰 <b>مبلغ قابل پرداخت: ۰ تومان</b>\n\n"
+                "جهت ثبت و اعمال تمدید روی دکمه زیر کلیک فرمایید:"
+            )
+        else:
+            invoice_text = (
+                "🔄 <b>پیش‌فاکتور تمدید و ارتقای اشتراک</b>\n\n"
+                f"👤 نام کاربری سرویس: <code>{safe_client_name}</code>\n"
+                f"➕ حجم ترافیک اضافی: <b>{gb} گیگابایت</b>\n"
+                f"➕ مدت زمان تمدید: <b>{days} روز</b>\n\n"
+                f"💵 قیمت هر گیگابایت: {int(price_gb):,} تومان\n"
+                f"💵 قیمت هر روز: {int(price_day):,} تومان\n"
+                "──────────────────\n"
+                f"💰 <b>جمع کل هزینه تمدید: {int(total_price):,} تومان</b>\n\n"
+                "💳 <b>لطفاً روش پرداخت خود را انتخاب کنید:</b>"
+            )
+        
         markup = types.InlineKeyboardMarkup(row_width=1)
         if is_privileged:
             markup.add(
                 types.InlineKeyboardButton("🎁 تایید مستقیم (رایگان برای ادمین)", callback_data=f"mysub_renewcustconfirm:wallet:{target_sub_id}:{gb}:{days}:{total_price}"),
+            )
+        elif is_colleague:
+            markup.add(
+                types.InlineKeyboardButton("🔄 تایید و تمدید از سهمیه همکاری", callback_data=f"mysub_renewcustconfirm:wallet:{target_sub_id}:{gb}:{days}:0"),
             )
         else:
             markup.add(
@@ -13262,9 +13261,106 @@ def process_renew_days(message, target_sub_id, gb):
                 types.InlineKeyboardButton("💳 پرداخت کارت به کارت", callback_data=f"mysub_renewcustconfirm:card:{target_sub_id}:{gb}:{days}:{total_price}"),
                 types.InlineKeyboardButton("⭐️ پرداخت با Stars تلگرام", callback_data=f"mysub_renewcustconfirm:stars:{target_sub_id}:{gb}:{days}:{total_price}"),
             )
-        markup.add(types.InlineKeyboardButton("❌ لغو", callback_data=f"mysub_manage_{target_sub_id}"))
+        markup.add(types.InlineKeyboardButton("🔙 بازگشت به مدیریت سرویس", callback_data=f"mysub_manage_{target_sub_id}"))
         
-        bot.send_message(message.chat.id, invoice_text, parse_mode="HTML", reply_markup=markup)
+        if message_id:
+            try:
+                bot.edit_message_text(invoice_text, chat_id=chat_id, message_id=message_id, parse_mode="HTML", reply_markup=markup)
+                return
+            except Exception:
+                pass
+        bot.send_message(chat_id, invoice_text, parse_mode="HTML", reply_markup=markup)
+    except Exception as e:
+        print(f"[render_renew_invoice Error] {e}")
+        bot.send_message(chat_id, f"❌ خطا در ساخت پیش‌فاکتور تمدید: {e}", reply_markup=get_cancel_keyboard())
+
+def process_renew_gb(message, target_sub_id):
+    try:
+        text = message.text.strip() if message.text else ""
+        if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+            start_cmd(message)
+            return
+            
+        db = read_sqlite_db()
+        tg_id = message.from_user.id
+        user_subs = [s for s in db.get("subscription_keys", []) if str(s.get("userId")) == str(tg_id)]
+        k = next((s for s in user_subs if str(s.get("id")) == str(target_sub_id)), None)
+        if not k:
+            k = next((s for s in db.get("subscription_keys", []) if str(s.get("id")) == str(target_sub_id)), None)
+        server_id = k.get("serverId") if k else None
+        if not server_id:
+            servers = get_all_servers(include_colleague=False)
+            active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+            if active:
+                server_id = active.get("id")
+                
+        min_gb, _ = get_custom_pricing_limits(server_id)
+        gb = parse_flexible_int(text, default=0)
+        if gb < int(min_gb) or gb > 1000:
+            msg = bot.reply_to(
+                message,
+                f"❌ <b>خطا: ترافیک نامعتبر است!</b>\n\n"
+                f"حداقل حجم تمدید روی این سرور <b>{int(min_gb)} گیگابایت</b> می‌باشد. لطفاً یک عدد بین {int(min_gb)} تا ۱۰۰۰ وارد کنید (مثلاً <code>30</code>):",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard(back_callback=f"mysub_manage_{target_sub_id}")
+            )
+            bot.register_next_step_handler(msg, process_renew_gb, target_sub_id)
+            return
+            
+        markup = types.InlineKeyboardMarkup(row_width=3)
+        markup.add(
+            types.InlineKeyboardButton("30 روز", callback_data=f"mysub_renewdays_{target_sub_id}_{gb}_30"),
+            types.InlineKeyboardButton("60 روز", callback_data=f"mysub_renewdays_{target_sub_id}_{gb}_60"),
+            types.InlineKeyboardButton("90 روز", callback_data=f"mysub_renewdays_{target_sub_id}_{gb}_90"),
+        )
+        markup.row(types.InlineKeyboardButton("🔙 بازگشت", callback_data=f"mysub_renew_{target_sub_id}"))
+        
+        msg = bot.send_message(
+            message.chat.id,
+            f"⏳ <b>انتخاب مدت زمان تمدید (+{gb} گیگابایت):</b>\n\n"
+            "یکی از گزینه‌های زیر را انتخاب کنید یا تعداد روزهای اضافی دلخواه را در چت ارسال فرمایید (مثلاً <code>30</code>):",
+            parse_mode="HTML",
+            reply_markup=markup
+        )
+        bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
+    except Exception as e:
+        print(f"[process_renew_gb Error] {e}")
+        bot.send_message(message.chat.id, f"❌ خطا در پردازش حجم تمدید: {e}", reply_markup=get_cancel_keyboard())
+
+def process_renew_days(message, target_sub_id, gb):
+    try:
+        text = message.text.strip() if message.text else ""
+        if text in ["انصراف", "بازگشت", "/start", "منوی اصلی", "❌ انصراف"]:
+            start_cmd(message)
+            return
+            
+        db = read_sqlite_db()
+        tg_id = message.from_user.id
+        user_subs = [s for s in db.get("subscription_keys", []) if str(s.get("userId")) == str(tg_id)]
+        k = next((s for s in user_subs if str(s.get("id")) == str(target_sub_id)), None)
+        if not k:
+            k = next((s for s in db.get("subscription_keys", []) if str(s.get("id")) == str(target_sub_id)), None)
+        server_id = k.get("serverId") if k else None
+        if not server_id:
+            servers = get_all_servers(include_colleague=False)
+            active = next((s for s in servers if s.get("status") == "active"), servers[0] if servers else None)
+            if active:
+                server_id = active.get("id")
+                
+        _, min_days = get_custom_pricing_limits(server_id)
+        days = parse_flexible_int(text, default=0)
+        if days < int(min_days) or days > 365:
+            msg = bot.reply_to(
+                message,
+                f"❌ <b>خطا: تعداد روزها نامعتبر است!</b>\n\n"
+                f"حداقل مدت تمدید روی این سرور <b>{int(min_days)} روز</b> می‌باشد. لطفاً یک عدد بین {int(min_days)} تا ۳۶۵ وارد کنید (مثلاً <code>30</code>):",
+                parse_mode="HTML",
+                reply_markup=get_cancel_keyboard(back_callback=f"mysub_renew_{target_sub_id}")
+            )
+            bot.register_next_step_handler(msg, process_renew_days, target_sub_id, gb)
+            return
+            
+        render_renew_invoice(message.chat.id, target_sub_id, gb, days, user_id=tg_id)
     except Exception as e:
         print(f"[process_renew_days Error] {e}")
         bot.send_message(message.chat.id, f"❌ خطا در ساخت پیش‌فاکتور تمدید: {e}", reply_markup=get_cancel_keyboard())

@@ -811,94 +811,32 @@ export default function App() {
 
   const t = { ...translations.en, ...translations[lang] };
 
-  // Sync to localStorage
+  // Persist critical client-side preferences
   useEffect(() => {
-    localStorage.setItem("daltoon_active_tab", activeTab);
+    try {
+      localStorage.setItem("daltoon_active_tab", activeTab);
+    } catch {}
   }, [activeTab]);
 
   useEffect(() => {
-    localStorage.setItem("daltoon_simulated_user_id", String(simulatedUserId));
+    try {
+      localStorage.setItem("daltoon_simulated_user_id", String(simulatedUserId));
+    } catch {}
   }, [simulatedUserId]);
 
   useEffect(() => {
-    localStorage.setItem("daltoon_lang", lang);
+    try {
+      localStorage.setItem("daltoon_lang", lang);
+    } catch {}
   }, [lang]);
 
   useEffect(() => {
-    localStorage.setItem("daltoon_settings", JSON.stringify(settings));
-  }, [settings]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_inbounds", JSON.stringify(inbounds));
-  }, [inbounds]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_users", JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
     try {
-      const lightweightTxs = transactions.map(tx => ({
-        ...tx,
-        receiptImage: tx.receiptImage && tx.receiptImage.length > 500 ? "data:image/jpeg;base64,stripped" : tx.receiptImage
-      }));
-      localStorage.setItem("daltoon_transactions", JSON.stringify(lightweightTxs));
-    } catch(err) {
-      console.warn("Failed to save transactions to localStorage", err);
-    }
-  }, [transactions]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_keys", JSON.stringify(keys));
-  }, [keys]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_vpn_plans", JSON.stringify(vpnPlans));
-  }, [vpnPlans]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "daltoon_custom_buttons",
-      JSON.stringify(customButtons),
-    );
-  }, [customButtons]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_gift_codes", JSON.stringify(giftCodes));
-  }, [giftCodes]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_promo_codes", JSON.stringify(promoCodes));
-  }, [promoCodes]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_tickets", JSON.stringify(tickets));
-  }, [tickets]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "daltoon_colleague_packages",
-      JSON.stringify(colleaguePackages),
-    );
-  }, [colleaguePackages]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "daltoon_colleague_accounts",
-      JSON.stringify(colleagueAccounts),
-    );
-  }, [colleagueAccounts]);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "daltoon_colleague_categories",
-      JSON.stringify(colleagueCategories),
-    );
-  }, [colleagueCategories]);
-
-  useEffect(() => {
-    localStorage.setItem("daltoon_logs", JSON.stringify(logs));
-  }, [logs]);
+      if (settings && Object.keys(settings).length > 0) {
+        localStorage.setItem("daltoon_settings", JSON.stringify(settings));
+      }
+    } catch {}
+  }, [settings]);
 
   const refreshData = async (isAuto: boolean = false) => {
     if (!isAuto) setIsRefreshing(true);
@@ -912,56 +850,24 @@ export default function App() {
       }
       const json = await response.json();
       if (json.success) {
-        // Deep comparison optimization to prevent unnecessary re-renders and localStorage writes
-        const updateIfChanged = (setter: any, current: any, next: any) => {
-          if (JSON.stringify(current) !== JSON.stringify(next)) {
-            setter(next);
-          }
-        };
-
-        if (json.users) updateIfChanged(setUsers, users, json.users);
-        if (json.transactions)
-          updateIfChanged(setTransactions, transactions, json.transactions);
-        if (json.keys) updateIfChanged(setKeys, keys, json.keys);
-        if (json.vpnPlans)
-          updateIfChanged(setVpnPlans, vpnPlans, json.vpnPlans);
-        if (json.plan_categories)
-          updateIfChanged(
-            setPlanCategories,
-            planCategories,
-            json.plan_categories,
-          );
-        if (json.inbounds)
-          updateIfChanged(setInbounds, inbounds, json.inbounds);
-        if (json.customButtons)
-          updateIfChanged(setCustomButtons, customButtons, json.customButtons);
-        if (json.giftCodes)
-          updateIfChanged(setGiftCodes, giftCodes, json.giftCodes);
-        if (json.promoCodes)
-          updateIfChanged(setPromoCodes, promoCodes, json.promoCodes);
-        if (json.tickets) updateIfChanged(setTickets, tickets, json.tickets);
-        if (json.colleaguePackages)
-          updateIfChanged(
-            setColleaguePackages,
-            colleaguePackages,
-            json.colleaguePackages,
-          );
-        if (json.colleagueAccounts)
-          updateIfChanged(
-            setColleagueAccounts,
-            colleagueAccounts,
-            json.colleagueAccounts,
-          );
-        if (json.colleagueCategories)
-          updateIfChanged(
-            setColleagueCategories,
-            colleagueCategories,
-            json.colleagueCategories,
-          );
-        if (json.logs) updateIfChanged(setLogs, logs, json.logs);
+        // Fast direct batched state updates without thread-blocking JSON stringification
+        if (json.users) setUsers(json.users);
+        if (json.transactions) setTransactions(json.transactions);
+        if (json.keys) setKeys(json.keys);
+        if (json.vpnPlans) setVpnPlans(json.vpnPlans);
+        if (json.plan_categories) setPlanCategories(json.plan_categories);
+        if (json.inbounds) setInbounds(json.inbounds);
+        if (json.customButtons) setCustomButtons(json.customButtons);
+        if (json.giftCodes) setGiftCodes(json.giftCodes);
+        if (json.promoCodes) setPromoCodes(json.promoCodes);
+        if (json.tickets) setTickets(json.tickets);
+        if (json.colleaguePackages) setColleaguePackages(json.colleaguePackages);
+        if (json.colleagueAccounts) setColleagueAccounts(json.colleagueAccounts);
+        if (json.colleagueCategories) setColleagueCategories(json.colleagueCategories);
+        if (json.logs) setLogs(json.logs);
 
         if (json.settings && "botToken" in json.settings) {
-          updateIfChanged(setSettings, settings, json.settings);
+          setSettings(json.settings);
         }
 
         if (json.isNewInstall !== undefined) {
@@ -969,13 +875,10 @@ export default function App() {
         }
 
         if (!isAuto) {
-          console.log(
-            "[Full-Stack Sync] SQLite database refreshed successfully.",
-          );
           setToastMessage(curAppT("refreshSuccess"));
           setTimeout(() => {
             setToastMessage(null);
-          }, 3000);
+          }, 2000);
         }
       }
     } catch (err) {
@@ -987,7 +890,7 @@ export default function App() {
         setToastMessage(curAppT("refreshError"));
         setTimeout(() => {
           setToastMessage(null);
-        }, 3000);
+        }, 2000);
       }
     } finally {
       if (!isAuto) setIsRefreshing(false);
@@ -1091,9 +994,10 @@ export default function App() {
   const adjustUserWallet = (userId: number, amount: number) => {
     setUsers((prev) =>
       prev.map((u) => {
-        if (u.userId === userId) {
-          const nextBal = Math.max(0, u.walletBalance + amount);
-          return { ...u, walletBalance: nextBal };
+        if (Number(u.userId ?? u.id) === Number(userId)) {
+          const current = Number(u.walletBalance ?? u.balance ?? 0);
+          const nextBal = Math.max(0, current + amount);
+          return { ...u, walletBalance: nextBal, balance: nextBal };
         }
         return u;
       }),
@@ -1102,7 +1006,22 @@ export default function App() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, amount }),
-    }).catch((err) => console.warn("Failed syncing adjusted wallet:", err));
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.success) {
+          setToastMessage(amount >= 0 ? "موجودی با موفقیت افزایش یافت" : "موجودی با موفقیت کسر شد");
+          refreshData(true);
+        } else {
+          setToastMessage(data.message || data.error || "خطا در ویرایش موجودی");
+          refreshData(true);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed syncing adjusted wallet:", err);
+        setToastMessage("خطا در ارتباط با سرور");
+        refreshData(true);
+      });
   };
 
   const handleAddPromoCode = (
@@ -2029,6 +1948,17 @@ export default function App() {
 
           {/* Sync / State actions Panel */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 justify-end">
+            {/* Direct Refresh Button */}
+            <button
+              onClick={() => refreshData(false)}
+              disabled={isRefreshing}
+              className="p-2 sm:px-3 sm:py-1.5 text-purple-400 hover:text-purple-200 transition cursor-pointer bg-purple-950/40 hover:bg-purple-900/50 rounded-xl border border-purple-500/30 flex items-center justify-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50"
+              title={curAppT("refreshData")}
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin text-purple-300" : ""}`} />
+              <span className="hidden lg:inline text-xs font-semibold">{curAppT("refreshData")}</span>
+            </button>
+
             {/* Theme Toggle Button */}
             <button
               onClick={() => setIsLightMode(!isLightMode)}
