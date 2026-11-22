@@ -6,6 +6,7 @@ import https from "https";
 import http from "http";
 import net from "net";
 import tls from "tls";
+import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
 import { spawn, ChildProcess, exec, execSync } from "child_process";
 import { GoogleGenAI } from "@google/genai";
@@ -1807,6 +1808,7 @@ app.post("/api/settings/verify-ssl", async (req, res) => {
     
     db.settings.panel_config = JSON.stringify(newConfig);
     writeSqliteDb(db);
+    sniContextCache.clear();
     
     res.json({ success: true, message: "با موفقیت ذخیره شد" });
   } catch (err: any) {
@@ -1883,6 +1885,7 @@ app.post("/api/settings", async (req, res) => {
 
     // Reset cached AI client so newly saved GEMINI_API_KEY settings will take effect immediately
     aiClient = null;
+    sniContextCache.clear();
 
     // Notify newly appointed admins via Telegram Bot
     const botToken = payload.botToken || prevSettings.botToken;
@@ -12808,39 +12811,163 @@ async function autoSyncInboundsList() {
   }
 }
 
+const sniContextCache = new Map<string, { ctx: tls.SecureContext; pubMtime: number; privMtime: number }>();
+
+function collectCertCandidates(preferredHosts: string[], settings: any): Array<{ pub: string; priv: string }> {
+  const candidates: Array<{ pub: string; priv: string }> = [];
+  const seen = new Set<string>();
+  const addPair = (pub?: string, priv?: string) => {
+    if (!pub || !priv) return;
+    const key = `${pub}|${priv}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    try {
+      if (fs.existsSync(pub) && fs.existsSync(priv)) {
+        candidates.push({ pub, priv });
+      }
+    } catch {}
+  };
+
+  const acmeBases = Array.from(new Set(["/root/.acme.sh", path.join(os.homedir(), ".acme.sh")]));
+  const addDomainPaths = (dom: string) => {
+    const clean = (dom || "").trim().toLowerCase();
+    if (!clean) return;
+    addPair(`/root/cert/${clean}/fullchain.pem`, `/root/cert/${clean}/privkey.pem`);
+    addPair(`/etc/letsencrypt/live/${clean}/fullchain.pem`, `/etc/letsencrypt/live/${clean}/privkey.pem`);
+    for (const acmeBase of acmeBases) {
+      addPair(`${acmeBase}/${clean}_ecc/fullchain.cer`, `${acmeBase}/${clean}_ecc/${clean}.key`);
+      addPair(`${acmeBase}/${clean}/fullchain.cer`, `${acmeBase}/${clean}/${clean}.key`);
+    }
+  };
+
+  for (const h of preferredHosts) {
+    const clean = (h || "").trim().toLowerCase();
+    if (!clean) continue;
+    addDomainPaths(clean);
+    const parts = clean.split(".");
+    if (parts.length > 2) {
+      addDomainPaths(parts.slice(1).join("."));
+    }
+  }
+
+  addPair(settings?.sslPublicKeyPath, settings?.sslPrivateKeyPath);
+
+  for (const baseDir of ["/root/cert", "/etc/letsencrypt/live"]) {
+    try {
+      if (fs.existsSync(baseDir)) {
+        for (const entry of fs.readdirSync(baseDir)) {
+          addPair(path.join(baseDir, entry, "fullchain.pem"), path.join(baseDir, entry, "privkey.pem"));
+        }
+      }
+    } catch {}
+  }
+
+  for (const acmeBase of acmeBases) {
+    try {
+      if (fs.existsSync(acmeBase)) {
+        for (const entry of fs.readdirSync(acmeBase)) {
+          const dirPath = path.join(acmeBase, entry);
+          const domName = entry.endsWith("_ecc") ? entry.slice(0, -4) : entry;
+          addPair(path.join(dirPath, "fullchain.cer"), path.join(dirPath, `${domName}.key`));
+        }
+      }
+    } catch {}
+  }
+
+  return candidates;
+}
+
+function certCoversHost(certPem: string, host: string): { matches: boolean; isCaSigned: boolean } {
+  try {
+    const x509 = new crypto.X509Certificate(certPem);
+    const isCaSigned = x509.issuer !== x509.subject;
+    if (!host) return { matches: true, isCaSigned };
+    const cleanHost = host.split(":")[0].trim().toLowerCase();
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(cleanHost) || /^\[?[a-fA-F0-9:]+\]?$/.test(cleanHost);
+    const matched = isIp ? Boolean(x509.checkIP(cleanHost)) : Boolean(x509.checkHost(cleanHost));
+    return { matches: matched, isCaSigned };
+  } catch {
+    return { matches: false, isCaSigned: false };
+  }
+}
+
+function resolveCertificatePair(hostname: string, settings: any): { pub: string; priv: string } | null {
+  const cleanHost = (hostname || "").split(":")[0].trim().toLowerCase();
+  const configuredDom = (settings?.domainName || "").split(":")[0].trim().toLowerCase();
+  const candidates = collectCertCandidates([cleanHost, configuredDom], settings);
+  if (candidates.length === 0) return null;
+
+  if (cleanHost) {
+    let selfSignedMatch: { pub: string; priv: string } | null = null;
+    for (const pair of candidates) {
+      try {
+        const pem = fs.readFileSync(pair.pub, "utf8");
+        const { matches, isCaSigned } = certCoversHost(pem, cleanHost);
+        if (matches) {
+          if (isCaSigned) return pair;
+          if (!selfSignedMatch) selfSignedMatch = pair;
+        }
+      } catch {}
+    }
+    if (selfSignedMatch) return selfSignedMatch;
+  }
+
+  if (configuredDom) {
+    let selfSignedConfigured: { pub: string; priv: string } | null = null;
+    for (const pair of candidates) {
+      try {
+        const pem = fs.readFileSync(pair.pub, "utf8");
+        const { matches, isCaSigned } = certCoversHost(pem, configuredDom);
+        if (matches) {
+          if (isCaSigned) return pair;
+          if (!selfSignedConfigured) selfSignedConfigured = pair;
+        }
+      } catch {}
+    }
+    if (selfSignedConfigured) return selfSignedConfigured;
+  }
+
+  if (settings?.sslPublicKeyPath && settings?.sslPrivateKeyPath) {
+    if (fs.existsSync(settings.sslPublicKeyPath) && fs.existsSync(settings.sslPrivateKeyPath)) {
+      return { pub: settings.sslPublicKeyPath, priv: settings.sslPrivateKeyPath };
+    }
+  }
+
+  return candidates[0];
+}
+
+function createOrGetSecureContext(pubPath: string, privPath: string): tls.SecureContext | null {
+  try {
+    const pubStat = fs.statSync(pubPath);
+    const privStat = fs.statSync(privPath);
+    const cacheKey = `${pubPath}|${privPath}`;
+    const cached = sniContextCache.get(cacheKey);
+    if (cached && cached.pubMtime === pubStat.mtimeMs && cached.privMtime === privStat.mtimeMs) {
+      return cached.ctx;
+    }
+    const ctx = tls.createSecureContext({
+      cert: fs.readFileSync(pubPath),
+      key: fs.readFileSync(privPath),
+    });
+    sniContextCache.set(cacheKey, {
+      ctx,
+      pubMtime: pubStat.mtimeMs,
+      privMtime: privStat.mtimeMs,
+    });
+    return ctx;
+  } catch (err: any) {
+    console.error("[Dynamic SSL Context Error]:", err.message);
+    return null;
+  }
+}
+
 function getDynamicSecureContext(hostname: string) {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-    
-    let pubPath = settings.sslPublicKeyPath;
-    let privPath = settings.sslPrivateKeyPath;
-    
-    // Auto-detect if not configured
-    if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const targetDom = hostname || settings.domainName || "";
-      if (targetDom) {
-        if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
-          pubPath = `/root/cert/${targetDom}/fullchain.pem`;
-          privPath = `/root/cert/${targetDom}/privkey.pem`;
-        } else if (fs.existsSync(`/etc/letsencrypt/live/${targetDom}/fullchain.pem`) && fs.existsSync(`/etc/letsencrypt/live/${targetDom}/privkey.pem`)) {
-          pubPath = `/etc/letsencrypt/live/${targetDom}/fullchain.pem`;
-          privPath = `/etc/letsencrypt/live/${targetDom}/privkey.pem`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`)) {
-          pubPath = `/root/.acme.sh/${targetDom}_ecc/fullchain.cer`;
-          privPath = `/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
-          pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
-          privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
-        }
-      }
-    }
-    
-    if (pubPath && privPath && fs.existsSync(pubPath) && fs.existsSync(privPath)) {
-      return tls.createSecureContext({
-        cert: fs.readFileSync(pubPath),
-        key: fs.readFileSync(privPath)
-      });
+    const pair = resolveCertificatePair(hostname, settings);
+    if (pair) {
+      return createOrGetSecureContext(pair.pub, pair.priv);
     }
   } catch (err: any) {
     console.error("[Dynamic SSL Context Error]:", err.message);
@@ -12965,35 +13092,13 @@ async function startServer() {
   try {
     const db = readSqliteDb();
     const settings = getSystemSettings(db);
-    
-    let pubPath = settings.sslPublicKeyPath;
-    let privPath = settings.sslPrivateKeyPath;
-    
-    // Auto-detect if not configured in DB at boot
-    if (!pubPath || !privPath || !fs.existsSync(pubPath) || !fs.existsSync(privPath)) {
-      const targetDom = (settings.domainName || "").trim();
-      if (targetDom) {
-        if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
-          pubPath = `/root/cert/${targetDom}/fullchain.pem`;
-          privPath = `/root/cert/${targetDom}/privkey.pem`;
-        } else if (fs.existsSync(`/etc/letsencrypt/live/${targetDom}/fullchain.pem`) && fs.existsSync(`/etc/letsencrypt/live/${targetDom}/privkey.pem`)) {
-          pubPath = `/etc/letsencrypt/live/${targetDom}/fullchain.pem`;
-          privPath = `/etc/letsencrypt/live/${targetDom}/privkey.pem`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`)) {
-          pubPath = `/root/.acme.sh/${targetDom}_ecc/fullchain.cer`;
-          privPath = `/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
-          pubPath = `/root/.acme.sh/${targetDom}/fullchain.cer`;
-          privPath = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
-        }
-      }
-    }
-    
-    if (pubPath && privPath && fs.existsSync(pubPath) && fs.existsSync(privPath)) {
-      console.log(`[Daltoon Full-Stack Server] Found valid SSL certs at startup: ${pubPath}`);
+    const startupPair = resolveCertificatePair(settings.domainName || "", settings);
+
+    if (startupPair) {
+      console.log(`[Daltoon Full-Stack Server] Found valid SSL certs at startup: ${startupPair.pub}`);
       sslOptions = {
-        cert: fs.readFileSync(pubPath),
-        key: fs.readFileSync(privPath),
+        cert: fs.readFileSync(startupPair.pub),
+        key: fs.readFileSync(startupPair.priv),
       };
     } else {
       console.log(`[Daltoon Full-Stack Server] No valid SSL certs found at startup. Generating fallback self-signed cert...`);
@@ -13002,7 +13107,9 @@ async function startServer() {
       if (!fs.existsSync(selfKeyPath) || !fs.existsSync(selfCertPath)) {
         try {
           const { execSync } = require("child_process");
-          execSync(`openssl req -x509 -newkey rsa:2048 -keyout ${selfKeyPath} -out ${selfCertPath} -days 365 -nodes -subj "/CN=localhost" >/dev/null 2>&1 || true`);
+          const fallbackCn = (settings.domainName || "").trim() || "localhost";
+          const sanLine = fallbackCn !== "localhost" ? `DNS:${fallbackCn},DNS:localhost` : "DNS:localhost";
+          execSync(`openssl req -x509 -newkey rsa:2048 -keyout ${selfKeyPath} -out ${selfCertPath} -days 365 -nodes -subj "/CN=${fallbackCn}" -addext "subjectAltName=${sanLine}" >/dev/null 2>&1 || openssl req -x509 -newkey rsa:2048 -keyout ${selfKeyPath} -out ${selfCertPath} -days 365 -nodes -subj "/CN=${fallbackCn}" >/dev/null 2>&1 || true`);
         } catch (e) {
           console.warn("Could not generate self-signed fallback cert via openssl", e);
         }
@@ -13045,19 +13152,16 @@ async function startServer() {
     try { if (socket) socket.destroy(); } catch (e) {}
   };
 
-  if (isSslActive && sslOptions) {
+  if (isSslActive && sslOptions && sslOptions.cert !== "DUMMY" && sslOptions.key !== "DUMMY") {
     // 1. Dual HTTP/HTTPS Multiplexer on primary PORT (e.g., 3000)
     try {
+      const defaultSecureContext = tls.createSecureContext(sslOptions);
       const httpServerMain = http.createServer(app);
       const httpsServerMain = https.createServer({
         ...sslOptions,
         SNICallback: (servername, cb) => {
-          const ctx = getDynamicSecureContext(servername);
-          if (ctx) {
-            cb(null, ctx);
-          } else {
-            cb(null, tls.createSecureContext(sslOptions));
-          }
+          const ctx = getDynamicSecureContext(servername || "");
+          cb(null, ctx || defaultSecureContext);
         }
       }, app);
 

@@ -685,6 +685,7 @@ export function getSystemSettings(db?: any) {
       let autoPub = "";
       let autoPriv = "";
 
+      const acmeBases = Array.from(new Set(["/root/.acme.sh", path.join(os.homedir(), ".acme.sh")]));
       if (targetDom) {
         if (fs.existsSync(`/root/cert/${targetDom}/fullchain.pem`) && fs.existsSync(`/root/cert/${targetDom}/privkey.pem`)) {
           autoPub = `/root/cert/${targetDom}/fullchain.pem`;
@@ -692,19 +693,31 @@ export function getSystemSettings(db?: any) {
         } else if (fs.existsSync(`/etc/letsencrypt/live/${targetDom}/fullchain.pem`) && fs.existsSync(`/etc/letsencrypt/live/${targetDom}/privkey.pem`)) {
           autoPub = `/etc/letsencrypt/live/${targetDom}/fullchain.pem`;
           autoPriv = `/etc/letsencrypt/live/${targetDom}/privkey.pem`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`)) {
-          autoPub = `/root/.acme.sh/${targetDom}_ecc/fullchain.cer`;
-          autoPriv = `/root/.acme.sh/${targetDom}_ecc/${targetDom}.key`;
-        } else if (fs.existsSync(`/root/.acme.sh/${targetDom}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${targetDom}/${targetDom}.key`)) {
-          autoPub = `/root/.acme.sh/${targetDom}/fullchain.cer`;
-          autoPriv = `/root/.acme.sh/${targetDom}/${targetDom}.key`;
+        } else {
+          for (const acmeBase of acmeBases) {
+            if (fs.existsSync(`${acmeBase}/${targetDom}_ecc/fullchain.cer`) && fs.existsSync(`${acmeBase}/${targetDom}_ecc/${targetDom}.key`)) {
+              autoPub = `${acmeBase}/${targetDom}_ecc/fullchain.cer`;
+              autoPriv = `${acmeBase}/${targetDom}_ecc/${targetDom}.key`;
+              break;
+            } else if (fs.existsSync(`${acmeBase}/${targetDom}/fullchain.cer`) && fs.existsSync(`${acmeBase}/${targetDom}/${targetDom}.key`)) {
+              autoPub = `${acmeBase}/${targetDom}/fullchain.cer`;
+              autoPriv = `${acmeBase}/${targetDom}/${targetDom}.key`;
+              break;
+            }
+          }
         }
       }
 
       if (!autoPub || !autoPriv) {
         const rootCertDir = "/root/cert";
         if (fs.existsSync(rootCertDir)) {
-          const dirs = fs.readdirSync(rootCertDir);
+          // Prefer domain directories over raw IP directories when multiple certs exist
+          const dirs = fs.readdirSync(rootCertDir).sort((a, b) => {
+            const aIsIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(a);
+            const bIsIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(b);
+            if (aIsIp !== bIsIp) return aIsIp ? 1 : -1;
+            return a.localeCompare(b);
+          });
           for (const dir of dirs) {
             const pub = path.join(rootCertDir, dir, "fullchain.pem");
             const priv = path.join(rootCertDir, dir, "privkey.pem");

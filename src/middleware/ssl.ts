@@ -1,6 +1,18 @@
 import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import * as crypto from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { readSqliteDb, writeSqliteDb, getSystemSettings } from "../db/database.js";
+
+function certMatchesHostname(pubPath: string, hostname: string): boolean {
+  try {
+    const x509 = new crypto.X509Certificate(fs.readFileSync(pubPath, "utf8"));
+    return Boolean(x509.checkHost(hostname));
+  } catch {
+    return false;
+  }
+}
 
 export function createSslMiddleware(PORT: number) {
   return function sslEnforcer(req: Request, res: Response, next: NextFunction) {
@@ -18,28 +30,36 @@ export function createSslMiddleware(PORT: number) {
       const settings = getSystemSettings(db);
       let pubKey = settings.sslPublicKeyPath;
       let privKey = settings.sslPrivateKeyPath;
-      let hasValidCert = pubKey && privKey && fs.existsSync(pubKey) && fs.existsSync(privKey);
+      let hasValidCert = Boolean(pubKey && privKey && fs.existsSync(pubKey) && fs.existsSync(privKey));
 
       if (!isIp && !isLocalOrDev) {
-        if (!hasValidCert) {
+        const currentCoversHost = hasValidCert && certMatchesHostname(pubKey, hostname);
+        if (!hasValidCert || !currentCoversHost) {
           let autoPub = "";
           let autoPriv = "";
+          const acmeBases = Array.from(new Set(["/root/.acme.sh", path.join(os.homedir(), ".acme.sh")]));
           if (fs.existsSync(`/root/cert/${hostname}/fullchain.pem`) && fs.existsSync(`/root/cert/${hostname}/privkey.pem`)) {
             autoPub = `/root/cert/${hostname}/fullchain.pem`;
             autoPriv = `/root/cert/${hostname}/privkey.pem`;
           } else if (fs.existsSync(`/etc/letsencrypt/live/${hostname}/fullchain.pem`) && fs.existsSync(`/etc/letsencrypt/live/${hostname}/privkey.pem`)) {
             autoPub = `/etc/letsencrypt/live/${hostname}/fullchain.pem`;
             autoPriv = `/etc/letsencrypt/live/${hostname}/privkey.pem`;
-          } else if (fs.existsSync(`/root/.acme.sh/${hostname}_ecc/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${hostname}_ecc/${hostname}.key`)) {
-            autoPub = `/root/.acme.sh/${hostname}_ecc/fullchain.cer`;
-            autoPriv = `/root/.acme.sh/${hostname}_ecc/${hostname}.key`;
-          } else if (fs.existsSync(`/root/.acme.sh/${hostname}/fullchain.cer`) && fs.existsSync(`/root/.acme.sh/${hostname}/${hostname}.key`)) {
-            autoPub = `/root/.acme.sh/${hostname}/fullchain.cer`;
-            autoPriv = `/root/.acme.sh/${hostname}/${hostname}.key`;
+          } else {
+            for (const acmeBase of acmeBases) {
+              if (fs.existsSync(`${acmeBase}/${hostname}_ecc/fullchain.cer`) && fs.existsSync(`${acmeBase}/${hostname}_ecc/${hostname}.key`)) {
+                autoPub = `${acmeBase}/${hostname}_ecc/fullchain.cer`;
+                autoPriv = `${acmeBase}/${hostname}_ecc/${hostname}.key`;
+                break;
+              } else if (fs.existsSync(`${acmeBase}/${hostname}/fullchain.cer`) && fs.existsSync(`${acmeBase}/${hostname}/${hostname}.key`)) {
+                autoPub = `${acmeBase}/${hostname}/fullchain.cer`;
+                autoPriv = `${acmeBase}/${hostname}/${hostname}.key`;
+                break;
+              }
+            }
           }
 
-          if (autoPub && autoPriv) {
-            console.log(`[Domain SSL Auto-Detect] Found SSL certificates for '${hostname}' on disk. Updating DB settings...`);
+          if (autoPub && autoPriv && certMatchesHostname(autoPub, hostname)) {
+            console.log(`[Domain SSL Auto-Detect] Found matching SSL certificates for '${hostname}' on disk. Updating DB settings...`);
             if (!db.settings) db.settings = {};
             db.settings.domainName = hostname;
             db.settings.sslPublicKeyPath = autoPub;

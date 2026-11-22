@@ -10,6 +10,65 @@ if [ ! -f "$INSTALL_DIR/dist/server.cjs" ] && [ ! -f "$INSTALL_DIR/server.ts" ];
         fi
     done
 fi
+export INSTALL_DIR
+
+normalize_host() {
+    echo "$1" | tr -d ' \t\r\n' | tr '[:upper:]' '[:lower:]' | sed -E 's#^https?://##; s#/.*$##; s#:[0-9]+$##'
+}
+
+generate_self_signed_cert() {
+    local cn="$1"
+    local fullchain_out="$2"
+    local privkey_out="$3"
+    local san="$4"
+    mkdir -p "$(dirname "$fullchain_out")"
+    rm -f "$fullchain_out" "$privkey_out" 2>/dev/null || true
+
+    if openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "$privkey_out" \
+        -out "$fullchain_out" \
+        -subj "/CN=$cn" \
+        -addext "subjectAltName=$san" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    local tmp_cfg
+    tmp_cfg=$(mktemp)
+    cat > "$tmp_cfg" <<EOF
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+[req_distinguished_name]
+CN = $cn
+[v3_req]
+subjectAltName = $san
+EOF
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "$privkey_out" \
+        -out "$fullchain_out" \
+        -config "$tmp_cfg" >/dev/null 2>&1 || true
+    local rc=$?
+    rm -f "$tmp_cfg"
+    [ -f "$fullchain_out" ] && [ -f "$privkey_out" ] && return $rc
+    return 1
+}
+
+print_cert_summary() {
+    local cert_file="$1"
+    if [ -f "$cert_file" ]; then
+        local subj iss exp san
+        subj=$(openssl x509 -subject -noout -in "$cert_file" 2>/dev/null | sed 's/^subject=//')
+        iss=$(openssl x509 -issuer -noout -in "$cert_file" 2>/dev/null | sed 's/^issuer=//')
+        exp=$(openssl x509 -enddate -noout -in "$cert_file" 2>/dev/null | cut -d= -f2)
+        san=$(openssl x509 -noout -ext subjectAltName -in "$cert_file" 2>/dev/null | tail -n +2 | tr '\n' ' ' | sed 's/^ *//')
+        [ -z "$san" ] && san=$(openssl x509 -text -noout -in "$cert_file" 2>/dev/null | grep -A1 "Subject Alternative Name" | tail -n1 | sed 's/^ *//')
+        echo -e "  - Subject: ${subj:-Unknown}"
+        echo -e "  - Issuer:  ${iss:-Unknown}"
+        echo -e "  - SAN:     ${san:-None}"
+        echo -e "  - Expires: ${exp:-Unknown}"
+    fi
+}
 
 start_or_restart_dashboard() {
     local target_script="$INSTALL_DIR/dist/server.cjs"
@@ -274,7 +333,7 @@ ssl_menu() {
                 apt-get install -y socat curl openssl dnsutils bind9-host psmisc lsof certbot > /dev/null 2>&1 || true
 
                 read -p "Enter Domain Name: " ssl_dom
-                ssl_dom=$(echo "$ssl_dom" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+                ssl_dom=$(normalize_host "$ssl_dom")
                 if [[ -z "$ssl_dom" ]]; then
                     echo -e "${RED}Domain name cannot be empty!${NC}"
                     read -p "Press enter to continue..."
@@ -318,11 +377,13 @@ ssl_menu() {
 
                 if ~/.acme.sh/acme.sh --list 2> /dev/null | awk '{print $1}' | grep -Fxq "$ssl_dom"; then
                     echo -e "${YELLOW}Cleaning up existing acme.sh state for $ssl_dom...${NC}"
-                    rm -rf ~/.acme.sh/${ssl_dom} ~/.acme.sh/${ssl_dom}_ecc 2>/dev/null || true
                 fi
+                rm -rf ~/.acme.sh/${ssl_dom} ~/.acme.sh/${ssl_dom}_ecc 2>/dev/null || true
 
                 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt --force
                 ssl_issued=false
+                issued_via_acme=false
+                issued_self_signed=false
 
                 read -p "Enter Port for ACME Standalone [80]: " acme_port
                 acme_port=${acme_port:-80}
@@ -360,7 +421,7 @@ ssl_menu() {
 
                 docker stop smite-nginx 2>/dev/null || true
                 pm2 stop daltoon-store 2>/dev/null || true
-                systemctl stop nginx nginx.socket apache2 apache2.socket 2>/dev/null || true
+                systemctl stop nginx nginx.socket apache2 apache2.socket haproxy caddy 2>/dev/null || true
                 pkill -9 -f nginx 2>/dev/null || true
                 fuser -k -9 "$acme_port/tcp" 2>/dev/null || true
                 sleep 2
@@ -380,18 +441,21 @@ ssl_menu() {
                 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt 2>/dev/null || true
                 if ~/.acme.sh/acme.sh --issue -d "$ssl_dom" $acme_listen_flag $acme_port_flag --standalone --server letsencrypt -k ec-256 --force; then
                     ssl_issued=true
+                    issued_via_acme=true
                     echo -e "${GREEN}✓ SSL Certificate issued successfully via Let's Encrypt.${NC}"
                 else
                     echo -e "${YELLOW}⚠️ Let's Encrypt failed. Retrying with Buypass CA...${NC}"
                     ~/.acme.sh/acme.sh --register-account -m "admin@$ssl_dom" --server buypass 2>/dev/null || true
                     if ~/.acme.sh/acme.sh --issue -d "$ssl_dom" $acme_listen_flag $acme_port_flag --standalone --server buypass -k ec-256 --force; then
                         ssl_issued=true
+                        issued_via_acme=true
                         echo -e "${GREEN}✓ SSL Certificate issued successfully via Buypass.${NC}"
                     else
                         echo -e "${YELLOW}⚠️ Buypass failed. Retrying with ZeroSSL...${NC}"
                         ~/.acme.sh/acme.sh --register-account -m "admin@$ssl_dom" --server zerossl 2>/dev/null || true
                         if ~/.acme.sh/acme.sh --issue -d "$ssl_dom" $acme_listen_flag $acme_port_flag --standalone --server zerossl -k ec-256 --force; then
                             ssl_issued=true
+                            issued_via_acme=true
                             echo -e "${GREEN}✓ SSL Certificate issued successfully via ZeroSSL.${NC}"
                         else
                             echo -e "${YELLOW}⚠️ ZeroSSL failed. Retrying with Certbot...${NC}"
@@ -399,7 +463,7 @@ ssl_menu() {
                                 mkdir -p "/root/cert/$ssl_dom"
                                 cp -f "/etc/letsencrypt/live/$ssl_dom/fullchain.pem" "/root/cert/$ssl_dom/fullchain.pem" 2>/dev/null || true
                                 cp -f "/etc/letsencrypt/live/$ssl_dom/privkey.pem" "/root/cert/$ssl_dom/privkey.pem" 2>/dev/null || true
-                                if [[ -f "/root/cert/$ssl_dom/fullchain.pem" ]]; then
+                                if [[ -f "/root/cert/$ssl_dom/fullchain.pem" && -f "/root/cert/$ssl_dom/privkey.pem" ]]; then
                                     ssl_issued=true
                                     echo -e "${GREEN}✓ SSL Certificate issued successfully via Certbot.${NC}"
                                 fi
@@ -407,15 +471,11 @@ ssl_menu() {
 
                             if [ "$ssl_issued" != "true" ]; then
                                 echo -e "${YELLOW}⚠️ Online CAs failed (Cloudflare Proxy / Port 80 blocked). Generating self-signed SSL fallback for $ssl_dom...${NC}"
-                                echo -e "${YELLOW}📌 Note: If using Cloudflare, please set DNS Proxy to 'DNS-Only' (Grey Cloud ⚪) and retry SSL issuance!${NC}"
-                                mkdir -p "/root/cert/$ssl_dom"
-                                openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                                    -keyout "/root/cert/$ssl_dom/privkey.pem" \
-                                    -out "/root/cert/$ssl_dom/fullchain.pem" \
-                                    -subj "/CN=$ssl_dom" \
-                                    -addext "subjectAltName=DNS:$ssl_dom" 2>/dev/null || true
-                                if [[ -f "/root/cert/$ssl_dom/fullchain.pem" ]]; then
+                                echo -e "${RED}⚠️ WARNING: Browsers do NOT trust self-signed certificates and will show a Privacy Error.${NC}"
+                                echo -e "${YELLOW}📌 Fix: Set Cloudflare DNS Proxy to 'DNS-Only' (Grey Cloud), ensure port $acme_port is open, and retry option 1.${NC}"
+                                if generate_self_signed_cert "$ssl_dom" "/root/cert/$ssl_dom/fullchain.pem" "/root/cert/$ssl_dom/privkey.pem" "DNS:$ssl_dom"; then
                                     ssl_issued=true
+                                    issued_self_signed=true
                                     echo -e "${GREEN}✓ Self-signed SSL Certificate created at /root/cert/$ssl_dom/${NC}"
                                 fi
                             fi
@@ -433,7 +493,7 @@ ssl_menu() {
 
                 if [ "$ssl_issued" = "true" ]; then
                     mkdir -p "/root/cert/$ssl_dom"
-                    if [ -f "$HOME/.acme.sh/${ssl_dom}_ecc/fullchain.cer" ] || [ -f "$HOME/.acme.sh/${ssl_dom}/fullchain.cer" ]; then
+                    if [ "$issued_via_acme" = "true" ] && { [ -f "$HOME/.acme.sh/${ssl_dom}_ecc/fullchain.cer" ] || [ -f "$HOME/.acme.sh/${ssl_dom}/fullchain.cer" ]; }; then
                         reload_conts=""
                         for c in $stopped_containers; do
                             if [[ "$c" =~ "nginx" ]]; then
@@ -457,6 +517,10 @@ ssl_menu() {
                         echo -e "${GREEN}[INF] Panel paths set for domain: $ssl_dom${NC}"
                         echo -e "${GREEN}[INF] - Certificate File: $pub_path${NC}"
                         echo -e "${GREEN}[INF] - Private Key File: $priv_path${NC}"
+                        print_cert_summary "$pub_path"
+                        if [ "$issued_self_signed" = "true" ]; then
+                            echo -e "${RED}[WARN] Installed certificate is SELF-SIGNED. Browsers will warn until a CA cert (Let's Encrypt/ZeroSSL) is issued.${NC}"
+                        fi
 
                         update_ssl_db "$ssl_dom" "$pub_path" "$priv_path"
 
@@ -521,7 +585,7 @@ print(port)
                 ;;
             2)
                 read -p "Enter domain to revoke & remove (leave empty for ALL): " del_dom
-                del_dom=$(echo "$del_dom" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+                del_dom=$(normalize_host "$del_dom")
                 read -p "Are you sure you want to revoke and delete SSL certificate(s)? (y/n): " confirm_del
                 if [[ $confirm_del == "y" || $confirm_del == "Y" ]]; then
                     if [[ -n "$del_dom" ]]; then
@@ -530,7 +594,8 @@ print(port)
                             ~/.acme.sh/acme.sh --revoke -d "$del_dom" 2>/dev/null || true
                             ~/.acme.sh/acme.sh --remove -d "$del_dom" 2>/dev/null || true
                         fi
-                        rm -rf "/root/cert/$del_dom" 2>/dev/null || true
+                        rm -rf "/root/cert/$del_dom" "/etc/letsencrypt/live/$del_dom" "/etc/letsencrypt/archive/$del_dom" 2>/dev/null || true
+                        rm -f "/etc/letsencrypt/renewal/${del_dom}.conf" 2>/dev/null || true
                         rm -rf ~/.acme.sh/"${del_dom}"* 2>/dev/null || true
                     else
                         echo -e "${YELLOW}Revoking all SSL certificates...${NC}"
@@ -577,6 +642,7 @@ print(port)
                 echo -e "${YELLOW}====================================================${NC}"
                 echo -e "${YELLOW}         Existing Domains & Certificates            ${NC}"
                 echo -e "${YELLOW}====================================================${NC}"
+                found_certs=false
                 if [ -d /root/cert ] && [ "$(ls -A /root/cert 2>/dev/null)" ]; then
                     for d in /root/cert/*; do
                         if [ -d "$d" ]; then
@@ -584,42 +650,84 @@ print(port)
                             pub="$d/fullchain.pem"
                             priv="$d/privkey.pem"
                             if [ -f "$pub" ]; then
-                                exp=$(openssl x509 -enddate -noout -in "$pub" 2>/dev/null | cut -d= -f2)
+                                found_certs=true
                                 echo -e "${GREEN}• Domain:${NC} $dom_name"
                                 echo -e "  - Public Key:  $pub"
                                 echo -e "  - Private Key: $priv"
-                                echo -e "  - Expires:     ${exp:-Unknown}"
+                                print_cert_summary "$pub"
                             fi
                         fi
                     done
-                else
-                    echo -e "${YELLOW}No certificates found in /root/cert/${NC}"
+                fi
+                if [ -d /etc/letsencrypt/live ] && [ "$(ls -A /etc/letsencrypt/live 2>/dev/null)" ]; then
+                    for d in /etc/letsencrypt/live/*; do
+                        if [ -d "$d" ]; then
+                            dom_name=$(basename "$d")
+                            pub="$d/fullchain.pem"
+                            priv="$d/privkey.pem"
+                            if [ -f "$pub" ]; then
+                                found_certs=true
+                                echo -e "${GREEN}• Certbot Domain:${NC} $dom_name"
+                                echo -e "  - Public Key:  $pub"
+                                echo -e "  - Private Key: $priv"
+                                print_cert_summary "$pub"
+                            fi
+                        fi
+                    done
+                fi
+                if [ "$found_certs" != "true" ]; then
+                    echo -e "${YELLOW}No certificates found in /root/cert/ or /etc/letsencrypt/live/${NC}"
                 fi
 
-                echo -e "
-${YELLOW}Active Panel DB Settings:${NC}"
+                echo -e "\n${YELLOW}Active Panel DB Settings:${NC}"
                 python3 -c "
 import os, json, sqlite3
 install_dir = os.environ.get('INSTALL_DIR', '$INSTALL_DIR')
-dom, pub = None, None
+dom, pub, priv = None, None, None
+
 try:
-    jp = os.path.join(install_dir, 'Daltoon_Bot.json')
-    if os.path.exists(jp):
-        with open(jp) as f:
-            d = json.load(f)
-            s = d.get('settings', {})
-            dom = s.get('domainName')
-            pub = s.get('sslPublicKeyPath')
+    dp = os.path.join(install_dir, 'Daltoon_Bot.db')
+    if os.path.exists(dp):
+        conn = sqlite3.connect(dp)
+        cur = conn.cursor()
+        cur.execute(\"SELECT value FROM kv WHERE key = 'settings'\")
+        r = cur.fetchone()
+        if r:
+            s = json.loads(r[0])
+            dom = s.get('domainName') or dom
+            pub = s.get('sslPublicKeyPath') or pub
+            priv = s.get('sslPrivateKeyPath') or priv
             pc = s.get('panel_config')
             if pc:
                 if isinstance(pc, str): pc = json.loads(pc)
                 dom = pc.get('domainName') or dom
                 pub = pc.get('sslPublicKeyPath') or pub
+                priv = pc.get('sslPrivateKeyPath') or priv
+        conn.close()
 except Exception: pass
 
+if not (dom or pub):
+    try:
+        jp = os.path.join(install_dir, 'Daltoon_Bot.json')
+        if os.path.exists(jp):
+            with open(jp) as f:
+                d = json.load(f)
+                s = d.get('settings', {})
+                dom = s.get('domainName')
+                pub = s.get('sslPublicKeyPath')
+                priv = s.get('sslPrivateKeyPath')
+                pc = s.get('panel_config')
+                if pc:
+                    if isinstance(pc, str): pc = json.loads(pc)
+                    dom = pc.get('domainName') or dom
+                    pub = pc.get('sslPublicKeyPath') or pub
+                    priv = pc.get('sslPrivateKeyPath') or priv
+    except Exception: pass
+
 if dom or pub:
-    print(' Domain: ' + (dom or 'N/A'))
-    print(' Public Key: ' + (pub or 'N/A'))
+    print(' Domain:      ' + (dom or 'N/A'))
+    print(' Public Key:  ' + (pub or 'N/A'))
+    print(' Private Key: ' + (priv or 'N/A'))
 else:
     print(' (No active domain certificate configured in DB)')
 "
@@ -632,7 +740,7 @@ else:
                 read -p "Enter Public Key Path (fullchain.pem): " custom_pub
                 read -p "Enter Private Key Path (privkey.pem): " custom_priv
 
-                custom_dom=$(echo "$custom_dom" | tr -d ' ')
+                custom_dom=$(normalize_host "$custom_dom")
                 custom_pub=$(echo "$custom_pub" | tr -d ' ')
                 custom_priv=$(echo "$custom_priv" | tr -d ' ')
 
@@ -681,6 +789,7 @@ else:
 
                 mkdir -p "/root/cert/$ip_target"
                 ip_issued=false
+                ip_self_signed=false
 
                 acme_port_flag=""
                 if [ "$acme_port" != "80" ]; then
@@ -695,15 +804,12 @@ else:
                     ip_issued=true
                     echo -e "${GREEN}✓ ZeroSSL IP Certificate issued successfully (6-day auto-renewing).${NC}"
                 else
-                    echo -e "${YELLOW}ZeroSSL IP issuance failed. Generating trusted self-signed IP SSL certificate fallback...${NC}"
-                    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-                        -keyout "/root/cert/$ip_target/privkey.pem" \
-                        -out "/root/cert/$ip_target/fullchain.pem" \
-                        -subj "/CN=$ip_target" \
-                        -addext "subjectAltName=IP:$ip_target" 2>/dev/null || true
-                    if [[ -f "/root/cert/$ip_target/fullchain.pem" ]]; then
+                    echo -e "${YELLOW}ZeroSSL IP issuance failed. Generating self-signed IP SSL certificate fallback...${NC}"
+                    echo -e "${RED}⚠️ WARNING: Browsers do NOT trust self-signed certificates and will show a Privacy Error.${NC}"
+                    if generate_self_signed_cert "$ip_target" "/root/cert/$ip_target/fullchain.pem" "/root/cert/$ip_target/privkey.pem" "IP:$ip_target"; then
                         ip_issued=true
-                        echo -e "${GREEN}✓ IP SSL Certificate created at /root/cert/$ip_target/${NC}"
+                        ip_self_signed=true
+                        echo -e "${GREEN}✓ Self-signed IP SSL Certificate created at /root/cert/$ip_target/${NC}"
                     fi
                 fi
 
@@ -712,6 +818,7 @@ else:
                 start_or_restart_dashboard
 
                 if [ "$ip_issued" = "true" ]; then
+                    print_cert_summary "/root/cert/$ip_target/fullchain.pem"
                     update_ssl_db "$ip_target" "/root/cert/$ip_target/fullchain.pem" "/root/cert/$ip_target/privkey.pem"
                     echo -e "${GREEN}✓ IP SSL Certificate configured in database.${NC}"
                 else

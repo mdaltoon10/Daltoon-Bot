@@ -543,7 +543,7 @@ if [ "$CERT_OPT" == "2" ]; then
     elif [ -c /dev/tty ]; then
         read -p "Enter Domain Name: " SSL_DOMAIN < /dev/tty
     fi
-    SSL_DOMAIN=$(echo "$SSL_DOMAIN" | tr -d ' ' | tr '[:upper:]' '[:lower:]')
+    SSL_DOMAIN=$(echo "$SSL_DOMAIN" | tr -d ' \t\r\n' | tr '[:upper:]' '[:lower:]' | sed -E 's#^https?://##; s#/.*$##; s#:[0-9]+$##')
 
     if [ -n "$SSL_DOMAIN" ]; then
         echo -e "${YELLOW}Verifying DNS resolution for $SSL_DOMAIN...${NC}"
@@ -573,11 +573,13 @@ if [ "$CERT_OPT" == "2" ]; then
 
         if ~/.acme.sh/acme.sh --list 2> /dev/null | awk '{print $1}' | grep -Fxq "$SSL_DOMAIN"; then
             echo -e "${YELLOW}Cleaning up existing acme.sh state for $SSL_DOMAIN...${NC}"
-            rm -rf ~/.acme.sh/${SSL_DOMAIN} ~/.acme.sh/${SSL_DOMAIN}_ecc 2>/dev/null || true
         fi
+        rm -rf ~/.acme.sh/${SSL_DOMAIN} ~/.acme.sh/${SSL_DOMAIN}_ecc 2>/dev/null || true
 
         ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt --force
         ssl_issued=false
+        issued_via_acme=false
+        issued_self_signed=false
 
         echo -e "${YELLOW}Attempting acme.sh Standalone mode...${NC}"
 
@@ -623,7 +625,7 @@ if [ "$CERT_OPT" == "2" ]; then
 
         docker stop smite-nginx 2>/dev/null || true
         pm2 stop daltoon-store 2>/dev/null || true
-        systemctl stop nginx nginx.socket apache2 apache2.socket 2>/dev/null || true
+        systemctl stop nginx nginx.socket apache2 apache2.socket haproxy caddy 2>/dev/null || true
         pkill -9 -f nginx 2>/dev/null || true
         fuser -k -9 "${acme_port}/tcp" 2>/dev/null || true
         sleep 2
@@ -643,18 +645,21 @@ if [ "$CERT_OPT" == "2" ]; then
         ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt 2>/dev/null || true
         if ~/.acme.sh/acme.sh --issue -d "$SSL_DOMAIN" $acme_listen_flag $acme_port_flag --standalone --server letsencrypt -k ec-256 --force; then
             ssl_issued=true
+            issued_via_acme=true
             echo -e "${GREEN}✓ SSL Certificate issued successfully via Let's Encrypt.${NC}"
         else
             echo -e "${YELLOW}⚠️ Let's Encrypt failed. Retrying with Buypass CA...${NC}"
             ~/.acme.sh/acme.sh --register-account -m "admin@$SSL_DOMAIN" --server buypass 2>/dev/null || true
             if ~/.acme.sh/acme.sh --issue -d "$SSL_DOMAIN" $acme_listen_flag $acme_port_flag --standalone --server buypass -k ec-256 --force; then
                 ssl_issued=true
+                issued_via_acme=true
                 echo -e "${GREEN}✓ SSL Certificate issued successfully via Buypass.${NC}"
             else
                 echo -e "${YELLOW}⚠️ Buypass failed. Retrying with ZeroSSL...${NC}"
                 ~/.acme.sh/acme.sh --register-account -m "admin@$SSL_DOMAIN" --server zerossl 2>/dev/null || true
                 if ~/.acme.sh/acme.sh --issue -d "$SSL_DOMAIN" $acme_listen_flag $acme_port_flag --standalone --server zerossl -k ec-256 --force; then
                     ssl_issued=true
+                    issued_via_acme=true
                     echo -e "${GREEN}✓ SSL Certificate issued successfully via ZeroSSL.${NC}"
                 else
                     echo -e "${YELLOW}⚠️ ZeroSSL failed. Retrying with Certbot...${NC}"
@@ -662,7 +667,7 @@ if [ "$CERT_OPT" == "2" ]; then
                         mkdir -p "/root/cert/$SSL_DOMAIN"
                         cp -f "/etc/letsencrypt/live/$SSL_DOMAIN/fullchain.pem" "/root/cert/$SSL_DOMAIN/fullchain.pem" 2>/dev/null || true
                         cp -f "/etc/letsencrypt/live/$SSL_DOMAIN/privkey.pem" "/root/cert/$SSL_DOMAIN/privkey.pem" 2>/dev/null || true
-                        if [[ -f "/root/cert/$SSL_DOMAIN/fullchain.pem" ]]; then
+                        if [[ -f "/root/cert/$SSL_DOMAIN/fullchain.pem" && -f "/root/cert/$SSL_DOMAIN/privkey.pem" ]]; then
                             ssl_issued=true
                             echo -e "${GREEN}✓ SSL Certificate issued successfully via Certbot.${NC}"
                         fi
@@ -670,15 +675,35 @@ if [ "$CERT_OPT" == "2" ]; then
 
                     if [ "$ssl_issued" != "true" ]; then
                         echo -e "${YELLOW}⚠️ Online CAs failed (Cloudflare Proxy / Port 80 blocked). Generating self-signed SSL fallback for $SSL_DOMAIN...${NC}"
-                        echo -e "${YELLOW}📌 Note: If using Cloudflare, please set DNS Proxy to 'DNS-Only' (Grey Cloud ⚪) and retry SSL issuance!${NC}"
+                        echo -e "${RED}⚠️ WARNING: Browsers do NOT trust self-signed certificates and will show a Privacy Error.${NC}"
+                        echo -e "${YELLOW}📌 Fix: Set Cloudflare DNS Proxy to 'DNS-Only' (Grey Cloud) and retry via daltoon-dashboard -> option 9 -> 1.${NC}"
                         mkdir -p "/root/cert/$SSL_DOMAIN"
-                        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                        rm -f "/root/cert/$SSL_DOMAIN/privkey.pem" "/root/cert/$SSL_DOMAIN/fullchain.pem" 2>/dev/null || true
+                        if ! openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
                             -keyout "/root/cert/$SSL_DOMAIN/privkey.pem" \
                             -out "/root/cert/$SSL_DOMAIN/fullchain.pem" \
                             -subj "/CN=$SSL_DOMAIN" \
-                            -addext "subjectAltName=DNS:$SSL_DOMAIN" 2>/dev/null || true
-                        if [[ -f "/root/cert/$SSL_DOMAIN/fullchain.pem" ]]; then
+                            -addext "subjectAltName=DNS:$SSL_DOMAIN" >/dev/null 2>&1; then
+                            tmp_ssl_cfg=$(mktemp)
+                            cat > "$tmp_ssl_cfg" <<EOF
+[req]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+[req_distinguished_name]
+CN = $SSL_DOMAIN
+[v3_req]
+subjectAltName = DNS:$SSL_DOMAIN
+EOF
+                            openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+                                -keyout "/root/cert/$SSL_DOMAIN/privkey.pem" \
+                                -out "/root/cert/$SSL_DOMAIN/fullchain.pem" \
+                                -config "$tmp_ssl_cfg" >/dev/null 2>&1 || true
+                            rm -f "$tmp_ssl_cfg"
+                        fi
+                        if [[ -f "/root/cert/$SSL_DOMAIN/fullchain.pem" && -f "/root/cert/$SSL_DOMAIN/privkey.pem" ]]; then
                             ssl_issued=true
+                            issued_self_signed=true
                             echo -e "${GREEN}✓ Self-signed SSL Certificate created at /root/cert/$SSL_DOMAIN/${NC}"
                         fi
                     fi
@@ -697,14 +722,14 @@ if [ "$CERT_OPT" == "2" ]; then
 
         if [ "$ssl_issued" = "true" ]; then
             mkdir -p "/root/cert/$SSL_DOMAIN"
-            if [ -f "$HOME/.acme.sh/${SSL_DOMAIN}_ecc/fullchain.cer" ] || [ -f "$HOME/.acme.sh/${SSL_DOMAIN}/fullchain.cer" ]; then
+            if [ "$issued_via_acme" = "true" ] && { [ -f "$HOME/.acme.sh/${SSL_DOMAIN}_ecc/fullchain.cer" ] || [ -f "$HOME/.acme.sh/${SSL_DOMAIN}/fullchain.cer" ]; }; then
                 reload_conts=""
                 for c in $stopped_containers; do
                     if [[ "$c" =~ "nginx" ]]; then
                         reload_conts="$reload_conts; docker exec $c nginx -s reload 2>/dev/null || true"
                     fi
                 done
-                local ecc_flag=""
+                ecc_flag=""
                 if [ -f "$HOME/.acme.sh/${SSL_DOMAIN}_ecc/fullchain.cer" ]; then
                     ecc_flag="--ecc"
                 fi
@@ -718,6 +743,10 @@ if [ "$CERT_OPT" == "2" ]; then
                 SSL_PUB_KEY="/root/cert/$SSL_DOMAIN/fullchain.pem"
                 SSL_PRIV_KEY="/root/cert/$SSL_DOMAIN/privkey.pem"
                 echo -e "${GREEN}✓ SSL Certificate configured successfully.${NC}"
+                openssl x509 -noout -subject -issuer -enddate -in "$SSL_PUB_KEY" 2>/dev/null || true
+                if [ "$issued_self_signed" = "true" ]; then
+                    echo -e "${RED}[WARN] Installed certificate is SELF-SIGNED. Browsers will warn until a trusted CA cert is issued.${NC}"
+                fi
             else
                 echo -e "${RED}Failed to install SSL certificate.${NC}"
             fi
@@ -864,6 +893,38 @@ for (const file of filesToSearch) {
   }
 }
 "
+
+if [ -f "$INSTALL_DIR/Daltoon_Bot.db" ] && [ -n "$SSL_DOMAIN" ] && [ -n "$SSL_PUB_KEY" ]; then
+    python3 -c "
+import sqlite3, json, os
+db_path = os.path.join('$INSTALL_DIR', 'Daltoon_Bot.db')
+try:
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(\"SELECT value FROM kv WHERE key = 'settings'\")
+    r = cur.fetchone()
+    if r:
+        s = json.loads(r[0])
+        s['domainName'] = '$SSL_DOMAIN'
+        s['sslPublicKeyPath'] = '$SSL_PUB_KEY'
+        s['sslPrivateKeyPath'] = '$SSL_PRIV_KEY'
+        pc = s.get('panel_config')
+        if pc:
+            pc = json.loads(pc) if isinstance(pc, str) else pc
+        else:
+            pc = {}
+        pc['domainName'] = '$SSL_DOMAIN'
+        pc['sslPublicKeyPath'] = '$SSL_PUB_KEY'
+        pc['sslPrivateKeyPath'] = '$SSL_PRIV_KEY'
+        pc['sslCertificateStatus'] = 'active'
+        s['panel_config'] = json.dumps(pc)
+        cur.execute(\"UPDATE kv SET value = ? WHERE key = 'settings'\", (json.dumps(s, ensure_ascii=False),))
+        conn.commit()
+    conn.close()
+except Exception:
+    pass
+" 2>/dev/null || true
+fi
 
 # Allow custom port through firewall
 echo -e "${YELLOW}Configuring firewall for port $DASH_PORT...${NC}"

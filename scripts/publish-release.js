@@ -87,21 +87,31 @@ async function run() {
     execSync('git config --global --add safe.directory "*" 2>/dev/null || true');
     execSync('git config --global http.postBuffer 524288000 2>/dev/null || true');
     execSync('git config --global http.version HTTP/1.1 2>/dev/null || true');
-    execSync('rm -rf .git && git init 2>/dev/null || true');
+    const authUrl = `https://x-access-token:${TOKEN}@github.com/${REPO}.git`;
+    if (!fs.existsSync(".git")) {
+      execSync("git init", { stdio: "inherit" });
+      execSync(`git remote add origin "${authUrl}"`, { stdio: "ignore" });
+      try {
+        execSync("git fetch --depth=1 origin main", { stdio: "inherit" });
+        execSync("git reset --soft FETCH_HEAD", { stdio: "inherit" });
+      } catch {
+        console.log("Could not fetch origin/main history, starting fresh branch...");
+      }
+    } else {
+      try {
+        execSync(`git remote add origin "${authUrl}" 2>/dev/null || git remote set-url origin "${authUrl}"`, { stdio: "ignore" });
+      } catch (_) {}
+    }
+    execSync('git branch -M main 2>/dev/null || true');
     execSync('git config user.email "lagviradas@gmail.com" 2>/dev/null || true');
     execSync('git config user.name "Daltoon Developer" 2>/dev/null || true');
     execSync('git config http.postBuffer 524288000 2>/dev/null || true');
     execSync('git config http.version HTTP/1.1 2>/dev/null || true');
 
-    const authUrl = `https://x-access-token:${TOKEN}@github.com/${REPO}.git`;
-    try {
-      execSync(`git remote add origin "${authUrl}" 2>/dev/null || git remote set-url origin "${authUrl}"`);
-    } catch (_) {}
-
     // Stage changes (excluding big temp files if any)
     execSync("git add -A", { stdio: "inherit" });
     try {
-      execSync(`git commit -m "release: v${VERSION} - fix Bot Buttons persistence, polling overwrites & custom button reordering"`);
+      execSync(`git commit -m "release: v${VERSION} - fix SSL SNI hostname matching & certificate issuance reliability"`);
     } catch {
       console.log("No new changes to commit, proceeding...");
     }
@@ -149,20 +159,20 @@ async function run() {
     const payload = {
       tag_name: `v${VERSION}`,
       target_commitish: "main",
-      name: `v${VERSION} - Fix Bot Buttons Persistence, Polling Overwrites & Custom Button Reordering`,
+      name: `v${VERSION} - Fix SSL SNI Hostname Matching & Certificate Issuance`,
       body: `### Daltoon Bot & Dashboard v${VERSION} Release 🚀
 
 Welcome to the **v${VERSION} release** of Daltoon Bot & Dashboard!
 
-#### 🛠️ Major Changes & Fixes in v${VERSION}:
-- **🔘 Permanent Fix for Bot Buttons ("دکمه‌های ربات") Not Saving / Reverting:**
-  - Unified duplicate \`useEffect([settings])\` hooks in \`BotButtonsPanel\` and added dirty-change tracking so background 6-second polling and SSE updates no longer overwrite unsaved label, color, emoji, visibility, or order edits.
-  - Added optimistic write-lock guards and async confirmation in \`saveSettings\` so stale in-flight \`/api/data\` responses never revert newly saved settings, and real database errors are surfaced immediately.
-- **✨ Custom Auto-Reply Buttons Fixes:**
-  - Added \`POST /api/custom-buttons/reorder\` so reordering custom buttons persists immediately to SQLite instead of reverting.
-  - Hardened \`/api/custom-buttons\` and \`/api/custom-buttons/delete\` with fresh DB reads, missing-array initialization, string ID matching, write verification, and visible error handling.
-- **🛡️ Database Safeguard Refinement:**
-  - Updated the SQLite empty-wipe safeguard in \`writeSqliteDb\` so legitimate settings and custom-button saves on fresh or small installs are never falsely blocked.`,
+#### 🔒 Major SSL & HTTPS Fixes in v${VERSION}:
+- **🌐 Fix \`NET::ERR_CERT_COMMON_NAME_INVALID\` on Custom Domains (SNI Matching):**
+  - Updated HTTPS \`SNICallback\` and certificate resolver in \`server.ts\` using \`X509Certificate.checkHost\` / \`checkIP\` so the panel always serves the exact certificate covering the requested hostname (preferring CA-signed certs over self-signed fallback or stale IP certificates).
+  - Automatically clears cached TLS contexts upon SSL verification/settings updates and generates SAN-enabled \`/tmp/self.cert\` fallback when configured with a domain.
+  - Updated \`sslEnforcer\` middleware and \`getSystemSettings\` so domain certificates are prioritized over raw IP directories in \`/root/cert\`.
+- **🛠️ Hardened SSL Issuance in \`daltoon-dashboard\` & \`install.sh\`:**
+  - Normalized domain inputs (stripping \`https://\`, paths, and \`:port\`) and fixed the top-level \`local\` keyword syntax error in \`install.sh\`.
+  - Tracked ACME vs Certbot vs self-signed issuance separately so stale \`~/.acme.sh\` files never overwrite a newly issued Certbot certificate.
+  - Added \`-config\` SAN fallback for older OpenSSL versions when \`-addext\` is unsupported, plus explicit \`Subject / Issuer / SAN\` inspection in \`daltoon-dashboard\` SSL option 4 (reading both SQLite and JSON databases).`,
       draft: false,
       prerelease: false,
     };
